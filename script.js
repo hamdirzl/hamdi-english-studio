@@ -4,15 +4,39 @@
 let currentUser = null;
 let userRole = null; 
 
-const defaultMonths = [
+let months = [
     { id: 'm1', title: 'Month 1', weeks: [1, 2, 3, 4] },
     { id: 'm2', title: 'Month 2', weeks: [1, 2, 3, 4] }
 ];
-let months = JSON.parse(localStorage.getItem('hes_months')) || defaultMonths;
-let materials = JSON.parse(localStorage.getItem('hes_materials')) || {};
-let students = JSON.parse(localStorage.getItem('hes_students')) || [
+let materials = {};
+let students = [
     { email: 'murid@gmail.com', password: '123', name: 'Murid Pertama' }
 ];
+
+// ==== SINKRONISASI DATA ONLINE DARI SUPABASE ====
+async function fetchCloudData() {
+    try {
+        const { data, error } = await window.supabaseClient.from('app_data').select('*');
+        if (data) {
+            const mData = data.find(d => d.key === 'hes_months');
+            const matData = data.find(d => d.key === 'hes_materials');
+            
+            // Perbarui dengan data dari database cloud jika ada
+            if (mData && mData.value) months = mData.value;
+            if (matData && matData.value) materials = matData.value;
+            
+            // Update sidebar & tampilan jika murid sedang aktif / berada di dalam kelas
+            if (currentUser) {
+                renderSidebar();
+                // Opsional: jika sedang buka halaman materi, tidak render dashboard otomatis agar murid tidak ter-reset tampilannya
+            }
+        }
+    } catch (e) {
+        console.error("Gagal sinkronisasi data online", e);
+    }
+}
+// Jalankan saat halaman web pertama kali dimuat
+fetchCloudData();
 
 // ==== ELEMEN DOM ====
 const loginPage = document.getElementById('login-page');
@@ -410,17 +434,27 @@ function renderAdminCMS() {
     `;
 }
 
-window.addNewMonth = function() {
+window.addNewMonth = async function() {
     const nextNum = months.length + 1;
     const newMonth = { id: `m${nextNum}`, title: `Month ${nextNum}`, weeks: [1, 2, 3, 4] };
     months.push(newMonth);
-    localStorage.setItem('hes_months', JSON.stringify(months));
-    alert(`Sukses! Month ${nextNum} berhasil ditambahkan.`);
-    renderSidebar(); 
-    renderAdminCMS();
+    
+    // Simpan ke Supabase
+    const { error } = await window.supabaseClient
+        .from('app_data')
+        .upsert([{ key: 'hes_months', value: months }]);
+
+    if (error) {
+        alert("Gagal menambahkan bulan secara online: " + error.message);
+        months.pop(); // Batalkan penambahan ke memori
+    } else {
+        alert(`Sukses! Month ${nextNum} berhasil ditambahkan secara online.`);
+        renderSidebar(); 
+        renderAdminCMS();
+    }
 };
 
-window.saveMaterialData = function() {
+window.saveMaterialData = async function() {
     const m = document.getElementById('admin-month').value;
     const w = document.getElementById('admin-week').value;
     const d = document.getElementById('admin-day').value;
@@ -430,9 +464,16 @@ window.saveMaterialData = function() {
     if(link) materials[`${m}-w${w}-d${d}-link`] = link;
     if(recap) materials[`${m}-w${w}-d${d}-recap`] = recap;
     
-    localStorage.setItem('hes_materials', JSON.stringify(materials));
-    
-    alert(`Materi dan Recap untuk ${m} Week ${w} Day ${d} berhasil disimpan!`);
-    document.getElementById('admin-link').value = '';
-    document.getElementById('admin-recap').value = '';
+    // Simpan ke Supabase
+    const { error } = await window.supabaseClient
+        .from('app_data')
+        .upsert([{ key: 'hes_materials', value: materials }]);
+
+    if (error) {
+        alert("Gagal menyimpan materi ke server: " + error.message);
+    } else {
+        alert(`Materi dan Recap untuk ${m} Week ${w} Day ${d} berhasil disimpan secara Online! Semua siswa kini bisa melihatnya.`);
+        document.getElementById('admin-link').value = '';
+        document.getElementById('admin-recap').value = '';
+    }
 };
