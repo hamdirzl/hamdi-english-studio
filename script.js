@@ -30,6 +30,7 @@ function getDisplayDate(dateObj) {
     return `${dayNames[dateObj.getDay()]}, ${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 }
 
+// Mengecek apakah seorang murid memiliki jadwal pada tanggal spesifik
 function isOccupied(email, targetDateStr) {
     let p = materials[`profile-${email}`];
     if(!p || !p.time || !p.days) return false;
@@ -160,7 +161,7 @@ function handleLogout() {
     loginError.classList.add('hidden'); appPage.classList.add('hidden'); loginPage.classList.remove('hidden');
 }
 
-// ==== RENDER SIDEBAR (GEMBOK BULAN) ====
+// ==== RENDER SIDEBAR ====
 function renderSidebar() {
     let menuHTML = '<div class="space-y-2">';
 
@@ -433,7 +434,10 @@ window.submitVocab = async function(m, w, d) {
     document.body.style.cursor = 'default';
     
     if (error) alert("Error: " + error.message);
-    else renderMateri(m, w, d, months.find(mo=>mo.id===m).title);
+    else {
+        let monthTitle = months.find(mo=>mo.id===m)?.title || 'Materi';
+        renderMateri(m, w, d, monthTitle);
+    }
 }
 
 function renderMateri(monthId, week, day, monthTitle) {
@@ -445,7 +449,7 @@ function renderMateri(monthId, week, day, monthTitle) {
     let linkDrive = parseDriveLink(rawLink);
     let recapDrive = parseDriveLink(rawRecap);
 
-    // FITUR BARU: DAILY VOCABULARY
+    // FITUR: KARTU GESER (SWIPEABLE) DAILY VOCABULARY
     let vocabData = materials[`vocab-${monthId}-w${week}-d${day}`] || '';
     let vocabStatus = materials[`vocab_status-${email}-${monthId}-w${week}-d${day}`] || { status: 'none', feedback: '' };
     
@@ -457,9 +461,9 @@ function renderMateri(monthId, week, day, monthTitle) {
             let en = parts[0] ? parts[0].trim() : '';
             let idText = parts[1] ? parts[1].trim() : '';
             return `
-                <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-center shadow-sm hover:bg-blue-100 transition-colors flex flex-col justify-center min-h-[80px]">
-                    <p class="font-bold text-blue-900 md:text-lg text-base">${en}</p>
-                    <p class="text-xs font-semibold text-blue-600 mt-1">${idText}</p>
+                <div class="snap-center shrink-0 w-48 md:w-56 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-2xl border border-blue-100 text-center shadow-sm flex flex-col justify-center min-h-[100px]">
+                    <p class="font-bold text-indigo-900 text-lg md:text-xl">${en}</p>
+                    <p class="text-xs md:text-sm font-semibold text-blue-600 mt-1">${idText}</p>
                 </div>
             `;
         }).join('');
@@ -481,12 +485,15 @@ function renderMateri(monthId, week, day, monthTitle) {
                 <h3 class="text-xl font-bold text-slate-800 flex items-center">
                     <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mr-3"><i class="fas fa-spell-check"></i></div> Daily Vocabulary (Word Bank)
                 </h3>
-                <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
-                    <p class="text-slate-500 text-sm font-medium mb-6"><i class="fas fa-info-circle text-blue-400"></i> Hafalkan kata-kata ini sebelum sesi pertemuan dimulai agar kelas berjalan maksimal.</p>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 relative">
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 md:hidden animate-pulse pointer-events-none"><i class="fas fa-chevron-right text-2xl"></i></div>
+                    <p class="text-slate-500 text-sm font-medium mb-4"><i class="fas fa-info-circle text-blue-400"></i> Geser kartu ke samping untuk melihat semua kata.</p>
+                    
+                    <div class="flex overflow-x-auto gap-4 pb-4 snap-x custom-scrollbar">
                         ${wordCards}
                     </div>
-                    ${userRole === 'student' ? actionUI : '<div class="mt-6 text-slate-500 text-sm text-center italic border-t border-slate-100 pt-4">Tampilan Word Bank. Status hafalan hanya muncul di akun murid.</div>'}
+
+                    ${userRole === 'student' ? actionUI : '<div class="mt-4 text-slate-500 text-sm text-center italic border-t border-slate-100 pt-4">Tampilan Word Bank. Status hafalan hanya muncul di akun murid.</div>'}
                 </div>
             </div>
         `;
@@ -1079,7 +1086,6 @@ window.saveStudentSchedule = async function(e) {
     const checkboxes = document.querySelectorAll('.admin-day-cb:checked');
     const selectedDays = Array.from(checkboxes).map(cb => cb.value);
 
-    // Cek tabrakan untuk jadwal Default
     if (selectedDays.length > 0 && startTime && endTime) {
         let clashingNames = [];
         
