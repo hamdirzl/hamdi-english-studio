@@ -28,6 +28,10 @@ async function fetchCloudData() {
             
             if (currentUser) {
                 renderSidebar();
+                // Jika ada di halaman dashboard, render ulang agar data terbaru muncul
+                if (document.getElementById('main-content').innerHTML.includes('Welcome Back')) {
+                    renderDashboard(); 
+                }
             }
         }
     } catch (e) {
@@ -185,76 +189,109 @@ function autoCloseSidebar() {
     }
 }
 
-// ==== HALAMAN DASHBOARD & PROGRESS LOGIC ====
+// ==== HALAMAN DASHBOARD (TERMASUK PREMIUM JADWAL UI) ====
 function renderDashboard() {
     autoCloseSidebar();
     
-    // Kalkulasi Progress Murid
+    if (userRole === 'admin') {
+        mainContent.innerHTML = `
+            <div class="max-w-5xl mx-auto fade-in">
+                <div class="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-3xl p-8 md:p-10 text-white shadow-xl shadow-indigo-200 mb-8 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+                    <div class="relative z-10">
+                        <h2 class="text-3xl md:text-4xl font-bold mb-3">Welcome Back, Bro Hamdi! 🚀</h2>
+                        <p class="text-indigo-100 text-lg max-w-xl">Ayo kelola materi dan jadwal kelas untuk murid-murid di Hamdi Studio.</p>
+                    </div>
+                </div>
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-center">
+                    <div class="w-16 h-16 mx-auto bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 mb-4 text-2xl"><i class="fas fa-users"></i></div>
+                    <h3 class="text-2xl font-bold text-slate-800">Total Murid: ${students.length} Orang</h3>
+                    <p class="text-slate-500 mt-2">Buka menu <b>Admin CMS</b> di sebelah kiri untuk mengatur Jadwal, Status Premium, dan Materi PDF per murid.</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // --- LOGIKA UNTUK MURID ---
     let latestMonth = "Belum Ada";
     let latestWeek = "-";
     let latestDay = "-";
     let progressText = "Belum ada materi yang tersedia untukmu saat ini.";
     
-    if (userRole === 'student') {
-        months.forEach(m => {
-            m.weeks.forEach(w => {
-                [1,2,3].forEach(d => {
-                    const keyStudentMat = `${currentUser.email}-${m.id}-w${w}-d${d}-link`;
-                    const keyAllMat = `all-${m.id}-w${w}-d${d}-link`;
-                    if (materials[keyStudentMat] || materials[keyAllMat]) {
-                        latestMonth = m.title;
-                        latestWeek = w;
-                        latestDay = d;
-                        progressText = `Kamu saat ini berada di <b>${m.title} - Week ${w} Day ${d}</b>. Mari lanjutkan pelajaranmu!`;
-                    }
-                });
+    // Cek progress materi
+    months.forEach(m => {
+        m.weeks.forEach(w => {
+            [1,2,3].forEach(d => {
+                if (materials[`${currentUser.email}-${m.id}-w${w}-d${d}-link`] || materials[`all-${m.id}-w${w}-d${d}-link`]) {
+                    latestMonth = m.title; latestWeek = w; latestDay = d;
+                    progressText = `Kamu saat ini berada di <b>${m.title} - Week ${w} Day ${d}</b>. Mari lanjutkan pelajaranmu!`;
+                }
             });
         });
-    } else {
-        progressText = `Gunakan menu Admin CMS untuk mengelola materi murid. Total murid saat ini: <b>${students.length}</b>.`;
-    }
+    });
+
+    // Ambil Data Profil & Jadwal (Premium Status)
+    let profile = materials[`profile-${currentUser.email}`] || {
+        status: '🎓 Regular Student',
+        validUntil: 'Menunggu konfirmasi',
+        nextSched: 'Belum ada jadwal kelas terdekat'
+    };
+
+    let isPremium = profile.status.includes('Premium') || profile.status.includes('VIP');
+    let badgeClass = isPremium ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-white shadow-md shadow-amber-200' : 'bg-slate-200 text-slate-700';
+    let iconCrown = isPremium ? '<i class="fas fa-crown mr-1"></i> ' : '';
 
     mainContent.innerHTML = `
         <div class="max-w-5xl mx-auto fade-in">
-            <!-- Banner -->
+            <!-- Banner Dashboard -->
             <div class="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-3xl p-8 md:p-10 text-white shadow-xl shadow-indigo-200 mb-8 relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
                 <div class="relative z-10">
-                    <h2 class="text-3xl md:text-4xl font-bold mb-3">Welcome Back, ${currentUser.name.split(' ')[0]}! 🚀</h2>
+                    <div class="flex flex-wrap items-center gap-3 mb-3">
+                        <h2 class="text-3xl md:text-4xl font-bold">Welcome Back, ${currentUser.name.split(' ')[0]}!</h2>
+                        <span class="px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide ${badgeClass}">${iconCrown}${profile.status}</span>
+                    </div>
                     <p class="text-indigo-100 text-lg max-w-xl">Konsistensi adalah kunci kesuksesan dalam berbahasa Inggris.</p>
                 </div>
             </div>
 
             <!-- Cards Info -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- PREMIUM SCHEDULE CARD (Kartu Mewah) -->
+                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 md:p-8 rounded-3xl shadow-xl border border-slate-700 relative overflow-hidden text-white group hover:shadow-2xl hover:shadow-amber-900/20 transition-all">
+                    <!-- Efek Cahaya Emas -->
+                    <div class="absolute top-[-30%] right-[-10%] w-56 h-56 bg-amber-500 rounded-full mix-blend-overlay filter blur-3xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
+                    
+                    <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-amber-400 mb-5 backdrop-blur-md border border-white/10">
+                        <i class="fas fa-calendar-check text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-1">Jadwal Kelas Terdekat</h3>
+                    <p class="text-slate-400 text-sm font-medium mb-5">Persiapkan dirimu, pastikan hadir tepat waktu (On Time).</p>
+                    
+                    <div class="bg-black/20 border border-white/10 rounded-2xl p-4 md:p-5 flex items-center gap-4 relative z-10 backdrop-blur-sm">
+                        <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center shrink-0 border border-amber-500/30">
+                            <i class="fas fa-clock text-lg"></i>
+                        </div>
+                        <div>
+                            <p class="font-bold text-lg md:text-xl text-white mb-0.5 tracking-wide">${profile.nextSched}</p>
+                            <p class="text-xs font-semibold text-amber-400/80 uppercase tracking-wider">Masa Aktif: ${profile.validUntil}</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Progress Card -->
                 <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                     <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 mb-5">
                         <i class="fas fa-chart-line text-xl"></i>
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 mb-3">Progress Belajarmu</h3>
-                    <p class="text-slate-600 font-medium mb-4 leading-relaxed">${progressText}</p>
+                    <p class="text-slate-600 font-medium mb-6 leading-relaxed">${progressText}</p>
                     
-                    ${userRole === 'student' ? `
-                    <div class="flex gap-2">
-                        <span class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold">${latestMonth}</span>
-                        <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold">Week ${latestWeek}</span>
-                        <span class="px-3 py-1 bg-sky-50 text-sky-700 rounded-lg text-sm font-semibold">Day ${latestDay}</span>
-                    </div>
-                    ` : ''}
-                </div>
-
-                <!-- Tips Card -->
-                <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-                    <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 mb-5">
-                        <i class="fas fa-lightbulb text-xl"></i>
-                    </div>
-                    <h3 class="text-xl font-bold text-slate-800 mb-3">Tips dari Bro Hamdi</h3>
-                    <p class="text-slate-600 font-medium leading-relaxed mb-4">
-                        "Jangan takut salah saat mempraktikkan materi. Kesalahan adalah bukti bahwa kamu sedang belajar dan mencoba."
-                    </p>
-                    <div class="inline-flex items-center px-4 py-2 bg-slate-50 rounded-lg text-sm font-semibold text-slate-700 border border-slate-100">
-                        <i class="fas fa-fire text-orange-500 mr-2"></i> Keep the spirit high!
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm font-bold shadow-sm">${latestMonth}</span>
+                        <span class="px-3 py-1.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold shadow-sm">Week ${latestWeek}</span>
+                        <span class="px-3 py-1.5 bg-sky-50 border border-sky-100 text-sky-700 rounded-lg text-sm font-bold shadow-sm">Day ${latestDay}</span>
                     </div>
                 </div>
             </div>
@@ -276,8 +313,6 @@ function parseDriveLink(link) {
 
 function renderMateri(monthId, week, day, monthTitle) {
     autoCloseSidebar();
-    
-    // Cari data spesifik untuk murid ini dulu, jika tidak ada, cari data "all" (semua murid)
     const email = currentUser.email;
     let rawLink = materials[`${email}-${monthId}-w${week}-d${day}-link`] || materials[`all-${monthId}-w${week}-d${day}-link`] || '';
     let rawRecap = materials[`${email}-${monthId}-w${week}-d${day}-recap`] || materials[`all-${monthId}-w${week}-d${day}-recap`] || '';
@@ -318,15 +353,12 @@ function renderMateri(monthId, week, day, monthTitle) {
 
             <!-- Tampilan Penuh / Vertikal -->
             <div class="flex flex-col space-y-10">
-                <!-- Section Materi Utama -->
                 <div class="space-y-4">
                     <h3 class="text-xl font-bold text-slate-800 flex items-center">
                         <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center text-red-500 mr-3"><i class="fas fa-file-pdf"></i></div> Materi Utama (Presentation Slide)
                     </h3>
                     ${pdfViewerHTML}
                 </div>
-
-                <!-- Section Recap PDF -->
                 <div class="space-y-4">
                     <h3 class="text-xl font-bold text-slate-800 flex items-center">
                         <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-600 mr-3"><i class="fas fa-clipboard-check"></i></div> Daily Recap
@@ -397,8 +429,6 @@ function renderAdminCMS() {
     const monthOptions = months.map(m => `<option value="${m.id}">${m.title}</option>`).join('');
     const weekOptions = [1,2,3,4].map(w => `<option value="${w}">Week ${w}</option>`).join('');
     const dayOptions = [1,2,3].map(d => `<option value="${d}">Day ${d}</option>`).join('');
-    
-    // Dropdown murid
     const studentOptions = students.map(s => `<option value="${s.email}">${s.name} (${s.email})</option>`).join('');
 
     mainContent.innerHTML = `
@@ -410,10 +440,46 @@ function renderAdminCMS() {
                 <p class="text-slate-500 font-medium ml-14">Kelola konten, data murid, dan personalisasi materi.</p>
             </div>
 
+            <!-- PANEL BARU: STATUS LANGGANAN & JADWAL KELAS -->
+            <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+                    <i class="fas fa-crown text-amber-500"></i> Kelola Status Premium & Jadwal Sesi Murid
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Pilih Murid</label>
+                        <select id="admin-profile-student" class="w-full border border-slate-200 py-3 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500">
+                            ${studentOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Status Langganan</label>
+                        <select id="admin-subs-status" class="w-full border border-slate-200 py-3 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500">
+                            <option value="👑 VIP Exclusive">👑 VIP Exclusive</option>
+                            <option value="🌟 Premium Member">🌟 Premium Member</option>
+                            <option value="🎓 Regular Student">🎓 Regular Student</option>
+                            <option value="⏳ Free Trial">⏳ Free Trial</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Berlaku Sampai</label>
+                        <input type="date" id="admin-subs-date" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50 text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Sesi Terdekat (Hari/Tgl/Jam)</label>
+                        <input type="text" id="admin-next-sched" placeholder="Senin, 28 Sept - 19:30" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50 text-slate-700">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button onclick="saveStudentProfile(event)" class="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-3 rounded-xl hover:from-amber-600 hover:to-amber-700 font-bold transition shadow-lg shadow-amber-200/50 flex items-center justify-center gap-2">
+                        <i class="fas fa-save"></i> Update Profil Murid
+                    </button>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <!-- Panel Kiri: Kelola Bulan & Tambah Murid -->
                 <div class="space-y-6 lg:col-span-1">
-                    <!-- Panel Tambah Bulan -->
                     <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                         <div class="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 mb-4">
                             <i class="fas fa-folder-plus text-xl"></i>
@@ -425,7 +491,6 @@ function renderAdminCMS() {
                         </button>
                     </div>
 
-                    <!-- Panel Tambah Murid -->
                     <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                         <div class="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 mb-4">
                             <i class="fas fa-user-plus text-xl"></i>
@@ -449,7 +514,6 @@ function renderAdminCMS() {
                             <i class="fas fa-edit text-indigo-500"></i> Input Materi & PDF Recap
                         </h3>
                         
-                        <!-- Pilihan Murid -->
                         <div class="mb-6 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                             <label class="block text-sm font-bold text-indigo-800 mb-2">Terapkan Materi Ini Untuk:</label>
                             <select id="admin-target-student" class="w-full border border-slate-200 py-3 px-4 rounded-xl bg-white font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm">
@@ -459,7 +523,6 @@ function renderAdminCMS() {
                             <p class="text-xs text-indigo-500 mt-2 font-medium">Jika memilih murid tertentu, materi ini hanya akan terlihat oleh murid tersebut (Personalized).</p>
                         </div>
 
-                        <!-- Pilihan Waktu -->
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Bulan</label>
@@ -475,7 +538,6 @@ function renderAdminCMS() {
                             </div>
                         </div>
                         
-                        <!-- Input Link PDF -->
                         <div class="space-y-5">
                             <div>
                                 <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><i class="fab fa-google-drive text-blue-500"></i> Link PDF Materi Utama</label>
@@ -500,21 +562,49 @@ function renderAdminCMS() {
 }
 
 // ==== FUNGSI ADMIN DATABASE ====
+
+// Simpan Status Langganan & Jadwal (Baru)
+window.saveStudentProfile = async function(e) {
+    const email = document.getElementById('admin-profile-student').value;
+    const status = document.getElementById('admin-subs-status').value;
+    const dateInput = document.getElementById('admin-subs-date').value;
+    const nextSched = document.getElementById('admin-next-sched').value;
+
+    let formattedDate = 'Belum diatur';
+    if (dateInput) {
+        const d = new Date(dateInput);
+        if(!isNaN(d)) formattedDate = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        else formattedDate = dateInput;
+    }
+
+    materials[`profile-${email}`] = {
+        status: status,
+        validUntil: formattedDate,
+        nextSched: nextSched || 'Silakan cek grup WhatsApp/Admin'
+    };
+
+    const btn = e.currentTarget;
+    const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    btn.disabled = true;
+
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+
+    btn.innerHTML = origText;
+    btn.disabled = false;
+
+    if (error) alert("Gagal menyimpan profil: " + error.message);
+    else alert(`Status Premium & Jadwal untuk akun ${email} berhasil di-update secara Online!`);
+}
+
 window.addNewMonth = async function() {
     const nextNum = months.length + 1;
     const newMonth = { id: `m${nextNum}`, title: `Month ${nextNum}`, weeks: [1, 2, 3, 4] };
     months.push(newMonth);
     
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_months', value: months }]);
-
-    if (error) {
-        alert("Gagal menambahkan bulan secara online: " + error.message);
-        months.pop();
-    } else {
-        alert(`Sukses! Month ${nextNum} berhasil ditambahkan secara online.`);
-        renderSidebar(); 
-        renderAdminCMS();
-    }
+    if (error) { alert("Gagal menambahkan bulan secara online: " + error.message); months.pop(); } 
+    else { alert(`Sukses! Month ${nextNum} ditambahkan.`); renderSidebar(); renderAdminCMS(); }
 };
 
 window.addNewStudent = async function() {
@@ -522,22 +612,13 @@ window.addNewStudent = async function() {
     const email = document.getElementById('new-stu-email').value;
     const pass = document.getElementById('new-stu-pass').value;
 
-    if(!name || !email || !pass) {
-        alert("Harap lengkapi Nama, Email, dan Password murid.");
-        return;
-    }
+    if(!name || !email || !pass) { alert("Harap lengkapi Nama, Email, dan Password murid."); return; }
 
     students.push({ name: name, email: email, password: pass });
-
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_students', value: students }]);
 
-    if (error) {
-        alert("Gagal menyimpan murid: " + error.message);
-        students.pop();
-    } else {
-        alert(`Akun murid ${name} berhasil dibuat!`);
-        renderAdminCMS(); // Re-render agar murid masuk ke dropdown materi
-    }
+    if (error) { alert("Gagal menyimpan murid: " + error.message); students.pop(); } 
+    else { alert(`Akun murid ${name} berhasil dibuat!`); renderAdminCMS(); }
 }
 
 window.saveMaterialData = async function() {
@@ -548,17 +629,14 @@ window.saveMaterialData = async function() {
     const link = document.getElementById('admin-link').value;
     const recap = document.getElementById('admin-recap-pdf').value;
     
-    // Format Key dinamis (berdasarkan target murid atau 'all')
     const keyPrefix = `${targetStudent}-${m}-w${w}-d${d}`;
-    
     if(link) materials[`${keyPrefix}-link`] = link;
     if(recap) materials[`${keyPrefix}-recap`] = recap;
     
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
 
-    if (error) {
-        alert("Gagal menyimpan materi ke server: " + error.message);
-    } else {
+    if (error) { alert("Gagal menyimpan materi ke server: " + error.message); } 
+    else {
         const info = targetStudent === 'all' ? "Semua Murid" : targetStudent;
         alert(`Berhasil! Materi & Recap diset untuk: ${info} (Sesi: ${m} W${w} D${d})`);
         document.getElementById('admin-link').value = '';
