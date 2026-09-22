@@ -30,7 +30,6 @@ function getDisplayDate(dateObj) {
     return `${dayNames[dateObj.getDay()]}, ${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 }
 
-// Mengecek apakah seorang murid memiliki jadwal pada tanggal spesifik (Mempertimbangkan Default & Reschedule)
 function isOccupied(email, targetDateStr) {
     let p = materials[`profile-${email}`];
     if(!p || !p.time || !p.days) return false;
@@ -38,23 +37,21 @@ function isOccupied(email, targetDateStr) {
     let targetDate = parseDateStr(targetDateStr);
     let dayName = dayNames[targetDate.getDay()];
     
-    // Cek apakah tanggal target sudah melewati masa aktif langganan
     let validDate = new Date(p.validUntil);
-    validDate.setHours(23,59,59,999);
-    if (targetDate > validDate) return false;
+    if (!isNaN(validDate)) {
+        validDate.setHours(23,59,59,999);
+        if (targetDate > validDate) return false;
+    }
 
     let isDefault = p.days.includes(dayName);
     let reschedules = p.reschedules || {}; 
     
-    // Apakah jadwal default hari ini dipindahkan ke hari lain?
     let movedAway = reschedules[targetDateStr] !== undefined;
-    // Apakah ada jadwal dari hari lain yang dipindahkan ke hari ini?
     let movedHere = Object.values(reschedules).includes(targetDateStr);
     
     return (isDefault && !movedAway) || movedHere;
 }
 
-// Cek tabrakan jam
 function checkOverlap(time1, time2) {
     if(!time1 || !time2 || !time1.includes('-') || !time2.includes('-')) return false;
     let [s1, e1] = time1.split('-').map(t => parseInt(t.trim().replace(':','')));
@@ -62,7 +59,6 @@ function checkOverlap(time1, time2) {
     return (s1 < e2) && (s2 < e1);
 }
 
-// Cari Sesi Terdekat Murid
 function getStudentNextSessionInfo(email) {
     let p = materials[`profile-${email}`];
     if (!p || !p.days || p.days.length === 0) return { error: 'Belum ada hari kelas yang dipilih.' };
@@ -70,15 +66,17 @@ function getStudentNextSessionInfo(email) {
     
     let today = new Date();
     today.setHours(0,0,0,0);
-    let validDate = new Date(p.validUntil);
-    validDate.setHours(23,59,59,999);
     
-    if (today > validDate) return { expired: true, validDateStr: getDisplayDate(validDate) };
+    let validDate = new Date(p.validUntil);
+    let isValid = !isNaN(validDate);
+    if (isValid) validDate.setHours(23,59,59,999);
+    
+    if (isValid && today > validDate) return { expired: true, validDateStr: getDisplayDate(validDate) };
     
     for(let i=0; i<30; i++) {
         let curr = new Date(today);
         curr.setDate(today.getDate() + i);
-        if (curr > validDate) break; 
+        if (isValid && curr > validDate) break; 
         
         let currStr = formatDateForID(curr);
         if (isOccupied(email, currStr)) {
@@ -86,7 +84,7 @@ function getStudentNextSessionInfo(email) {
                 dateStr: currStr,
                 displayDate: getDisplayDate(curr),
                 time: p.time,
-                validDateStr: getDisplayDate(validDate)
+                validDateStr: isValid ? getDisplayDate(validDate) : 'Belum diatur'
             };
         }
     }
@@ -119,7 +117,7 @@ async function fetchCloudData() {
 }
 fetchCloudData();
 
-// ==== ELEMEN DOM ====
+// ==== ELEMEN DOM & EVENT LISTENERS ====
 const loginPage = document.getElementById('login-page');
 const appPage = document.getElementById('app-page');
 const loginForm = document.getElementById('login-form');
@@ -128,12 +126,10 @@ const sidebar = document.getElementById('sidebar');
 const sidebarMenu = document.getElementById('sidebar-menu');
 const mainContent = document.getElementById('main-content');
 
-// ==== EVENT LISTENERS DASAR ====
 document.getElementById('open-sidebar').addEventListener('click', () => { sidebar.classList.remove('-translate-x-full'); });
 document.getElementById('close-sidebar').addEventListener('click', () => { sidebar.classList.add('-translate-x-full'); });
 document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
-// ==== LOGIKA LOGIN ====
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value;
@@ -164,7 +160,7 @@ function handleLogout() {
     loginError.classList.add('hidden'); appPage.classList.add('hidden'); loginPage.classList.remove('hidden');
 }
 
-// ==== RENDER SIDEBAR (DENGAN SISTEM GEMBOK BULAN) ====
+// ==== RENDER SIDEBAR (GEMBOK BULAN) ====
 function renderSidebar() {
     let menuHTML = '<div class="space-y-2">';
 
@@ -418,7 +414,7 @@ function renderDashboard() {
     `;
 }
 
-// ==== HALAMAN MATERI & RECAP ====
+// ==== HALAMAN MATERI, RECAP & DAILY VOCABULARY ====
 function parseDriveLink(link) {
     if (!link) return '';
     if (link.includes('drive.google.com/file/d/')) {
@@ -426,6 +422,18 @@ function parseDriveLink(link) {
         if (match && match[1]) return `https://drive.google.com/file/d/${match[1]}/preview`;
     }
     return link;
+}
+
+window.submitVocab = async function(m, w, d) {
+    let key = `vocab_status-${currentUser.email}-${m}-w${w}-d${d}`;
+    materials[key] = { status: 'submitted', feedback: '' };
+    
+    document.body.style.cursor = 'wait';
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+    document.body.style.cursor = 'default';
+    
+    if (error) alert("Error: " + error.message);
+    else renderMateri(m, w, d, months.find(mo=>mo.id===m).title);
 }
 
 function renderMateri(monthId, week, day, monthTitle) {
@@ -436,6 +444,53 @@ function renderMateri(monthId, week, day, monthTitle) {
 
     let linkDrive = parseDriveLink(rawLink);
     let recapDrive = parseDriveLink(rawRecap);
+
+    // FITUR BARU: DAILY VOCABULARY
+    let vocabData = materials[`vocab-${monthId}-w${week}-d${day}`] || '';
+    let vocabStatus = materials[`vocab_status-${email}-${monthId}-w${week}-d${day}`] || { status: 'none', feedback: '' };
+    
+    let vocabHTML = '';
+    if (vocabData) {
+        let words = vocabData.split('\n').filter(line => line.trim() !== '' && line.includes('='));
+        let wordCards = words.map(w => {
+            let parts = w.split('=');
+            let en = parts[0] ? parts[0].trim() : '';
+            let idText = parts[1] ? parts[1].trim() : '';
+            return `
+                <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-center shadow-sm hover:bg-blue-100 transition-colors flex flex-col justify-center min-h-[80px]">
+                    <p class="font-bold text-blue-900 md:text-lg text-base">${en}</p>
+                    <p class="text-xs font-semibold text-blue-600 mt-1">${idText}</p>
+                </div>
+            `;
+        }).join('');
+
+        let actionUI = '';
+        if (vocabStatus.status === 'none' || !vocabStatus.status) {
+            actionUI = `<button onclick="submitVocab('${monthId}', ${week}, ${day}')" class="w-full mt-6 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex items-center justify-center gap-2"><i class="fas fa-check-circle"></i> Saya Sudah Hafal Semua!</button>`;
+        } else if (vocabStatus.status === 'submitted') {
+            actionUI = `<div class="mt-6 text-amber-700 font-bold bg-amber-50 p-4 text-center rounded-xl border border-amber-200 flex items-center justify-center gap-2 shadow-inner"><i class="fas fa-hourglass-half fa-spin"></i> Menunggu Bro Hamdi memverifikasi hafalanmu...</div>`;
+        } else if (vocabStatus.status === 'approved') {
+            actionUI = `<div class="mt-6 text-green-800 font-bold bg-green-50 p-5 text-center rounded-xl border border-green-200 shadow-inner">
+                <div class="flex items-center justify-center gap-2 mb-2"><i class="fas fa-star text-yellow-500 text-xl"></i> <span class="text-lg">Hafalan Diverifikasi!</span> <i class="fas fa-star text-yellow-500 text-xl"></i></div>
+                <p class="text-sm font-medium text-green-700 bg-green-100/50 inline-block px-4 py-2 rounded-lg border border-green-200">Pesan Bro Hamdi: "${vocabStatus.feedback}"</p>
+            </div>`;
+        }
+
+        vocabHTML = `
+            <div class="space-y-4 mb-10">
+                <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mr-3"><i class="fas fa-spell-check"></i></div> Daily Vocabulary (Word Bank)
+                </h3>
+                <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+                    <p class="text-slate-500 text-sm font-medium mb-6"><i class="fas fa-info-circle text-blue-400"></i> Hafalkan kata-kata ini sebelum sesi pertemuan dimulai agar kelas berjalan maksimal.</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        ${wordCards}
+                    </div>
+                    ${userRole === 'student' ? actionUI : '<div class="mt-6 text-slate-500 text-sm text-center italic border-t border-slate-100 pt-4">Tampilan Word Bank. Status hafalan hanya muncul di akun murid.</div>'}
+                </div>
+            </div>
+        `;
+    }
 
     let pdfViewerHTML = linkDrive 
         ? `<div class="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 relative h-[80vh] w-full"><iframe src="${linkDrive}" class="absolute top-0 left-0 w-full h-full" allow="autoplay"></iframe></div>` 
@@ -466,6 +521,9 @@ function renderMateri(monthId, week, day, monthTitle) {
                     </p>
                 </div>
             </div>
+            
+            ${vocabHTML}
+
             <div class="flex flex-col space-y-10">
                 <div class="space-y-4">
                     <h3 class="text-xl font-bold text-slate-800 flex items-center">
@@ -512,7 +570,6 @@ window.processReschedule = async function(newDateStr) {
     }
 }
 
-// Fungsi Reaktif untuk Merender Ulang Grid Kalender Sesuai Minggu Terpilih
 window.updateRescheduleGrid = function() {
     let oldDateStr = document.getElementById('reschedule-old-day').value;
     const gridContainer = document.getElementById('reschedule-grid-container');
@@ -522,8 +579,6 @@ window.updateRescheduleGrid = function() {
     }
 
     let selectedDate = parseDateStr(oldDateStr);
-    
-    // Cari hari Senin di minggu jadwal yang dipilih (Terkunci ke minggu yang sama)
     let day = selectedDate.getDay();
     let diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1);
     let startOfWeek = new Date(selectedDate);
@@ -635,13 +690,19 @@ function renderReschedule() {
     } else {
         let upcomingOptions = [];
         let d = new Date(); d.setHours(0,0,0,0);
-        let validDate = new Date(p.validUntil); validDate.setHours(23,59,59,999);
+        let validDate = new Date(p.validUntil); 
+        let isValid = !isNaN(validDate);
+        if (isValid) validDate.setHours(23,59,59,999);
         
         let count = 1;
-        // DINAUKAN MENJADI 6 PERTEMUAN TERDEKAT AGAR SEMUA JADWAL DI MINGGU INI MUNCUL
-        for(let i=0; i<30 && upcomingOptions.length<6; i++) {
+        let limitHit = false;
+
+        for(let i=0; i<30 && upcomingOptions.length<3; i++) {
             let curr = new Date(d); curr.setDate(d.getDate()+i);
-            if (curr > validDate) break;
+            if (isValid && curr > validDate) {
+                limitHit = true;
+                break;
+            }
             
             let currStr = formatDateForID(curr);
             
@@ -651,11 +712,15 @@ function renderReschedule() {
             }
         }
 
+        if (limitHit && upcomingOptions.length > 0) {
+            upcomingOptions.push(`<option disabled>--- Terpotong batas masa aktif ---</option>`);
+        }
+
         rescheduleHeader = `
             <div class="bg-indigo-50/50 border border-indigo-100 p-6 rounded-3xl mb-8 shadow-sm">
                 <h4 class="font-bold text-indigo-900 mb-4 flex items-center gap-2 text-lg"><i class="fas fa-exchange-alt text-indigo-600"></i> Form Ganti Jadwal Mingguan</h4>
                 
-                <label class="block text-sm font-bold text-indigo-800 mb-2">Pilih kelas terdekat yang ingin diganti (Hingga 6 pertemuan ke depan):</label>
+                <label class="block text-sm font-bold text-indigo-800 mb-2">Pilih kelas terdekat yang ingin diganti (Maks 3 pertemuan ke depan):</label>
                 <div class="flex flex-col md:flex-row items-start md:items-center gap-4 mb-5">
                     <select id="reschedule-old-day" onchange="updateRescheduleGrid()" class="border border-indigo-200 py-3 px-4 rounded-xl bg-white font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm w-full md:w-96 cursor-pointer">
                         ${upcomingOptions.length > 0 ? upcomingOptions.join('') : '<option value="">Tidak ada kelas terdekat</option>'}
@@ -681,6 +746,51 @@ function renderReschedule() {
     if (!isBlocked) window.updateRescheduleGrid();
 }
 
+// ==== FUNGSI REVIEW HAFALAN ====
+window.checkVocabStatus = function() {
+    const email = document.getElementById('admin-review-student').value;
+    const m = document.getElementById('admin-review-month').value;
+    const w = document.getElementById('admin-review-week').value;
+    const d = document.getElementById('admin-review-day').value;
+    
+    let statusObj = materials[`vocab_status-${email}-${m}-w${w}-d${d}`];
+    let resDiv = document.getElementById('vocab-review-result');
+    
+    if (!statusObj || statusObj.status === 'none') {
+        resDiv.innerHTML = `<div class="p-4 bg-slate-50 text-slate-500 rounded-xl text-center font-medium border border-slate-200">Murid belum setor hafalan untuk sesi ini.</div>`;
+    } else if (statusObj.status === 'submitted') {
+        resDiv.innerHTML = `
+            <div class="p-5 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 shadow-inner">
+                <p class="font-bold mb-3 flex items-center gap-2"><i class="fas fa-bell text-amber-500"></i> Murid sudah siap direview!</p>
+                <input type="text" id="admin-feedback" placeholder="Ketik apresiasi (Misal: Great job, pertahankan!)..." class="w-full p-3 rounded-xl border border-amber-200 mb-3 outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                <button onclick="approveVocab('${email}', '${m}', '${w}', '${d}')" class="bg-amber-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-md hover:bg-amber-600 transition-colors w-full sm:w-auto">Approve & Kirim Apresiasi ✅</button>
+            </div>
+        `;
+    } else if (statusObj.status === 'approved') {
+        resDiv.innerHTML = `
+            <div class="p-5 bg-green-50 text-green-800 rounded-xl text-center border border-green-200 shadow-inner">
+                <div class="font-bold text-lg mb-2"><i class="fas fa-check-circle text-green-500"></i> Hafalan Selesai & Telah Anda Approve.</div>
+                <div class="text-sm font-medium bg-green-100/50 inline-block px-4 py-2 rounded-lg border border-green-200">Apresiasi Anda: "${statusObj.feedback}"</div>
+            </div>`;
+    }
+}
+
+window.approveVocab = async function(email, m, w, d) {
+    let feedback = document.getElementById('admin-feedback').value || 'Well done! Keep up the good work!';
+    let key = `vocab_status-${email}-${m}-w${w}-d${d}`;
+    materials[key] = { status: 'approved', feedback: feedback };
+
+    document.body.style.cursor = 'wait';
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+    document.body.style.cursor = 'default';
+    
+    if (error) alert("Error: " + error.message);
+    else {
+        alert("Apresiasi berhasil dikirim ke murid!");
+        checkVocabStatus();
+    }
+}
+
 // ==== HALAMAN ADMIN CMS ====
 function renderAdminCMS() {
     autoCloseSidebar();
@@ -699,6 +809,49 @@ function renderAdminCMS() {
                     <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center"><i class="fas fa-shield-alt"></i></div> Admin Workspace
                 </h2>
                 <p class="text-slate-500 font-medium ml-14">Kelola konten, data murid, dan penjadwalan kelas.</p>
+            </div>
+
+            <!-- PANEL BARU: INPUT VOCAB & REVIEW HAFALAN -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <!-- Input Vocab -->
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                    <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <i class="fas fa-book-open text-blue-500"></i> Input Daily Vocabulary
+                    </h3>
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <select id="admin-vocab-month" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${monthOptions}</select>
+                        <select id="admin-vocab-week" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${weekOptions}</select>
+                        <select id="admin-vocab-day" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${dayOptions}</select>
+                    </div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Word Bank (Inggris = Indonesia)</label>
+                    <textarea id="admin-vocab-list" rows="6" placeholder="Apple = Apel\nRun = Lari\nBeautiful = Cantik" class="w-full p-4 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-medium text-slate-700 resize-none"></textarea>
+                    <p class="text-xs text-slate-500 mt-2 mb-4"><i class="fas fa-info-circle"></i> Gunakan tanda sama dengan (=) untuk memisahkan kata dan arti. Satu kata per baris.</p>
+                    <button onclick="saveVocabList(event)" class="w-full bg-blue-600 text-white px-8 py-3.5 rounded-xl hover:bg-blue-700 font-bold transition shadow-lg shadow-blue-200 flex items-center justify-center gap-2">
+                        <i class="fas fa-save"></i> Simpan Word Bank
+                    </button>
+                </div>
+
+                <!-- Review Hafalan -->
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                    <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <i class="fas fa-check-double text-green-500"></i> Review Hafalan Murid
+                    </h3>
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Pilih Murid</label>
+                        <select id="admin-review-student" class="w-full border border-slate-200 py-2.5 px-4 rounded-xl bg-slate-50 text-slate-700 font-medium">${studentOptions}</select>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <select id="admin-review-month" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${monthOptions}</select>
+                        <select id="admin-review-week" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${weekOptions}</select>
+                        <select id="admin-review-day" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${dayOptions}</select>
+                    </div>
+                    <button onclick="checkVocabStatus()" class="w-full bg-slate-800 text-white px-8 py-3 rounded-xl hover:bg-slate-900 font-bold transition mb-6 shadow-md flex items-center justify-center gap-2">
+                        <i class="fas fa-search"></i> Cek Status Hafalan
+                    </button>
+                    <div id="vocab-review-result" class="min-h-[120px] border-t border-slate-100 pt-6">
+                        <p class="text-center text-slate-400 font-medium italic mt-4">Pilih murid dan sesi, lalu klik Cek Status.</p>
+                    </div>
+                </div>
             </div>
 
             <!-- PANEL: INPUT JADWAL & GEMBOK MATERI KELAS -->
@@ -744,7 +897,6 @@ function renderAdminCMS() {
                         <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="Jumat" class="admin-day-cb w-5 h-5 text-amber-600 rounded focus:ring-amber-500"> <span class="font-medium text-slate-700">Jumat</span></label>
                         <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="Sabtu" class="admin-day-cb w-5 h-5 text-amber-600 rounded focus:ring-amber-500"> <span class="font-medium text-slate-700">Sabtu</span></label>
                     </div>
-                    <p class="text-xs text-amber-600 mt-2 font-medium"><i class="fas fa-exclamation-triangle"></i> Centang SEMUA hari yang murid ambil agar form Reschedule mereka muncul dengan benar (Misal: Centang Rabu, Kamis, dan Jumat).</p>
                 </div>
                 <div class="flex justify-end">
                     <button onclick="saveStudentSchedule(event)" class="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-3.5 rounded-xl hover:from-amber-600 hover:to-amber-700 font-bold transition shadow-lg shadow-amber-200/50 flex items-center justify-center gap-2">
@@ -870,6 +1022,26 @@ function renderAdminCMS() {
 }
 
 // ==== FUNGSI ADMIN DATABASE ====
+
+window.saveVocabList = async function(e) {
+    const m = document.getElementById('admin-vocab-month').value;
+    const w = document.getElementById('admin-vocab-week').value;
+    const d = document.getElementById('admin-vocab-day').value;
+    const vocabText = document.getElementById('admin-vocab-list').value;
+
+    materials[`vocab-${m}-w${w}-d${d}`] = vocabText;
+
+    const btn = e.currentTarget; const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; btn.disabled = true;
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+    btn.innerHTML = origText; btn.disabled = false;
+    
+    if (error) alert("Error: " + error.message);
+    else {
+        alert(`Word Bank untuk Sesi ${m} W${w} D${d} berhasil disimpan!`);
+        document.getElementById('admin-vocab-list').value = '';
+    }
+}
 
 window.togglePassword = function(id) {
     const input = document.getElementById(id);
