@@ -30,7 +30,6 @@ function getDisplayDate(dateObj) {
     return `${dayNames[dateObj.getDay()]}, ${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 }
 
-// Mengecek apakah seorang murid memiliki jadwal pada tanggal spesifik (Mempertimbangkan Default & Reschedule)
 function isOccupied(email, targetDateStr) {
     let p = materials[`profile-${email}`];
     if(!p || !p.time || !p.days) return false;
@@ -38,23 +37,19 @@ function isOccupied(email, targetDateStr) {
     let targetDate = parseDateStr(targetDateStr);
     let dayName = dayNames[targetDate.getDay()];
     
-    // Cek apakah tanggal target sudah melewati masa aktif langganan
     let validDate = new Date(p.validUntil);
     validDate.setHours(23,59,59,999);
     if (targetDate > validDate) return false;
 
     let isDefault = p.days.includes(dayName);
-    let reschedules = p.reschedules || {}; // Format: { 'YYYY-MM-DD_lama': 'YYYY-MM-DD_baru' }
+    let reschedules = p.reschedules || {}; 
     
-    // Apakah jadwal default hari ini dipindahkan ke hari lain?
     let movedAway = reschedules[targetDateStr] !== undefined;
-    // Apakah ada jadwal dari hari lain yang dipindahkan ke hari ini?
     let movedHere = Object.values(reschedules).includes(targetDateStr);
     
     return (isDefault && !movedAway) || movedHere;
 }
 
-// Cek tabrakan jam (Misal 16:00-17:30 dengan 17:00-18:00)
 function checkOverlap(time1, time2) {
     if(!time1 || !time2 || !time1.includes('-') || !time2.includes('-')) return false;
     let [s1, e1] = time1.split('-').map(t => parseInt(t.trim().replace(':','')));
@@ -62,7 +57,6 @@ function checkOverlap(time1, time2) {
     return (s1 < e2) && (s2 < e1);
 }
 
-// Cari Sesi Terdekat Murid
 function getStudentNextSessionInfo(email) {
     let p = materials[`profile-${email}`];
     if (!p || !p.days || p.days.length === 0) return { error: 'Belum ada hari kelas yang dipilih.' };
@@ -75,11 +69,10 @@ function getStudentNextSessionInfo(email) {
     
     if (today > validDate) return { expired: true, validDateStr: getDisplayDate(validDate) };
     
-    // Cari dalam 30 hari ke depan, tanggal mana yang pertama kali "Occupied"
     for(let i=0; i<30; i++) {
         let curr = new Date(today);
         curr.setDate(today.getDate() + i);
-        if (curr > validDate) break; // Berhenti jika melewati masa aktif
+        if (curr > validDate) break; 
         
         let currStr = formatDateForID(curr);
         if (isOccupied(email, currStr)) {
@@ -120,7 +113,7 @@ async function fetchCloudData() {
 }
 fetchCloudData();
 
-// ==== ELEMEN DOM ====
+// ==== ELEMEN DOM & EVENT LISTENERS ====
 const loginPage = document.getElementById('login-page');
 const appPage = document.getElementById('app-page');
 const loginForm = document.getElementById('login-form');
@@ -129,12 +122,10 @@ const sidebar = document.getElementById('sidebar');
 const sidebarMenu = document.getElementById('sidebar-menu');
 const mainContent = document.getElementById('main-content');
 
-// ==== EVENT LISTENERS DASAR ====
 document.getElementById('open-sidebar').addEventListener('click', () => { sidebar.classList.remove('-translate-x-full'); });
 document.getElementById('close-sidebar').addEventListener('click', () => { sidebar.classList.add('-translate-x-full'); });
 document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
-// ==== LOGIKA LOGIN ====
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value;
@@ -165,7 +156,7 @@ function handleLogout() {
     loginError.classList.add('hidden'); appPage.classList.add('hidden'); loginPage.classList.remove('hidden');
 }
 
-// ==== RENDER SIDEBAR (DENGAN SISTEM GEMBOK BULAN) ====
+// ==== RENDER SIDEBAR ====
 function renderSidebar() {
     let menuHTML = '<div class="space-y-2">';
 
@@ -206,7 +197,7 @@ function renderSidebar() {
         if (isLocked) {
             menuHTML += `
                 <div class="rounded-xl overflow-hidden border border-slate-100 mb-1 opacity-70">
-                    <div class="px-4 py-3.5 flex justify-between items-center bg-slate-50 cursor-not-allowed" onclick="alert('Bulan ini masih terkunci (Tergembok) 🔒\\n\\nSelesaikan bulan sebelumnya atau hubungi Bro Hamdi untuk membuka akses ke ${month.title}.')">
+                    <div class="px-4 py-3.5 flex justify-between items-center bg-slate-50 cursor-not-allowed" onclick="alert('Bulan ini masih terkunci (Tergembok) 🔒\\n\\nSelesaikan bulan sebelumnya atau hubungi Bro Hamdi untuk membuka akses.')">
                         <div class="flex items-center gap-3 text-slate-400 font-semibold text-sm">
                             <i class="fas fa-lock text-slate-300"></i> ${month.title}
                         </div>
@@ -265,7 +256,6 @@ function renderDashboard() {
     autoCloseSidebar();
     
     if (userRole === 'admin') {
-        // ADMIN: Tampilkan Jadwal Aktual 7 Hari Kedepan
         let adminGridHTML = '';
         let todayAdmin = new Date(); todayAdmin.setHours(0,0,0,0);
         
@@ -337,6 +327,7 @@ function renderDashboard() {
     });
 
     let nextSesh = getStudentNextSessionInfo(currentUser.email);
+    let profile = materials[`profile-${currentUser.email}`] || {};
     let premiumCardContent = '';
     
     if (nextSesh.expired) {
@@ -389,7 +380,6 @@ function renderDashboard() {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- PREMIUM SCHEDULE CARD -->
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 md:p-8 rounded-3xl shadow-xl border border-slate-700 relative overflow-hidden text-white group hover:shadow-2xl hover:shadow-amber-900/20 transition-all">
                     <div class="absolute top-[-30%] right-[-10%] w-56 h-56 bg-amber-500 rounded-full mix-blend-overlay filter blur-3xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
                     <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-amber-400 mb-4 backdrop-blur-md border border-white/10">
@@ -400,14 +390,12 @@ function renderDashboard() {
                     ${premiumCardContent}
                 </div>
 
-                <!-- Progress Card -->
                 <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                     <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 mb-5">
                         <i class="fas fa-chart-line text-xl"></i>
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 mb-3">Progress Belajarmu</h3>
                     <p class="text-slate-600 font-medium mb-6 leading-relaxed">${progressText}</p>
-                    
                     <div class="flex flex-wrap gap-2">
                         <span class="px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm font-bold shadow-sm">${latestMonth}</span>
                         <span class="px-3 py-1.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold shadow-sm">Week ${latestWeek}</span>
@@ -485,7 +473,7 @@ function renderMateri(monthId, week, day, monthTitle) {
     `;
 }
 
-// ==== HALAMAN RESCHEDULE (HANYA BERLAKU UNTUK 1 HARI) ====
+// ==== HALAMAN RESCHEDULE SMART ====
 window.processReschedule = async function(newDateStr) {
     let oldDateStr = document.getElementById('reschedule-old-day').value;
     if (!oldDateStr) { alert('Silakan pilih jadwal yang ingin diganti terlebih dahulu.'); return; }
@@ -493,11 +481,10 @@ window.processReschedule = async function(newDateStr) {
     let oldDisplay = getDisplayDate(parseDateStr(oldDateStr));
     let newDisplay = getDisplayDate(parseDateStr(newDateStr));
 
-    if (confirm(`Yakin memindahkan kelas dari\n${oldDisplay}\n\nKe hari:\n${newDisplay}?\n\nJadwal Anda untuk minggu-minggu berikutnya akan tetap normal seperti biasa.`)) {
+    if (confirm(`Yakin memindahkan kelas dari:\n${oldDisplay}\n\nKe Tanggal:\n${newDisplay}?\n\nJadwal Anda untuk minggu-minggu berikutnya akan tetap normal seperti biasa.`)) {
         let p = materials[`profile-${currentUser.email}`];
         if(!p.reschedules) p.reschedules = {};
         
-        // Simpan permohonan ganti tanggal (Hanya 1 hari)
         p.reschedules[oldDateStr] = newDateStr;
         
         document.body.style.cursor = 'wait';
@@ -506,12 +493,111 @@ window.processReschedule = async function(newDateStr) {
         
         if (error) {
             alert("Gagal memindahkan jadwal: " + error.message);
-            delete p.reschedules[oldDateStr]; // Rollback
+            delete p.reschedules[oldDateStr]; 
         } else {
-            alert(`Berhasil! Kelasmu pada tanggal ${oldDateStr} telah dipindahkan ke ${newDateStr}.`);
+            alert(`Berhasil! Kelasmu telah dipindahkan ke tanggal ${newDateStr}.`);
             renderReschedule();
         }
     }
+}
+
+// Fungsi Reaktif untuk Merender Ulang Grid Kalender
+window.updateRescheduleGrid = function() {
+    let oldDateStr = document.getElementById('reschedule-old-day').value;
+    const gridContainer = document.getElementById('reschedule-grid-container');
+    if (!oldDateStr) {
+        gridContainer.innerHTML = '<p class="text-slate-500 col-span-full text-center py-4 font-medium">Pilih jadwal di atas terlebih dahulu untuk melihat slot yang tersedia.</p>';
+        return;
+    }
+
+    let selectedDate = parseDateStr(oldDateStr);
+    
+    // Cari hari Senin di minggu jadwal yang dipilih
+    let day = selectedDate.getDay();
+    let diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1);
+    let startOfWeek = new Date(selectedDate);
+    startOfWeek.setDate(diff);
+
+    let gridHTML = '';
+    let p = materials[`profile-${currentUser.email}`];
+
+    for(let i=0; i<7; i++) {
+        let curr = new Date(startOfWeek); curr.setDate(startOfWeek.getDate()+i);
+        let currStr = formatDateForID(curr);
+        let displayDay = getDisplayDate(curr);
+        
+        let today = new Date(); today.setHours(0,0,0,0);
+        let isPast = curr < today;
+
+        if (isOccupied(currentUser.email, currStr)) {
+            if (currStr === oldDateStr) {
+                 gridHTML += `<div class="p-5 rounded-2xl border border-indigo-400 bg-indigo-50 flex flex-col relative opacity-95 shadow-inner">
+                    <div class="font-bold text-indigo-900 text-sm mb-4 text-center border-b border-indigo-200 pb-2">${displayDay}</div>
+                    <div class="flex-1 flex flex-col justify-center items-center py-4">
+                        <i class="fas fa-calendar-times text-indigo-400 text-3xl mb-2"></i>
+                        <span class="text-sm font-bold text-indigo-600 text-center">Jadwal Asal<br>(Yang mau diganti)</span>
+                    </div>
+                </div>`;
+            } else {
+                 gridHTML += `<div class="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col relative opacity-75">
+                    <div class="font-bold text-slate-500 text-sm mb-4 text-center border-b border-slate-200 pb-2">${displayDay}</div>
+                    <div class="flex-1 flex flex-col justify-center items-center py-4">
+                        <i class="fas fa-calendar-check text-slate-400 text-3xl mb-2"></i>
+                        <span class="text-sm font-bold text-slate-500 text-center">Kamu sudah ada kelas lain di hari ini</span>
+                    </div>
+                </div>`;
+            }
+            continue;
+        }
+
+        if (isPast) {
+            gridHTML += `<div class="p-5 rounded-2xl border border-slate-200 bg-slate-100 flex flex-col relative opacity-50">
+                <div class="font-bold text-slate-400 text-sm mb-4 text-center border-b border-slate-200 pb-2">${displayDay}</div>
+                <div class="flex-1 flex flex-col justify-center items-center py-4">
+                    <span class="text-sm font-bold text-slate-400 text-center">Hari sudah lewat</span>
+                </div>
+            </div>`;
+            continue;
+        }
+
+        let clashingTime = null;
+        for (let s of students) {
+            if (s.email === currentUser.email) continue;
+            if (isOccupied(s.email, currStr)) {
+                let otherP = materials[`profile-${s.email}`];
+                if (checkOverlap(p.time, otherP.time)) {
+                    clashingTime = otherP.time;
+                    break;
+                }
+            }
+        }
+
+        if (clashingTime) {
+            gridHTML += `<div class="p-5 rounded-2xl border border-red-200 bg-white flex flex-col relative">
+                    <div class="font-bold text-slate-800 text-sm mb-4 text-center border-b border-slate-100 pb-2">${displayDay}</div>
+                    <div class="flex-1 flex flex-col justify-center gap-2 mb-4 py-2">
+                        <div class="text-xs font-bold text-red-600 bg-red-50 py-3 px-3 rounded-lg border border-red-100 text-center">
+                            <i class="fas fa-user-lock mb-2 text-xl block text-red-400"></i> Jam <b>${clashingTime}</b><br>Sudah di-booking
+                        </div>
+                    </div>
+                    <button disabled class="w-full mt-auto py-2.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-400 cursor-not-allowed">
+                        Terkunci
+                    </button>
+                </div>`;
+        } else {
+            gridHTML += `<div class="p-5 rounded-2xl border border-green-200 bg-white flex flex-col relative hover:shadow-xl transition-all hover:-translate-y-1 hover:border-green-400 group">
+                    <div class="font-bold text-slate-800 text-sm mb-4 text-center border-b border-slate-100 pb-2 group-hover:text-green-700 transition-colors">${displayDay}</div>
+                    <div class="flex-1 flex flex-col justify-center items-center py-4 mb-2">
+                        <i class="fas fa-check-circle text-green-500 text-4xl mb-3 group-hover:scale-110 transition-transform"></i>
+                        <span class="text-sm font-bold text-green-600 bg-green-50 px-4 py-1.5 rounded-full border border-green-100">Slot Tersedia</span>
+                    </div>
+                    <button onclick="processReschedule('${currStr}')" class="w-full mt-auto py-3 rounded-xl text-sm font-bold transition-all bg-green-600 text-white hover:bg-green-700 shadow-md shadow-green-200 group-hover:shadow-lg">
+                        Pindah ke Tanggal Ini
+                    </button>
+                </div>`;
+        }
+    }
+    gridContainer.innerHTML = gridHTML;
 }
 
 function renderReschedule() {
@@ -528,7 +614,7 @@ function renderReschedule() {
                 <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 shrink-0"><i class="fas fa-ban"></i></div>
                 <div>
                     <h4 class="font-bold text-red-800 mb-1">Akses Reschedule Terkunci</h4>
-                    <p class="text-red-700 text-sm leading-relaxed">Masa aktif langganan Anda telah habis pada <b>${nextSeshInfo.validDateStr}</b>. Anda belum berlangganan untuk kursus bulan berikutnya, sehingga tidak dapat memindahkan jadwal.</p>
+                    <p class="text-red-700 text-sm leading-relaxed">Masa aktif langganan Anda telah habis pada <b>${nextSeshInfo.validDateStr}</b>. Anda belum berlangganan untuk kursus bulan berikutnya, sehingga tidak dapat memindahkan jadwal. Hubungi Bro Hamdi untuk perpanjangan.</p>
                 </div>
             </div>`;
         isBlocked = true;
@@ -536,114 +622,51 @@ function renderReschedule() {
         rescheduleHeader = `<div class="bg-amber-50 text-amber-700 p-4 rounded-xl mb-6 border border-amber-200 font-medium"><i class="fas fa-info-circle mr-2"></i> Jadwal Anda belum diatur. Tunggu konfirmasi Admin.</div>`;
         isBlocked = true;
     } else {
-        // Cari 3 Jadwal Default Terdekat yang belum di-reschedule, untuk dimasukkan ke dropdown
         let upcomingOptions = [];
         let d = new Date(); d.setHours(0,0,0,0);
         let validDate = new Date(p.validUntil); validDate.setHours(23,59,59,999);
         
+        let count = 1;
         for(let i=0; i<30 && upcomingOptions.length<3; i++) {
             let curr = new Date(d); curr.setDate(d.getDate()+i);
             if (curr > validDate) break;
             
             let currStr = formatDateForID(curr);
-            let dayName = dayNames[curr.getDay()];
             
-            // Hanya tampilkan Hari Rutin (Default) yang BELUM dipindahkan
-            if (p.days.includes(dayName) && !(p.reschedules && p.reschedules[currStr])) {
-                upcomingOptions.push(`<option value="${currStr}">${getDisplayDate(curr)}</option>`);
+            if (isOccupied(currentUser.email, currStr)) {
+                upcomingOptions.push(`<option value="${currStr}">Pertemuan ${count}: ${getDisplayDate(curr)}</option>`);
+                count++;
             }
         }
 
         rescheduleHeader = `
             <div class="bg-indigo-50/50 border border-indigo-100 p-6 rounded-3xl mb-8 shadow-sm">
-                <h4 class="font-bold text-indigo-900 mb-4 flex items-center gap-2 text-lg"><i class="fas fa-exchange-alt text-indigo-600"></i> Form Ganti Jadwal Sementara</h4>
+                <h4 class="font-bold text-indigo-900 mb-4 flex items-center gap-2 text-lg"><i class="fas fa-exchange-alt text-indigo-600"></i> Form Ganti Jadwal Mingguan</h4>
                 
-                <label class="block text-sm font-bold text-indigo-800 mb-2">Pilih kelas terdekat yang tidak bisa Anda hadiri:</label>
+                <label class="block text-sm font-bold text-indigo-800 mb-2">Pilih kelas terdekat yang ingin diganti (Maks 3 pertemuan):</label>
                 <div class="flex flex-col md:flex-row items-start md:items-center gap-4 mb-5">
-                    <select id="reschedule-old-day" class="border border-indigo-200 py-3 px-4 rounded-xl bg-white font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm w-full md:w-80 cursor-pointer">
-                        ${upcomingOptions.length > 0 ? upcomingOptions.join('') : '<option value="">Tidak ada kelas rutin terdekat</option>'}
+                    <select id="reschedule-old-day" onchange="updateRescheduleGrid()" class="border border-indigo-200 py-3 px-4 rounded-xl bg-white font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm w-full md:w-96 cursor-pointer">
+                        ${upcomingOptions.length > 0 ? upcomingOptions.join('') : '<option value="">Tidak ada kelas terdekat</option>'}
                     </select>
-                    <span class="text-sm font-semibold text-slate-500 bg-white px-4 py-2 rounded-lg border border-slate-100"><i class="fas fa-clock mr-1 text-indigo-400"></i> Jam Kelasmu: ${p.time}</span>
+                    <span class="text-sm font-semibold text-slate-500 bg-white px-4 py-2 rounded-lg border border-slate-100"><i class="fas fa-clock mr-1 text-indigo-400"></i> Jam Kelas: ${p.time}</span>
                 </div>
                 
                 <div class="bg-white/90 p-4 rounded-xl border border-indigo-100">
-                    <h4 class="font-bold text-slate-800 mb-1 text-sm"><i class="fas fa-robot text-blue-500 mr-1"></i> Kalender Ketersediaan 7 Hari Kedepan</h4>
-                    <p class="text-slate-600 text-sm leading-relaxed">Sistem akan mengecek jam belajarmu <b>(${p.time})</b>. Jika ada murid lain yang memiliki jadwal di jam yang sama pada suatu tanggal, tanggal tersebut otomatis <b>Terkunci</b>. Klik "Pindah ke Tanggal Ini" untuk mengganti khusus hari itu saja.</p>
+                    <h4 class="font-bold text-slate-800 mb-1 text-sm"><i class="fas fa-robot text-blue-500 mr-1"></i> Kalender Ketersediaan Cerdas</h4>
+                    <p class="text-slate-600 text-sm leading-relaxed">Sistem mengecek jam belajarmu <b>(${p.time})</b>. Jika ada murid lain yang memiliki jadwal di jam yang sama pada suatu tanggal, tanggal tersebut otomatis <b>Terkunci</b>. Klik "Pindah ke Tanggal Ini" untuk mengganti khusus hari itu saja.</p>
                 </div>
             </div>`;
     }
 
-    let gridHTML = '';
-    if (!isBlocked) {
-        let todayGrid = new Date(); todayGrid.setHours(0,0,0,0);
-        for(let i=0; i<7; i++) {
-            let curr = new Date(todayGrid); curr.setDate(todayGrid.getDate()+i);
-            let currStr = formatDateForID(curr);
-            let displayDay = getDisplayDate(curr);
-
-            // 1. Cek apakah user (currentUser) sudah ada jadwal di tanggal ini
-            if (isOccupied(currentUser.email, currStr)) {
-                gridHTML += `
-                    <div class="p-5 rounded-2xl border border-indigo-200 bg-indigo-50/50 flex flex-col relative opacity-75">
-                        <div class="font-bold text-indigo-800 text-sm mb-4 text-center border-b border-indigo-100 pb-2">${displayDay}</div>
-                        <div class="flex-1 flex flex-col justify-center items-center py-4">
-                            <i class="fas fa-calendar-check text-indigo-400 text-3xl mb-2"></i>
-                            <span class="text-sm font-bold text-indigo-600 text-center">Kamu sudah ada kelas di hari ini</span>
-                        </div>
-                    </div>`;
-                continue;
-            }
-
-            // 2. Cek Tabrakan dengan murid lain di JAM yang sama pada TANGGAL ini
-            let clashingTime = null;
-            for (let s of students) {
-                if (s.email === currentUser.email) continue;
-                if (isOccupied(s.email, currStr)) {
-                    let otherP = materials[`profile-${s.email}`];
-                    if (checkOverlap(p.time, otherP.time)) {
-                        clashingTime = otherP.time;
-                        break;
-                    }
-                }
-            }
-
-            if (clashingTime) {
-                gridHTML += `
-                    <div class="p-5 rounded-2xl border border-red-200 bg-white flex flex-col relative">
-                        <div class="font-bold text-slate-800 text-sm mb-4 text-center border-b border-slate-100 pb-2">${displayDay}</div>
-                        <div class="flex-1 flex flex-col justify-center gap-2 mb-4 py-2">
-                            <div class="text-xs font-bold text-red-600 bg-red-50 py-3 px-3 rounded-lg border border-red-100 text-center">
-                                <i class="fas fa-user-lock mb-2 text-xl block text-red-400"></i> Jam <b>${clashingTime}</b><br>Sudah di-booking murid lain
-                            </div>
-                        </div>
-                        <button disabled class="w-full mt-auto py-2.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-400 cursor-not-allowed">
-                            Terkunci
-                        </button>
-                    </div>`;
-            } else {
-                // 3. Slot Tersedia
-                gridHTML += `
-                    <div class="p-5 rounded-2xl border border-green-200 bg-white flex flex-col relative hover:shadow-xl transition-all hover:-translate-y-1 hover:border-green-400 group">
-                        <div class="font-bold text-slate-800 text-sm mb-4 text-center border-b border-slate-100 pb-2 group-hover:text-green-700 transition-colors">${displayDay}</div>
-                        <div class="flex-1 flex flex-col justify-center items-center py-4 mb-2">
-                            <i class="fas fa-check-circle text-green-500 text-4xl mb-3 group-hover:scale-110 transition-transform"></i>
-                            <span class="text-sm font-bold text-green-600 bg-green-50 px-4 py-1.5 rounded-full border border-green-100">Slot Tersedia</span>
-                        </div>
-                        <button onclick="processReschedule('${currStr}')" class="w-full mt-auto py-3 rounded-xl text-sm font-bold transition-all bg-green-600 text-white hover:bg-green-700 shadow-md shadow-green-200 group-hover:shadow-lg">
-                            Pindah ke Tanggal Ini
-                        </button>
-                    </div>`;
-            }
-        }
-    }
-
     mainContent.innerHTML = `
-        <div class="max-w-5xl mx-auto fade-in pb-10">
+        <div class="max-w-6xl mx-auto fade-in pb-10">
             <h2 class="text-3xl font-bold text-slate-800 mb-6">Pusat Ganti Jadwal 📅</h2>
             ${rescheduleHeader}
-            ${!isBlocked ? `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">${gridHTML}</div>` : ''}
+            ${!isBlocked ? `<div id="reschedule-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"></div>` : ''}
         </div>
     `;
+    
+    if (!isBlocked) window.updateRescheduleGrid();
 }
 
 // ==== HALAMAN ADMIN CMS ====
@@ -871,7 +894,6 @@ window.saveStudentSchedule = async function(e) {
     const checkboxes = document.querySelectorAll('.admin-day-cb:checked');
     const selectedDays = Array.from(checkboxes).map(cb => cb.value);
 
-    // Cek tabrakan untuk jadwal Default
     if (selectedDays.length > 0 && startTime && endTime) {
         let clashingNames = [];
         
