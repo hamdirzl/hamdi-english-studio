@@ -20,22 +20,20 @@ async function fetchCloudData() {
         if (data) {
             const mData = data.find(d => d.key === 'hes_months');
             const matData = data.find(d => d.key === 'hes_materials');
+            const stuData = data.find(d => d.key === 'hes_students');
             
-            // Perbarui dengan data dari database cloud jika ada
             if (mData && mData.value) months = mData.value;
             if (matData && matData.value) materials = matData.value;
+            if (stuData && stuData.value) students = stuData.value;
             
-            // Update sidebar & tampilan jika murid sedang aktif / berada di dalam kelas
             if (currentUser) {
                 renderSidebar();
-                // Opsional: jika sedang buka halaman materi, tidak render dashboard otomatis agar murid tidak ter-reset tampilannya
             }
         }
     } catch (e) {
         console.error("Gagal sinkronisasi data online", e);
     }
 }
-// Jalankan saat halaman web pertama kali dimuat
 fetchCloudData();
 
 // ==== ELEMEN DOM ====
@@ -82,10 +80,8 @@ function loginSuccess() {
     loginPage.classList.add('hidden');
     appPage.classList.remove('hidden');
     
-    // Set Avatar Text (Inisial Nama)
     const initial = currentUser.name.charAt(0).toUpperCase();
     document.getElementById('user-avatar').innerText = initial;
-    
     document.getElementById('user-name-display').innerText = `Hi, ${currentUser.name}`;
     document.getElementById('user-role-display').innerText = userRole === 'admin' ? 'Administrator' : 'Student';
     
@@ -189,9 +185,35 @@ function autoCloseSidebar() {
     }
 }
 
-// ==== HALAMAN DASHBOARD ====
+// ==== HALAMAN DASHBOARD & PROGRESS LOGIC ====
 function renderDashboard() {
     autoCloseSidebar();
+    
+    // Kalkulasi Progress Murid
+    let latestMonth = "Belum Ada";
+    let latestWeek = "-";
+    let latestDay = "-";
+    let progressText = "Belum ada materi yang tersedia untukmu saat ini.";
+    
+    if (userRole === 'student') {
+        months.forEach(m => {
+            m.weeks.forEach(w => {
+                [1,2,3].forEach(d => {
+                    const keyStudentMat = `${currentUser.email}-${m.id}-w${w}-d${d}-link`;
+                    const keyAllMat = `all-${m.id}-w${w}-d${d}-link`;
+                    if (materials[keyStudentMat] || materials[keyAllMat]) {
+                        latestMonth = m.title;
+                        latestWeek = w;
+                        latestDay = d;
+                        progressText = `Kamu saat ini berada di <b>${m.title} - Week ${w} Day ${d}</b>. Mari lanjutkan pelajaranmu!`;
+                    }
+                });
+            });
+        });
+    } else {
+        progressText = `Gunakan menu Admin CMS untuk mengelola materi murid. Total murid saat ini: <b>${students.length}</b>.`;
+    }
+
     mainContent.innerHTML = `
         <div class="max-w-5xl mx-auto fade-in">
             <!-- Banner -->
@@ -199,24 +221,30 @@ function renderDashboard() {
                 <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
                 <div class="relative z-10">
                     <h2 class="text-3xl md:text-4xl font-bold mb-3">Welcome Back, ${currentUser.name.split(' ')[0]}! 🚀</h2>
-                    <p class="text-indigo-100 text-lg max-w-xl">Mari lanjutkan perjalanan belajarmu hari ini. Konsistensi adalah kunci kesuksesan dalam berbahasa Inggris.</p>
+                    <p class="text-indigo-100 text-lg max-w-xl">Konsistensi adalah kunci kesuksesan dalam berbahasa Inggris.</p>
                 </div>
             </div>
 
             <!-- Cards Info -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Progress Card -->
                 <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-                    <div class="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-5">
-                        <i class="fas fa-book-reader text-xl"></i>
+                    <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 mb-5">
+                        <i class="fas fa-chart-line text-xl"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-slate-800 mb-3">Cara Memulai Belajar</h3>
-                    <ul class="space-y-3 text-slate-600 font-medium">
-                        <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i> Buka menu navigasi di panel kiri.</li>
-                        <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i> Pilih Bulan dan Minggu yang sedang kamu pelajari.</li>
-                        <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i> Klik "Day" untuk membuka materi dan rangkuman harian.</li>
-                    </ul>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">Progress Belajarmu</h3>
+                    <p class="text-slate-600 font-medium mb-4 leading-relaxed">${progressText}</p>
+                    
+                    ${userRole === 'student' ? `
+                    <div class="flex gap-2">
+                        <span class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold">${latestMonth}</span>
+                        <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold">Week ${latestWeek}</span>
+                        <span class="px-3 py-1 bg-sky-50 text-sky-700 rounded-lg text-sm font-semibold">Day ${latestDay}</span>
+                    </div>
+                    ` : ''}
                 </div>
 
+                <!-- Tips Card -->
                 <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                     <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 mb-5">
                         <i class="fas fa-lightbulb text-xl"></i>
@@ -234,32 +262,45 @@ function renderDashboard() {
     `;
 }
 
-// ==== HALAMAN MATERI ====
+// ==== HALAMAN MATERI & RECAP (FULL WIDTH PDF) ====
+function parseDriveLink(link) {
+    if (!link) return '';
+    if (link.includes('drive.google.com/file/d/')) {
+        const match = link.match(/\/d\/(.+?)\//);
+        if (match && match[1]) {
+            return `https://drive.google.com/file/d/${match[1]}/preview`;
+        }
+    }
+    return link;
+}
+
 function renderMateri(monthId, week, day, monthTitle) {
     autoCloseSidebar();
     
-    const matKeyLink = `${monthId}-w${week}-d${day}-link`;
-    const matKeyRecap = `${monthId}-w${week}-d${day}-recap`;
-    
-    let linkDrive = materials[matKeyLink] || '';
-    let recap = materials[matKeyRecap] || 'Belum ada ringkasan materi untuk sesi ini. Stay tuned!';
+    // Cari data spesifik untuk murid ini dulu, jika tidak ada, cari data "all" (semua murid)
+    const email = currentUser.email;
+    let rawLink = materials[`${email}-${monthId}-w${week}-d${day}-link`] || materials[`all-${monthId}-w${week}-d${day}-link`] || '';
+    let rawRecap = materials[`${email}-${monthId}-w${week}-d${day}-recap`] || materials[`all-${monthId}-w${week}-d${day}-recap`] || '';
 
-    if (linkDrive && linkDrive.includes('drive.google.com/file/d/')) {
-        const match = linkDrive.match(/\/d\/(.+?)\//);
-        if (match && match[1]) {
-            linkDrive = `https://drive.google.com/file/d/${match[1]}/preview`;
-        }
-    }
+    let linkDrive = parseDriveLink(rawLink);
+    let recapDrive = parseDriveLink(rawRecap);
 
     let pdfViewerHTML = linkDrive 
-        ? `<div class="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50 relative pt-[56.25%]"><iframe src="${linkDrive}" class="absolute top-0 left-0 w-full h-full" allow="autoplay"></iframe></div>` 
+        ? `<div class="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 relative h-[80vh] w-full"><iframe src="${linkDrive}" class="absolute top-0 left-0 w-full h-full" allow="autoplay"></iframe></div>` 
         : `<div class="bg-slate-50 p-12 rounded-2xl text-center border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
              <div class="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4"><i class="fas fa-file-pdf text-2xl text-slate-300"></i></div>
              <p class="text-slate-500 font-medium">Materi presentasi belum diunggah.</p>
            </div>`;
+           
+    let recapViewerHTML = recapDrive 
+        ? `<div class="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 relative h-[80vh] w-full mt-4"><iframe src="${recapDrive}" class="absolute top-0 left-0 w-full h-full" allow="autoplay"></iframe></div>` 
+        : `<div class="bg-slate-50 p-12 rounded-2xl text-center border-2 border-dashed border-slate-200 flex flex-col items-center justify-center mt-4">
+             <div class="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4"><i class="fas fa-clipboard-list text-2xl text-slate-300"></i></div>
+             <p class="text-slate-500 font-medium">PDF Daily Recap belum diunggah.</p>
+           </div>`;
 
     mainContent.innerHTML = `
-        <div class="max-w-5xl mx-auto fade-in pb-10">
+        <div class="max-w-6xl mx-auto fade-in pb-10">
             <!-- Header Materi -->
             <div class="mb-8 flex items-center gap-4">
                 <button onclick="renderDashboard()" class="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 transition-colors">
@@ -275,24 +316,22 @@ function renderMateri(monthId, week, day, monthTitle) {
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Kolom Kiri: PDF -->
-                <div class="lg:col-span-2 space-y-4">
-                    <h3 class="text-lg font-bold text-slate-800 flex items-center">
-                        <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center text-red-500 mr-3"><i class="fas fa-file-pdf"></i></div> Presentation Slide
+            <!-- Tampilan Penuh / Vertikal -->
+            <div class="flex flex-col space-y-10">
+                <!-- Section Materi Utama -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                        <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center text-red-500 mr-3"><i class="fas fa-file-pdf"></i></div> Materi Utama (Presentation Slide)
                     </h3>
                     ${pdfViewerHTML}
                 </div>
 
-                <!-- Kolom Kanan: Recap -->
+                <!-- Section Recap PDF -->
                 <div class="space-y-4">
-                    <h3 class="text-lg font-bold text-slate-800 flex items-center">
-                        <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-green-600 mr-3"><i class="fas fa-clipboard-list"></i></div> Daily Recap
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                        <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-600 mr-3"><i class="fas fa-clipboard-check"></i></div> Daily Recap
                     </h3>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-2 h-full bg-green-400"></div>
-                        <p class="text-slate-600 font-medium whitespace-pre-wrap leading-relaxed">${recap}</p>
-                    </div>
+                    ${recapViewerHTML}
                 </div>
             </div>
         </div>
@@ -358,72 +397,98 @@ function renderAdminCMS() {
     const monthOptions = months.map(m => `<option value="${m.id}">${m.title}</option>`).join('');
     const weekOptions = [1,2,3,4].map(w => `<option value="${w}">Week ${w}</option>`).join('');
     const dayOptions = [1,2,3].map(d => `<option value="${d}">Day ${d}</option>`).join('');
+    
+    // Dropdown murid
+    const studentOptions = students.map(s => `<option value="${s.email}">${s.name} (${s.email})</option>`).join('');
 
     mainContent.innerHTML = `
-        <div class="max-w-5xl mx-auto space-y-8 fade-in pb-12">
+        <div class="max-w-6xl mx-auto space-y-8 fade-in pb-12">
             <div>
                 <h2 class="text-3xl font-bold text-slate-800 flex items-center gap-3 mb-2">
                     <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center"><i class="fas fa-shield-alt"></i></div> Admin Workspace
                 </h2>
-                <p class="text-slate-500 font-medium ml-14">Kelola konten dan materi untuk siswa Hamdi Studio.</p>
+                <p class="text-slate-500 font-medium ml-14">Kelola konten, data murid, dan personalisasi materi.</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Panel Tambah Bulan -->
-                <div class="md:col-span-1">
-                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 sticky top-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Panel Kiri: Kelola Bulan & Tambah Murid -->
+                <div class="space-y-6 lg:col-span-1">
+                    <!-- Panel Tambah Bulan -->
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                         <div class="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 mb-4">
                             <i class="fas fa-folder-plus text-xl"></i>
                         </div>
                         <h3 class="text-lg font-bold text-slate-800 mb-2">Manajemen Bulan</h3>
-                        <p class="text-sm text-slate-500 font-medium mb-6 leading-relaxed">Tambahkan bulan baru untuk membuka akses materi lanjutan di navigasi siswa.</p>
-                        
+                        <p class="text-sm text-slate-500 font-medium mb-6 leading-relaxed">Tambahkan bulan baru untuk membuka akses materi lanjutan.</p>
                         <button onclick="addNewMonth()" class="w-full bg-amber-100 text-amber-700 py-3 rounded-xl font-bold hover:bg-amber-200 transition-colors flex justify-center items-center gap-2">
                             <i class="fas fa-plus"></i> Tambah Bulan Baru
                         </button>
                     </div>
+
+                    <!-- Panel Tambah Murid -->
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                        <div class="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 mb-4">
+                            <i class="fas fa-user-plus text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-4">Tambah Akun Murid</h3>
+                        <div class="space-y-3">
+                            <input type="text" id="new-stu-name" placeholder="Nama Lengkap" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                            <input type="email" id="new-stu-email" placeholder="Email Akun" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                            <input type="text" id="new-stu-pass" placeholder="Password (Misal: 123)" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                            <button onclick="addNewStudent()" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-colors mt-2 shadow-md shadow-green-200">
+                                Buat Akun Murid
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Panel Input Materi -->
-                <div class="md:col-span-2">
-                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                <!-- Panel Kanan: Input Materi Spesifik Murid -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 h-full">
                         <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
-                            <i class="fas fa-edit text-indigo-500"></i> Input Materi & Daily Recap
+                            <i class="fas fa-edit text-indigo-500"></i> Input Materi & PDF Recap
                         </h3>
                         
+                        <!-- Pilihan Murid -->
+                        <div class="mb-6 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                            <label class="block text-sm font-bold text-indigo-800 mb-2">Terapkan Materi Ini Untuk:</label>
+                            <select id="admin-target-student" class="w-full border border-slate-200 py-3 px-4 rounded-xl bg-white font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm">
+                                <option value="all">Semua Murid (Materi Default)</option>
+                                ${studentOptions}
+                            </select>
+                            <p class="text-xs text-indigo-500 mt-2 font-medium">Jika memilih murid tertentu, materi ini hanya akan terlihat oleh murid tersebut (Personalized).</p>
+                        </div>
+
+                        <!-- Pilihan Waktu -->
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Pilih Bulan</label>
-                                <select id="admin-month" class="w-full border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none">${monthOptions}</select>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Bulan</label>
+                                <select id="admin-month" class="w-full border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 outline-none">${monthOptions}</select>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Pilih Minggu</label>
-                                <select id="admin-week" class="w-full border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none">${weekOptions}</select>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Minggu</label>
+                                <select id="admin-week" class="w-full border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 outline-none">${weekOptions}</select>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Pilih Hari</label>
-                                <select id="admin-day" class="w-full border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none">${dayOptions}</select>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Hari</label>
+                                <select id="admin-day" class="w-full border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 font-medium text-slate-700 outline-none">${dayOptions}</select>
                             </div>
                         </div>
                         
-                        <div class="space-y-6">
+                        <!-- Input Link PDF -->
+                        <div class="space-y-5">
                             <div>
-                                <label class="block text-sm font-bold text-slate-700 mb-2">Link Google Drive (PDF/PPT)</label>
-                                <div class="relative">
-                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <i class="fab fa-google-drive text-slate-400"></i>
-                                    </div>
-                                    <input type="text" id="admin-link" placeholder="Paste link 'Anyone with link' di sini..." class="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium text-slate-700">
-                                </div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><i class="fab fa-google-drive text-blue-500"></i> Link PDF Materi Utama</label>
+                                <input type="text" id="admin-link" placeholder="Paste link 'Anyone with link' di sini..." class="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium text-slate-700">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-slate-700 mb-2">Daily Recap (Rangkuman)</label>
-                                <textarea id="admin-recap" rows="6" placeholder="Ketik ringkasan materi untuk sesi ini..." class="w-full p-4 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium text-slate-700 resize-none"></textarea>
+                                <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><i class="fab fa-google-drive text-green-500"></i> Link PDF Daily Recap</label>
+                                <input type="text" id="admin-recap-pdf" placeholder="Paste link PDF 'Anyone with link' untuk recap..." class="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium text-slate-700">
                             </div>
                             
-                            <div class="pt-2">
-                                <button onclick="saveMaterialData()" class="w-full sm:w-auto bg-indigo-600 text-white px-8 py-3.5 rounded-xl hover:bg-indigo-700 font-bold transition shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
-                                    <i class="fas fa-save"></i> Simpan Konten Materi
+                            <div class="pt-4">
+                                <button onclick="saveMaterialData()" class="w-full bg-indigo-600 text-white px-8 py-3.5 rounded-xl hover:bg-indigo-700 font-bold transition shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
+                                    <i class="fas fa-cloud-upload-alt"></i> Publish ke Database
                                 </button>
                             </div>
                         </div>
@@ -434,19 +499,17 @@ function renderAdminCMS() {
     `;
 }
 
+// ==== FUNGSI ADMIN DATABASE ====
 window.addNewMonth = async function() {
     const nextNum = months.length + 1;
     const newMonth = { id: `m${nextNum}`, title: `Month ${nextNum}`, weeks: [1, 2, 3, 4] };
     months.push(newMonth);
     
-    // Simpan ke Supabase
-    const { error } = await window.supabaseClient
-        .from('app_data')
-        .upsert([{ key: 'hes_months', value: months }]);
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_months', value: months }]);
 
     if (error) {
         alert("Gagal menambahkan bulan secara online: " + error.message);
-        months.pop(); // Batalkan penambahan ke memori
+        months.pop();
     } else {
         alert(`Sukses! Month ${nextNum} berhasil ditambahkan secara online.`);
         renderSidebar(); 
@@ -454,26 +517,51 @@ window.addNewMonth = async function() {
     }
 };
 
+window.addNewStudent = async function() {
+    const name = document.getElementById('new-stu-name').value;
+    const email = document.getElementById('new-stu-email').value;
+    const pass = document.getElementById('new-stu-pass').value;
+
+    if(!name || !email || !pass) {
+        alert("Harap lengkapi Nama, Email, dan Password murid.");
+        return;
+    }
+
+    students.push({ name: name, email: email, password: pass });
+
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_students', value: students }]);
+
+    if (error) {
+        alert("Gagal menyimpan murid: " + error.message);
+        students.pop();
+    } else {
+        alert(`Akun murid ${name} berhasil dibuat!`);
+        renderAdminCMS(); // Re-render agar murid masuk ke dropdown materi
+    }
+}
+
 window.saveMaterialData = async function() {
+    const targetStudent = document.getElementById('admin-target-student').value;
     const m = document.getElementById('admin-month').value;
     const w = document.getElementById('admin-week').value;
     const d = document.getElementById('admin-day').value;
     const link = document.getElementById('admin-link').value;
-    const recap = document.getElementById('admin-recap').value;
+    const recap = document.getElementById('admin-recap-pdf').value;
     
-    if(link) materials[`${m}-w${w}-d${d}-link`] = link;
-    if(recap) materials[`${m}-w${w}-d${d}-recap`] = recap;
+    // Format Key dinamis (berdasarkan target murid atau 'all')
+    const keyPrefix = `${targetStudent}-${m}-w${w}-d${d}`;
     
-    // Simpan ke Supabase
-    const { error } = await window.supabaseClient
-        .from('app_data')
-        .upsert([{ key: 'hes_materials', value: materials }]);
+    if(link) materials[`${keyPrefix}-link`] = link;
+    if(recap) materials[`${keyPrefix}-recap`] = recap;
+    
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
 
     if (error) {
         alert("Gagal menyimpan materi ke server: " + error.message);
     } else {
-        alert(`Materi dan Recap untuk ${m} Week ${w} Day ${d} berhasil disimpan secara Online! Semua siswa kini bisa melihatnya.`);
+        const info = targetStudent === 'all' ? "Semua Murid" : targetStudent;
+        alert(`Berhasil! Materi & Recap diset untuk: ${info} (Sesi: ${m} W${w} D${d})`);
         document.getElementById('admin-link').value = '';
-        document.getElementById('admin-recap').value = '';
+        document.getElementById('admin-recap-pdf').value = '';
     }
 };
