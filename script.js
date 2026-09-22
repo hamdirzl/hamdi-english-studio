@@ -464,7 +464,6 @@ window.processReschedule = async function(newDay) {
         
         if (error) {
             alert("Gagal memindahkan jadwal: " + error.message);
-            // Rollback in memory
             profile.days = profile.days.filter(d => d !== newDay);
             profile.days.push(oldDay);
         } else {
@@ -524,7 +523,6 @@ function renderReschedule() {
     
     if (!isBlocked) {
         gridHTML = days.map(hari => {
-            // 1. Apakah hari ini adalah jadwal dia saat ini?
             if (profile.days.includes(hari)) {
                 return `
                     <div class="p-5 rounded-2xl border border-indigo-200 bg-indigo-50/50 flex flex-col relative opacity-75">
@@ -536,7 +534,6 @@ function renderReschedule() {
                     </div>`;
             }
 
-            // 2. Cek Tabrakan dengan murid lain di jam yang sama
             let clashingStudent = null;
             for (let s of students) {
                 if (s.email === currentUser.email) continue;
@@ -564,7 +561,6 @@ function renderReschedule() {
                     </div>`;
             }
 
-            // 3. Slot Tersedia
             return `
                 <div class="p-5 rounded-2xl border border-green-200 bg-white flex flex-col relative hover:shadow-xl transition-all hover:-translate-y-1 hover:border-green-400 group">
                     <div class="font-bold text-slate-800 text-lg mb-4 text-center border-b border-slate-100 pb-2 group-hover:text-green-700 transition-colors">${hari}</div>
@@ -611,7 +607,7 @@ function renderAdminCMS() {
             <!-- PANEL: INPUT JADWAL & GEMBOK MATERI KELAS -->
             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
                 <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
-                    <i class="fas fa-calendar-alt text-amber-500"></i> Atur Jadwal (Anti-Tabrak), Masa Aktif & Akses Bulan
+                    <i class="fas fa-calendar-alt text-amber-500"></i> Atur Jadwal, Masa Aktif & Akses Bulan
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                     <div class="lg:col-span-1">
@@ -814,7 +810,7 @@ window.saveStudentSchedule = async function(e) {
     const selectedDays = Array.from(checkboxes).map(cb => cb.value);
 
     if (selectedDays.length > 0 && startTime && endTime) {
-        let clashMessage = '';
+        let clashingNames = [];
         const s1 = parseInt(startTime.replace(':', ''));
         const e1 = parseInt(endTime.replace(':', ''));
 
@@ -832,16 +828,17 @@ window.saveStudentSchedule = async function(e) {
                 if (isOverlapping) {
                     let intersectingDays = selectedDays.filter(d => p.days.includes(d));
                     if (intersectingDays.length > 0) {
-                        clashMessage = `⚠️ GAGAL!\n\nJadwal bertabrakan dengan murid "${s.name}".\n\nMurid tersebut sudah mem-booking jam ${p.time} di hari ${intersectingDays.join(', ')}.`;
-                        break;
+                        clashingNames.push(`- ${s.name} (${p.time} di hari ${intersectingDays.join(', ')})`);
                     }
                 }
             }
         }
 
-        if (clashMessage) {
-            alert(clashMessage);
-            return; 
+        if (clashingNames.length > 0) {
+            let confirmMsg = `⚠️ PERINGATAN TABRAKAN JADWAL!\n\nJadwal bertabrakan dengan:\n${clashingNames.join('\n')}\n\nApakah mereka belajar di sesi/grup yang sama?\nKlik 'OK' untuk tetap menyimpan, atau 'Batal' untuk membatalkan.`;
+            if (!confirm(confirmMsg)) {
+                return; // Batalkan proses simpan
+            }
         }
     }
 
