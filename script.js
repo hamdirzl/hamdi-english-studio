@@ -30,6 +30,7 @@ function getDisplayDate(dateObj) {
     return `${dayNames[dateObj.getDay()]}, ${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 }
 
+// Mengecek apakah seorang murid memiliki jadwal pada tanggal spesifik (Mempertimbangkan Default & Reschedule)
 function isOccupied(email, targetDateStr) {
     let p = materials[`profile-${email}`];
     if(!p || !p.time || !p.days) return false;
@@ -37,6 +38,7 @@ function isOccupied(email, targetDateStr) {
     let targetDate = parseDateStr(targetDateStr);
     let dayName = dayNames[targetDate.getDay()];
     
+    // Cek apakah tanggal target sudah melewati masa aktif langganan
     let validDate = new Date(p.validUntil);
     validDate.setHours(23,59,59,999);
     if (targetDate > validDate) return false;
@@ -44,12 +46,15 @@ function isOccupied(email, targetDateStr) {
     let isDefault = p.days.includes(dayName);
     let reschedules = p.reschedules || {}; 
     
+    // Apakah jadwal default hari ini dipindahkan ke hari lain?
     let movedAway = reschedules[targetDateStr] !== undefined;
+    // Apakah ada jadwal dari hari lain yang dipindahkan ke hari ini?
     let movedHere = Object.values(reschedules).includes(targetDateStr);
     
     return (isDefault && !movedAway) || movedHere;
 }
 
+// Cek tabrakan jam
 function checkOverlap(time1, time2) {
     if(!time1 || !time2 || !time1.includes('-') || !time2.includes('-')) return false;
     let [s1, e1] = time1.split('-').map(t => parseInt(t.trim().replace(':','')));
@@ -57,6 +62,7 @@ function checkOverlap(time1, time2) {
     return (s1 < e2) && (s2 < e1);
 }
 
+// Cari Sesi Terdekat Murid
 function getStudentNextSessionInfo(email) {
     let p = materials[`profile-${email}`];
     if (!p || !p.days || p.days.length === 0) return { error: 'Belum ada hari kelas yang dipilih.' };
@@ -113,7 +119,7 @@ async function fetchCloudData() {
 }
 fetchCloudData();
 
-// ==== ELEMEN DOM & EVENT LISTENERS ====
+// ==== ELEMEN DOM ====
 const loginPage = document.getElementById('login-page');
 const appPage = document.getElementById('app-page');
 const loginForm = document.getElementById('login-form');
@@ -122,10 +128,12 @@ const sidebar = document.getElementById('sidebar');
 const sidebarMenu = document.getElementById('sidebar-menu');
 const mainContent = document.getElementById('main-content');
 
+// ==== EVENT LISTENERS DASAR ====
 document.getElementById('open-sidebar').addEventListener('click', () => { sidebar.classList.remove('-translate-x-full'); });
 document.getElementById('close-sidebar').addEventListener('click', () => { sidebar.classList.add('-translate-x-full'); });
 document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
+// ==== LOGIKA LOGIN ====
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value;
@@ -156,7 +164,7 @@ function handleLogout() {
     loginError.classList.add('hidden'); appPage.classList.add('hidden'); loginPage.classList.remove('hidden');
 }
 
-// ==== RENDER SIDEBAR ====
+// ==== RENDER SIDEBAR (DENGAN SISTEM GEMBOK BULAN) ====
 function renderSidebar() {
     let menuHTML = '<div class="space-y-2">';
 
@@ -197,7 +205,7 @@ function renderSidebar() {
         if (isLocked) {
             menuHTML += `
                 <div class="rounded-xl overflow-hidden border border-slate-100 mb-1 opacity-70">
-                    <div class="px-4 py-3.5 flex justify-between items-center bg-slate-50 cursor-not-allowed" onclick="alert('Bulan ini masih terkunci (Tergembok) 🔒\\n\\nSelesaikan bulan sebelumnya atau hubungi Bro Hamdi untuk membuka akses.')">
+                    <div class="px-4 py-3.5 flex justify-between items-center bg-slate-50 cursor-not-allowed" onclick="alert('Bulan ini masih terkunci (Tergembok) 🔒\\n\\nSelesaikan bulan sebelumnya atau hubungi Bro Hamdi untuk membuka akses ke ${month.title}.')">
                         <div class="flex items-center gap-3 text-slate-400 font-semibold text-sm">
                             <i class="fas fa-lock text-slate-300"></i> ${month.title}
                         </div>
@@ -380,6 +388,7 @@ function renderDashboard() {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- PREMIUM SCHEDULE CARD -->
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 md:p-8 rounded-3xl shadow-xl border border-slate-700 relative overflow-hidden text-white group hover:shadow-2xl hover:shadow-amber-900/20 transition-all">
                     <div class="absolute top-[-30%] right-[-10%] w-56 h-56 bg-amber-500 rounded-full mix-blend-overlay filter blur-3xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
                     <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-amber-400 mb-4 backdrop-blur-md border border-white/10">
@@ -390,12 +399,14 @@ function renderDashboard() {
                     ${premiumCardContent}
                 </div>
 
+                <!-- Progress Card -->
                 <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                     <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 mb-5">
                         <i class="fas fa-chart-line text-xl"></i>
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 mb-3">Progress Belajarmu</h3>
                     <p class="text-slate-600 font-medium mb-6 leading-relaxed">${progressText}</p>
+                    
                     <div class="flex flex-wrap gap-2">
                         <span class="px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm font-bold shadow-sm">${latestMonth}</span>
                         <span class="px-3 py-1.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold shadow-sm">Week ${latestWeek}</span>
@@ -501,7 +512,7 @@ window.processReschedule = async function(newDateStr) {
     }
 }
 
-// Fungsi Reaktif untuk Merender Ulang Grid Kalender
+// Fungsi Reaktif untuk Merender Ulang Grid Kalender Sesuai Minggu Terpilih
 window.updateRescheduleGrid = function() {
     let oldDateStr = document.getElementById('reschedule-old-day').value;
     const gridContainer = document.getElementById('reschedule-grid-container');
@@ -512,7 +523,7 @@ window.updateRescheduleGrid = function() {
 
     let selectedDate = parseDateStr(oldDateStr);
     
-    // Cari hari Senin di minggu jadwal yang dipilih
+    // Cari hari Senin di minggu jadwal yang dipilih (Terkunci ke minggu yang sama)
     let day = selectedDate.getDay();
     let diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1);
     let startOfWeek = new Date(selectedDate);
@@ -627,7 +638,8 @@ function renderReschedule() {
         let validDate = new Date(p.validUntil); validDate.setHours(23,59,59,999);
         
         let count = 1;
-        for(let i=0; i<30 && upcomingOptions.length<3; i++) {
+        // DINAUKAN MENJADI 6 PERTEMUAN TERDEKAT AGAR SEMUA JADWAL DI MINGGU INI MUNCUL
+        for(let i=0; i<30 && upcomingOptions.length<6; i++) {
             let curr = new Date(d); curr.setDate(d.getDate()+i);
             if (curr > validDate) break;
             
@@ -643,7 +655,7 @@ function renderReschedule() {
             <div class="bg-indigo-50/50 border border-indigo-100 p-6 rounded-3xl mb-8 shadow-sm">
                 <h4 class="font-bold text-indigo-900 mb-4 flex items-center gap-2 text-lg"><i class="fas fa-exchange-alt text-indigo-600"></i> Form Ganti Jadwal Mingguan</h4>
                 
-                <label class="block text-sm font-bold text-indigo-800 mb-2">Pilih kelas terdekat yang ingin diganti (Maks 3 pertemuan):</label>
+                <label class="block text-sm font-bold text-indigo-800 mb-2">Pilih kelas terdekat yang ingin diganti (Hingga 6 pertemuan ke depan):</label>
                 <div class="flex flex-col md:flex-row items-start md:items-center gap-4 mb-5">
                     <select id="reschedule-old-day" onchange="updateRescheduleGrid()" class="border border-indigo-200 py-3 px-4 rounded-xl bg-white font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm w-full md:w-96 cursor-pointer">
                         ${upcomingOptions.length > 0 ? upcomingOptions.join('') : '<option value="">Tidak ada kelas terdekat</option>'}
@@ -652,8 +664,8 @@ function renderReschedule() {
                 </div>
                 
                 <div class="bg-white/90 p-4 rounded-xl border border-indigo-100">
-                    <h4 class="font-bold text-slate-800 mb-1 text-sm"><i class="fas fa-robot text-blue-500 mr-1"></i> Kalender Ketersediaan Cerdas</h4>
-                    <p class="text-slate-600 text-sm leading-relaxed">Sistem mengecek jam belajarmu <b>(${p.time})</b>. Jika ada murid lain yang memiliki jadwal di jam yang sama pada suatu tanggal, tanggal tersebut otomatis <b>Terkunci</b>. Klik "Pindah ke Tanggal Ini" untuk mengganti khusus hari itu saja.</p>
+                    <h4 class="font-bold text-slate-800 mb-1 text-sm"><i class="fas fa-robot text-blue-500 mr-1"></i> Kalender Terkunci Minggu Ini</h4>
+                    <p class="text-slate-600 text-sm leading-relaxed">Sistem akan menyesuaikan kalender di bawah sesuai dengan <b>minggu dari tanggal yang Anda pilih</b> di atas. Anda hanya bisa pindah ke hari lain yang <b>Tersedia</b> pada minggu yang sama!</p>
                 </div>
             </div>`;
     }
@@ -732,6 +744,7 @@ function renderAdminCMS() {
                         <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="Jumat" class="admin-day-cb w-5 h-5 text-amber-600 rounded focus:ring-amber-500"> <span class="font-medium text-slate-700">Jumat</span></label>
                         <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" value="Sabtu" class="admin-day-cb w-5 h-5 text-amber-600 rounded focus:ring-amber-500"> <span class="font-medium text-slate-700">Sabtu</span></label>
                     </div>
+                    <p class="text-xs text-amber-600 mt-2 font-medium"><i class="fas fa-exclamation-triangle"></i> Centang SEMUA hari yang murid ambil agar form Reschedule mereka muncul dengan benar (Misal: Centang Rabu, Kamis, dan Jumat).</p>
                 </div>
                 <div class="flex justify-end">
                     <button onclick="saveStudentSchedule(event)" class="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-3.5 rounded-xl hover:from-amber-600 hover:to-amber-700 font-bold transition shadow-lg shadow-amber-200/50 flex items-center justify-center gap-2">
@@ -894,6 +907,7 @@ window.saveStudentSchedule = async function(e) {
     const checkboxes = document.querySelectorAll('.admin-day-cb:checked');
     const selectedDays = Array.from(checkboxes).map(cb => cb.value);
 
+    // Cek tabrakan untuk jadwal Default
     if (selectedDays.length > 0 && startTime && endTime) {
         let clashingNames = [];
         
