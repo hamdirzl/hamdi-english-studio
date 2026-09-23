@@ -2,7 +2,7 @@
 
 // ==== KONFIGURASI NOTIFIKASI TELEGRAM ====
 const TELEGRAM_BOT_TOKEN = "8783483454:AAFIMaNa4Z5-uUMXHOeqHZgkk2S9EK4gC0Y"; 
-// GANTI TEKS DI BAWAH INI DENGAN ANGKA ID DARI @userinfobot (Misal: "123456789")
+// MASUKKAN ANGKA ID ANDA DI BAWAH INI (Dapatkan dari @userinfobot)
 const TELEGRAM_CHAT_ID = "1225652735";
 
 function sendTelegramNotification(message) {
@@ -477,7 +477,7 @@ function parseDriveLink(link) {
     return link;
 }
 
-// FUNGSI SUBMIT VOCABULARY YANG SUDAH DIPERBAIKI DENGAN ALERT DAN TOMBOL LOADING
+// FUNGSI SUBMIT VOCABULARY YANG SUDAH DILENGKAPI EFEK LOADING DAN NOTIFIKASI
 window.submitVocab = async function(btnElement, m, w, d) {
     let key = `vocab_status-${currentUser.email}-${m}-w${w}-d${d}`;
     materials[key] = { status: 'submitted', feedback: '' };
@@ -848,22 +848,47 @@ function renderReschedule() {
     if (!isBlocked) window.updateRescheduleGrid();
 }
 
-// ==== FUNGSI REVIEW HAFALAN ====
-window.checkVocabStatus = function() {
+// ==== FUNGSI REVIEW HAFALAN DENGAN SINKRONISASI REAL-TIME ====
+window.checkVocabStatus = async function(btnElement) {
+    let resDiv = document.getElementById('vocab-review-result');
+    
+    // Efek loading UI
+    let origText = '';
+    if(btnElement) {
+        origText = btnElement.innerHTML;
+        btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengecek Server...';
+        btnElement.disabled = true;
+    } else {
+        resDiv.innerHTML = `<div class="p-4 text-center text-slate-500 font-medium"><i class="fas fa-spinner fa-spin text-indigo-500 text-xl mb-2 block"></i> Memuat data terbaru dari Cloud...</div>`;
+    }
+
+    // 🔴 PENTING: Tarik data terbaru dari Supabase agar sinkron dengan HP Murid
+    try {
+        const { data } = await window.supabaseClient.from('app_data').select('*');
+        if (data) {
+            const matData = data.find(d => d.key === 'hes_materials');
+            if (matData && matData.value) materials = matData.value;
+        }
+    } catch(e) { console.error("Sync error", e); }
+
+    if(btnElement) {
+        btnElement.innerHTML = origText;
+        btnElement.disabled = false;
+    }
+
     const email = document.getElementById('admin-review-student').value;
     const m = document.getElementById('admin-review-month').value;
     const w = document.getElementById('admin-review-week').value;
     const d = document.getElementById('admin-review-day').value;
     
     let statusObj = materials[`vocab_status-${email}-${m}-w${w}-d${d}`];
-    let resDiv = document.getElementById('vocab-review-result');
     
     if (!statusObj || statusObj.status === 'none') {
-        resDiv.innerHTML = `<div class="p-4 bg-slate-50 text-slate-500 rounded-xl text-center font-medium border border-slate-200">Murid belum setor hafalan untuk sesi ini.</div>`;
+        resDiv.innerHTML = `<div class="p-4 bg-slate-50 text-slate-500 rounded-xl text-center font-medium border border-slate-200"><i class="fas fa-box-open mb-2 text-2xl block text-slate-300"></i>Murid belum setor hafalan untuk sesi ini.</div>`;
     } else if (statusObj.status === 'submitted') {
         resDiv.innerHTML = `
             <div class="p-5 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 shadow-inner">
-                <p class="font-bold mb-3 flex items-center gap-2"><i class="fas fa-bell text-amber-500"></i> Murid sudah siap direview!</p>
+                <p class="font-bold mb-3 flex items-center gap-2"><i class="fas fa-bell text-amber-500 text-lg animate-bounce"></i> Murid sudah siap direview!</p>
                 <input type="text" id="admin-feedback" placeholder="Ketik apresiasi (Misal: Great job, pertahankan!)..." class="w-full p-3 rounded-xl border border-amber-200 mb-3 outline-none focus:ring-2 focus:ring-amber-500 bg-white">
                 <button onclick="approveVocab('${email}', '${m}', '${w}', '${d}')" class="bg-amber-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-md hover:bg-amber-600 transition-colors w-full sm:w-auto">Approve & Kirim Apresiasi ✅</button>
             </div>
@@ -983,7 +1008,8 @@ function renderAdminCMS() {
                         <select id="admin-review-week" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${weekOptions}</select>
                         <select id="admin-review-day" class="border border-slate-200 py-2.5 px-3 rounded-xl bg-slate-50 text-slate-700 font-medium">${dayOptions}</select>
                     </div>
-                    <button onclick="checkVocabStatus()" class="w-full bg-slate-800 text-white px-8 py-3 rounded-xl hover:bg-slate-900 font-bold transition mb-6 shadow-md flex items-center justify-center gap-2">
+                    <!-- PENTING: Tombol ini di-passing argumen "this" agar efek loading bekerja! -->
+                    <button onclick="checkVocabStatus(this)" class="w-full bg-slate-800 text-white px-8 py-3 rounded-xl hover:bg-slate-900 font-bold transition mb-6 shadow-md flex items-center justify-center gap-2">
                         <i class="fas fa-search"></i> Cek Status Hafalan
                     </button>
                     <div id="vocab-review-result" class="min-h-[120px] border-t border-slate-100 pt-6">
@@ -1193,26 +1219,6 @@ window.rejectReschedule = async function(email, oldDate) {
         
         if (error) alert("Error: " + error.message);
         else { alert("Pengajuan ditolak."); renderAdminCMS(); }
-    }
-}
-
-window.saveVocabList = async function(e) {
-    const m = document.getElementById('admin-vocab-month').value;
-    const w = document.getElementById('admin-vocab-week').value;
-    const d = document.getElementById('admin-vocab-day').value;
-    const vocabText = document.getElementById('admin-vocab-list').value;
-
-    materials[`vocab-${m}-w${w}-d${d}`] = vocabText;
-
-    const btn = e.currentTarget; const origText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; btn.disabled = true;
-    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
-    btn.innerHTML = origText; btn.disabled = false;
-    
-    if (error) alert("Error: " + error.message);
-    else {
-        alert(`Word Bank untuk Sesi ${m} W${w} D${d} berhasil disimpan!`);
-        document.getElementById('admin-vocab-list').value = '';
     }
 }
 
