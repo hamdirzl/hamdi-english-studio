@@ -2,7 +2,7 @@
 
 // ==== KONFIGURASI NOTIFIKASI TELEGRAM ====
 const TELEGRAM_BOT_TOKEN = "8783483454:AAFIMaNa4Z5-uUMXHOeqHZgkk2S9EK4gC0Y"; 
-// MASUKKAN ANGKA ID ANDA DI BAWAH INI (Dapatkan dari @userinfobot)
+// GANTI TEKS DI BAWAH INI DENGAN ANGKA ID DARI @userinfobot (Misal: "123456789")
 const TELEGRAM_CHAT_ID = "1225652735";
 
 function sendTelegramNotification(message) {
@@ -66,10 +66,10 @@ function isOccupied(email, targetDateStr) {
     let reschedules = p.reschedules || {}; 
     let pendingReschedules = p.pendingReschedules || {};
     
-    let movedAway = reschedules[targetDateStr] !== undefined; // Sudah disetujui pindah
-    let movedHere = Object.values(reschedules).includes(targetDateStr); // Sudah disetujui masuk sini
-    let pendingMoveAway = pendingReschedules[targetDateStr] !== undefined; // Sedang diajukan pindah (masih miliknya sampai disetujui)
-    let pendingMoveHere = Object.values(pendingReschedules).includes(targetDateStr); // Sedang diajukan masuk sini (di-booking sementara)
+    let movedAway = reschedules[targetDateStr] !== undefined; 
+    let movedHere = Object.values(reschedules).includes(targetDateStr); 
+    let pendingMoveAway = pendingReschedules[targetDateStr] !== undefined; 
+    let pendingMoveHere = Object.values(pendingReschedules).includes(targetDateStr); 
     
     return (isDefault && !movedAway) || movedHere || pendingMoveHere;
 }
@@ -101,7 +101,6 @@ function getStudentNextSessionInfo(email) {
         if (isValid && curr > validDate) break; 
         
         let currStr = formatDateForID(curr);
-        // Jika statusnya Occupied tapi itu adalah 'pendingMoveAway', kita tetapkan itu sebagai kelas dia sebelum disetujui
         if (isOccupied(email, currStr)) {
             return {
                 dateStr: currStr,
@@ -305,7 +304,6 @@ function renderDashboard() {
                     bookings.push(`<span class="text-xs ${color} px-2 py-1 rounded font-bold">${p.time}</span> <span class="text-sm font-semibold">${s.name} ${statusLabel}</span>`);
                 }
                 
-                // Hitung total pending reschedule khusus untuk notifikasi banner
                 if (i === 0 && p && p.pendingReschedules) {
                     pendingRescheduleCount += Object.keys(p.pendingReschedules).length;
                 }
@@ -325,7 +323,6 @@ function renderDashboard() {
             `;
         }
 
-        // Tampilkan Banner Peringatan jika ada Reschedule yang menunggu
         let alertHTML = '';
         if (pendingRescheduleCount > 0) {
             alertHTML = `
@@ -480,16 +477,16 @@ function parseDriveLink(link) {
     return link;
 }
 
-// FUNGSI SUBMIT VOCABULARY
-window.submitVocab = async function(e, m, w, d) {
+// FUNGSI SUBMIT VOCABULARY YANG SUDAH DIPERBAIKI DENGAN ALERT DAN TOMBOL LOADING
+window.submitVocab = async function(btnElement, m, w, d) {
     let key = `vocab_status-${currentUser.email}-${m}-w${w}-d${d}`;
     materials[key] = { status: 'submitted', feedback: '' };
     
     // Memberikan Efek Loading Interaktif di Tombol
-    const btn = e.currentTarget; 
-    const origText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim Hafalan...'; 
-    btn.disabled = true;
+    const origText = btnElement.innerHTML;
+    btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sedang Mengirim...'; 
+    btnElement.disabled = true;
+    btnElement.classList.add('opacity-70', 'cursor-not-allowed');
     
     document.body.style.cursor = 'wait';
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
@@ -497,11 +494,12 @@ window.submitVocab = async function(e, m, w, d) {
     
     if (error) {
         alert("Error: " + error.message);
-        btn.innerHTML = origText; 
-        btn.disabled = false;
+        btnElement.innerHTML = origText; 
+        btnElement.disabled = false;
+        btnElement.classList.remove('opacity-70', 'cursor-not-allowed');
     } else {
         // Pop-up Notifikasi Sukses Untuk Murid
-        alert("Luar biasa! 🌟\n\nHafalanmu telah dikirim ke Bro Hamdi untuk direview. Silakan tunggu feedback di halaman ini nanti.");
+        alert("🎉 Luar biasa!\n\nHafalanmu telah dikirim ke Bro Hamdi untuk direview. Silakan tunggu feedback di halaman ini nanti.");
         
         let monthTitle = months.find(mo=>mo.id===m)?.title || 'Materi';
         
@@ -543,7 +541,7 @@ function renderMateri(monthId, week, day, monthTitle) {
 
         let actionUI = '';
         if (vocabStatus.status === 'none' || !vocabStatus.status) {
-            actionUI = `<button onclick="submitVocab(event, '${monthId}', ${week}, ${day}')" class="w-full mt-6 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex items-center justify-center gap-2"><i class="fas fa-check-circle"></i> Saya Sudah Hafal Semua!</button>`;
+            actionUI = `<button onclick="submitVocab(this, '${monthId}', ${week}, ${day})" class="w-full mt-6 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex items-center justify-center gap-2"><i class="fas fa-check-circle"></i> Saya Sudah Hafal Semua!</button>`;
         } else if (vocabStatus.status === 'submitted') {
             actionUI = `<div class="mt-6 text-amber-700 font-bold bg-amber-50 p-4 text-center rounded-xl border border-amber-200 flex items-center justify-center gap-2 shadow-inner"><i class="fas fa-hourglass-half fa-spin"></i> Menunggu Bro Hamdi memverifikasi hafalanmu...</div>`;
         } else if (vocabStatus.status === 'approved') {
