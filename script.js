@@ -126,6 +126,7 @@ async function fetchCloudData() {
             if (matData && matData.value) materials = matData.value;
             if (stuData && stuData.value) students = stuData.value;
             
+            // Jika user sedang login (dari LocalStorage), update tampilan dengan data terbaru
             if (currentUser) {
                 renderSidebar();
                 if (document.getElementById('main-content').innerHTML.includes('Welcome Back')) renderDashboard();
@@ -148,6 +149,18 @@ const sidebar = document.getElementById('sidebar');
 const sidebarMenu = document.getElementById('sidebar-menu');
 const mainContent = document.getElementById('main-content');
 
+// ==== CEK SESI LOGIN (MENCEGAH LOGOUT SAAT REFRESH) ====
+function checkExistingSession() {
+    const savedUser = localStorage.getItem('hes_session_user');
+    const savedRole = localStorage.getItem('hes_session_role');
+    if (savedUser && savedRole) {
+        currentUser = JSON.parse(savedUser);
+        userRole = savedRole;
+        loginSuccess(false); // Parameter false agar tidak perlu resave ke localStorage
+    }
+}
+checkExistingSession();
+
 document.getElementById('open-sidebar').addEventListener('click', () => { sidebar.classList.remove('-translate-x-full'); });
 document.getElementById('close-sidebar').addEventListener('click', () => { sidebar.classList.add('-translate-x-full'); });
 document.getElementById('logout-btn').addEventListener('click', handleLogout);
@@ -158,15 +171,21 @@ loginForm.addEventListener('submit', (e) => {
     const password = document.getElementById('password').value;
 
     if (email === 'hamdirizall1@gmail.com' && password === 'admin') {
-        userRole = 'admin'; currentUser = { name: 'Bro Hamdi', email: email }; loginSuccess();
+        userRole = 'admin'; currentUser = { name: 'Bro Hamdi', email: email }; loginSuccess(true);
     } else {
         const student = students.find(s => s.email === email && s.password === password);
-        if (student) { userRole = 'student'; currentUser = student; loginSuccess(); } 
+        if (student) { userRole = 'student'; currentUser = student; loginSuccess(true); } 
         else { loginError.classList.remove('hidden'); }
     }
 });
 
-function loginSuccess() {
+function loginSuccess(saveSession = true) {
+    // Simpan sesi ke LocalStorage jika ini login manual yang baru
+    if (saveSession) {
+        localStorage.setItem('hes_session_user', JSON.stringify(currentUser));
+        localStorage.setItem('hes_session_role', userRole);
+    }
+    
     loginPage.classList.add('hidden');
     appPage.classList.remove('hidden');
     const initial = currentUser.name.charAt(0).toUpperCase();
@@ -177,6 +196,10 @@ function loginSuccess() {
 }
 
 function handleLogout() {
+    // Hapus sesi saat logout
+    localStorage.removeItem('hes_session_user');
+    localStorage.removeItem('hes_session_role');
+    
     currentUser = null; userRole = null;
     document.getElementById('email').value = ''; document.getElementById('password').value = '';
     loginError.classList.add('hidden'); appPage.classList.add('hidden'); loginPage.classList.remove('hidden');
@@ -304,6 +327,7 @@ function renderDashboard() {
                     bookings.push(`<span class="text-xs ${color} px-2 py-1 rounded font-bold">${p.time}</span> <span class="text-sm font-semibold">${s.name} ${statusLabel}</span>`);
                 }
                 
+                // Hitung total pending reschedule khusus untuk notifikasi banner
                 if (i === 0 && p && p.pendingReschedules) {
                     pendingRescheduleCount += Object.keys(p.pendingReschedules).length;
                 }
@@ -323,6 +347,7 @@ function renderDashboard() {
             `;
         }
 
+        // Tampilkan Banner Peringatan jika ada Reschedule yang menunggu
         let alertHTML = '';
         if (pendingRescheduleCount > 0) {
             alertHTML = `
@@ -1219,6 +1244,26 @@ window.rejectReschedule = async function(email, oldDate) {
         
         if (error) alert("Error: " + error.message);
         else { alert("Pengajuan ditolak."); renderAdminCMS(); }
+    }
+}
+
+window.saveVocabList = async function(e) {
+    const m = document.getElementById('admin-vocab-month').value;
+    const w = document.getElementById('admin-vocab-week').value;
+    const d = document.getElementById('admin-vocab-day').value;
+    const vocabText = document.getElementById('admin-vocab-list').value;
+
+    materials[`vocab-${m}-w${w}-d${d}`] = vocabText;
+
+    const btn = e.currentTarget; const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; btn.disabled = true;
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+    btn.innerHTML = origText; btn.disabled = false;
+    
+    if (error) alert("Error: " + error.message);
+    else {
+        alert(`Word Bank untuk Sesi ${m} W${w} D${d} berhasil disimpan!`);
+        document.getElementById('admin-vocab-list').value = '';
     }
 }
 
