@@ -1,5 +1,20 @@
 // script.js
 
+// ==== KONFIGURASI NOTIFIKASI TELEGRAM ====
+const TELEGRAM_BOT_TOKEN = "8783483454:AAFIMaNa4Z5-uUMXHOeqHZgkk2S9EK4gC0Y"; 
+// Masukkan angka ID Anda di bawah ini (Dapatkan dari @userinfobot)
+const TELEGRAM_CHAT_ID = "1225652735";
+
+function sendTelegramNotification(message) {
+    if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "TOKEN_BOT_ANDA_DISINI" || !TELEGRAM_CHAT_ID || TELEGRAM_CHAT_ID === "CHAT_ID_ANDA_DISINI") return;
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message, parse_mode: 'Markdown' })
+    }).catch(e => console.error("Gagal kirim Telegram", e));
+}
+
 // ==== STATE & DATA AWAL ====
 let currentUser = null;
 let userRole = null; 
@@ -46,11 +61,14 @@ function isOccupied(email, targetDateStr) {
 
     let isDefault = p.days.includes(dayName);
     let reschedules = p.reschedules || {}; 
+    let pendingReschedules = p.pendingReschedules || {};
     
-    let movedAway = reschedules[targetDateStr] !== undefined;
-    let movedHere = Object.values(reschedules).includes(targetDateStr);
+    let movedAway = reschedules[targetDateStr] !== undefined; // Sudah disetujui pindah
+    let movedHere = Object.values(reschedules).includes(targetDateStr); // Sudah disetujui masuk sini
+    let pendingMoveAway = pendingReschedules[targetDateStr] !== undefined; // Sedang diajukan pindah (masih miliknya sampai disetujui)
+    let pendingMoveHere = Object.values(pendingReschedules).includes(targetDateStr); // Sedang diajukan masuk sini (di-booking sementara)
     
-    return (isDefault && !movedAway) || movedHere;
+    return (isDefault && !movedAway) || movedHere || pendingMoveHere;
 }
 
 function checkOverlap(time1, time2) {
@@ -80,6 +98,7 @@ function getStudentNextSessionInfo(email) {
         if (isValid && curr > validDate) break; 
         
         let currStr = formatDateForID(curr);
+        // Jika statusnya Occupied tapi itu adalah 'pendingMoveAway', kita tetapkan itu sebagai kelas dia sebelum disetujui
         if (isOccupied(email, currStr)) {
             return {
                 dateStr: currStr,
@@ -272,8 +291,14 @@ function renderDashboard() {
             let bookings = [];
             students.forEach(s => {
                 if (isOccupied(s.email, currStr)) {
-                    let time = materials[`profile-${s.email}`].time;
-                    bookings.push(`<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-bold">${time}</span> <span class="text-sm font-semibold">${s.name}</span>`);
+                    let p = materials[`profile-${s.email}`];
+                    let isPendingMoveAway = p.pendingReschedules && p.pendingReschedules[currStr] !== undefined;
+                    let isPendingMoveHere = p.pendingReschedules && Object.values(p.pendingReschedules).includes(currStr);
+                    
+                    let statusLabel = isPendingMoveAway ? ' (Pengajuan Pindah)' : (isPendingMoveHere ? ' (Pending Masuk)' : '');
+                    let color = isPendingMoveAway ? 'bg-amber-100 text-amber-700' : (isPendingMoveHere ? 'bg-sky-100 text-sky-700' : 'bg-indigo-100 text-indigo-700');
+                    
+                    bookings.push(`<span class="text-xs ${color} px-2 py-1 rounded font-bold">${p.time}</span> <span class="text-sm font-semibold">${s.name} ${statusLabel}</span>`);
                 }
             });
             
@@ -436,6 +461,8 @@ window.submitVocab = async function(m, w, d) {
     if (error) alert("Error: " + error.message);
     else {
         let monthTitle = months.find(mo=>mo.id===m)?.title || 'Materi';
+        // Kirim Notifikasi Telegram
+        sendTelegramNotification(`📢 *Hafalan Masuk!*\n\nMurid: *${currentUser.name}*\nTelah menyetor hafalan Word Bank untuk:\nSesi: ${monthTitle} - W${w} D${d}.\n\nSegera cek dan berikan apresiasi di Admin CMS!`);
         renderMateri(m, w, d, monthTitle);
     }
 }
@@ -557,11 +584,11 @@ window.processReschedule = async function(newDateStr) {
     let oldDisplay = getDisplayDate(parseDateStr(oldDateStr));
     let newDisplay = getDisplayDate(parseDateStr(newDateStr));
 
-    if (confirm(`Yakin memindahkan kelas dari:\n${oldDisplay}\n\nKe Tanggal:\n${newDisplay}?\n\nJadwal Anda untuk minggu-minggu berikutnya akan tetap normal seperti biasa.`)) {
+    if (confirm(`Ajukan pemindahan kelas dari:\n${oldDisplay}\n\nKe Tanggal:\n${newDisplay}?\n\nJadwal ini akan dikirim ke Bro Hamdi untuk disetujui.`)) {
         let p = materials[`profile-${currentUser.email}`];
-        if(!p.reschedules) p.reschedules = {};
+        if(!p.pendingReschedules) p.pendingReschedules = {};
         
-        p.reschedules[oldDateStr] = newDateStr;
+        p.pendingReschedules[oldDateStr] = newDateStr;
         
         document.body.style.cursor = 'wait';
         const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
@@ -569,9 +596,10 @@ window.processReschedule = async function(newDateStr) {
         
         if (error) {
             alert("Gagal memindahkan jadwal: " + error.message);
-            delete p.reschedules[oldDateStr]; 
+            delete p.pendingReschedules[oldDateStr]; 
         } else {
-            alert(`Berhasil! Kelasmu telah dipindahkan ke tanggal ${newDateStr}.`);
+            alert(`Berhasil! Pengajuan pindah kelas ke tanggal ${newDateStr} sedang diproses. Menunggu persetujuan tutor.`);
+            sendTelegramNotification(`📅 *Pengajuan Reschedule Masuk*\n\nMurid: *${currentUser.name}*\nJadwal Asal: ${oldDisplay}\nJadwal Baru: ${newDisplay}\n\nSilakan cek dan Setujui di menu Admin CMS.`);
             renderReschedule();
         }
     }
@@ -593,6 +621,7 @@ window.updateRescheduleGrid = function() {
 
     let gridHTML = '';
     let p = materials[`profile-${currentUser.email}`];
+    let isPendingOld = p.pendingReschedules && p.pendingReschedules[oldDateStr] !== undefined;
 
     for(let i=0; i<7; i++) {
         let curr = new Date(startOfWeek); curr.setDate(startOfWeek.getDate()+i);
@@ -603,12 +632,22 @@ window.updateRescheduleGrid = function() {
         let isPast = curr < today;
 
         if (isOccupied(currentUser.email, currStr)) {
+            let isPendingNew = p.pendingReschedules && Object.values(p.pendingReschedules).includes(currStr);
+            
             if (currStr === oldDateStr) {
-                 gridHTML += `<div class="p-5 rounded-2xl border border-indigo-400 bg-indigo-50 flex flex-col relative opacity-95 shadow-inner">
-                    <div class="font-bold text-indigo-900 text-sm mb-4 text-center border-b border-indigo-200 pb-2">${displayDay}</div>
+                 gridHTML += `<div class="p-5 rounded-2xl border ${isPendingOld ? 'border-amber-400 bg-amber-50' : 'border-indigo-400 bg-indigo-50'} flex flex-col relative opacity-95 shadow-inner">
+                    <div class="font-bold ${isPendingOld ? 'text-amber-900 border-amber-200' : 'text-indigo-900 border-indigo-200'} text-sm mb-4 text-center border-b pb-2">${displayDay}</div>
                     <div class="flex-1 flex flex-col justify-center items-center py-4">
-                        <i class="fas fa-calendar-times text-indigo-400 text-3xl mb-2"></i>
-                        <span class="text-sm font-bold text-indigo-600 text-center">Jadwal Asal<br>(Yang mau diganti)</span>
+                        <i class="fas ${isPendingOld ? 'fa-hourglass-half text-amber-500 fa-spin' : 'fa-calendar-times text-indigo-400'} text-3xl mb-2"></i>
+                        <span class="text-sm font-bold ${isPendingOld ? 'text-amber-600' : 'text-indigo-600'} text-center">${isPendingOld ? 'Menunggu Persetujuan Pindah' : 'Jadwal Asal<br>(Yang mau diganti)'}</span>
+                    </div>
+                </div>`;
+            } else if (isPendingNew) {
+                gridHTML += `<div class="p-5 rounded-2xl border border-amber-400 bg-amber-50 flex flex-col relative opacity-95 shadow-inner">
+                    <div class="font-bold text-amber-900 text-sm mb-4 text-center border-b border-amber-200 pb-2">${displayDay}</div>
+                    <div class="flex-1 flex flex-col justify-center items-center py-4">
+                        <i class="fas fa-hourglass-half text-amber-500 fa-spin text-3xl mb-2"></i>
+                        <span class="text-sm font-bold text-amber-600 text-center">Menunggu Persetujuan<br>Masuk ke Slot Ini</span>
                     </div>
                 </div>`;
             } else {
@@ -658,16 +697,26 @@ window.updateRescheduleGrid = function() {
                     </button>
                 </div>`;
         } else {
-            gridHTML += `<div class="p-5 rounded-2xl border border-green-200 bg-white flex flex-col relative hover:shadow-xl transition-all hover:-translate-y-1 hover:border-green-400 group">
+            if (isPendingOld) {
+                gridHTML += `<div class="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col relative opacity-50">
+                    <div class="font-bold text-slate-400 text-sm mb-4 text-center border-b border-slate-200 pb-2">${displayDay}</div>
+                    <div class="flex-1 flex flex-col justify-center items-center py-4 text-center">
+                        <i class="fas fa-lock text-slate-300 text-3xl mb-2"></i>
+                        <span class="text-sm font-bold text-slate-400">Aksi Terkunci<br>Tunggu persetujuan admin</span>
+                    </div>
+                </div>`;
+            } else {
+                gridHTML += `<div class="p-5 rounded-2xl border border-green-200 bg-white flex flex-col relative hover:shadow-xl transition-all hover:-translate-y-1 hover:border-green-400 group">
                     <div class="font-bold text-slate-800 text-sm mb-4 text-center border-b border-slate-100 pb-2 group-hover:text-green-700 transition-colors">${displayDay}</div>
                     <div class="flex-1 flex flex-col justify-center items-center py-4 mb-2">
                         <i class="fas fa-check-circle text-green-500 text-4xl mb-3 group-hover:scale-110 transition-transform"></i>
                         <span class="text-sm font-bold text-green-600 bg-green-50 px-4 py-1.5 rounded-full border border-green-100">Slot Tersedia</span>
                     </div>
                     <button onclick="processReschedule('${currStr}')" class="w-full mt-auto py-3 rounded-xl text-sm font-bold transition-all bg-green-600 text-white hover:bg-green-700 shadow-md shadow-green-200 group-hover:shadow-lg">
-                        Pindah ke Tanggal Ini
+                        Ajukan Pindah Kesini
                     </button>
                 </div>`;
+            }
         }
     }
     gridContainer.innerHTML = gridHTML;
@@ -714,7 +763,8 @@ function renderReschedule() {
             let currStr = formatDateForID(curr);
             
             if (isOccupied(currentUser.email, currStr)) {
-                upcomingOptions.push(`<option value="${currStr}">Pertemuan ${count}: ${getDisplayDate(curr)}</option>`);
+                let isPending = p.pendingReschedules && p.pendingReschedules[currStr];
+                upcomingOptions.push(`<option value="${currStr}">Pertemuan ${count}: ${getDisplayDate(curr)} ${isPending?'(Menunggu Persetujuan)':''}</option>`);
                 count++;
             }
         }
@@ -737,7 +787,7 @@ function renderReschedule() {
                 
                 <div class="bg-white/90 p-4 rounded-xl border border-indigo-100">
                     <h4 class="font-bold text-slate-800 mb-1 text-sm"><i class="fas fa-robot text-blue-500 mr-1"></i> Kalender Terkunci Minggu Ini</h4>
-                    <p class="text-slate-600 text-sm leading-relaxed">Sistem akan menyesuaikan kalender di bawah sesuai dengan <b>minggu dari tanggal yang Anda pilih</b> di atas. Anda hanya bisa pindah ke hari lain yang <b>Tersedia</b> pada minggu yang sama!</p>
+                    <p class="text-slate-600 text-sm leading-relaxed">Pilih jadwal di atas dan klik <b>"Ajukan Pindah Kesini"</b> pada hari yang <b>Tersedia</b>. Jadwal akan dikunci untukmu dan menunggu persetujuan Bro Hamdi.</p>
                 </div>
             </div>`;
     }
@@ -809,6 +859,32 @@ function renderAdminCMS() {
     const dayOptions = [1,2,3].map(d => `<option value="${d}">Day ${d}</option>`).join('');
     const studentOptions = students.map(s => `<option value="${s.email}">${s.name} (${s.email})</option>`).join('');
 
+    let pendingReschedulesHTML = '';
+    students.forEach(s => {
+        let p = materials[`profile-${s.email}`];
+        if (p && p.pendingReschedules) {
+            for (const [oldD, newD] of Object.entries(p.pendingReschedules)) {
+                pendingReschedulesHTML += `
+                    <div class="flex flex-col sm:flex-row items-center justify-between bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-3 shadow-sm">
+                        <div class="mb-3 sm:mb-0 w-full sm:w-auto">
+                            <p class="font-bold text-amber-900 mb-1"><i class="fas fa-user text-amber-600 mr-1"></i> ${s.name}</p>
+                            <div class="flex items-center gap-2 text-sm font-semibold text-amber-700">
+                                <span class="bg-white px-2 py-1 rounded border border-amber-100">${getDisplayDate(parseDateStr(oldD))}</span>
+                                <i class="fas fa-arrow-right text-amber-400"></i>
+                                <span class="bg-amber-200 text-amber-800 px-2 py-1 rounded">${getDisplayDate(parseDateStr(newD))}</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 w-full sm:w-auto">
+                            <button onclick="approveReschedule('${s.email}', '${oldD}', '${newD}')" class="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold transition shadow-sm"><i class="fas fa-check"></i> Setujui</button>
+                            <button onclick="rejectReschedule('${s.email}', '${oldD}')" class="flex-1 sm:flex-none bg-red-100 hover:bg-red-200 text-red-600 px-4 py-2 rounded-xl font-bold transition shadow-sm"><i class="fas fa-times"></i> Tolak</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    });
+    if (!pendingReschedulesHTML) pendingReschedulesHTML = `<p class="text-slate-400 text-center py-4 font-medium italic">Tidak ada pengajuan reschedule baru.</p>`;
+
     mainContent.innerHTML = `
         <div class="max-w-6xl mx-auto space-y-8 fade-in pb-12">
             <div>
@@ -816,6 +892,16 @@ function renderAdminCMS() {
                     <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center"><i class="fas fa-shield-alt"></i></div> Admin Workspace
                 </h2>
                 <p class="text-slate-500 font-medium ml-14">Kelola konten, data murid, dan penjadwalan kelas.</p>
+            </div>
+
+            <!-- PANEL: PERSETUJUAN RESCHEDULE (BARU) -->
+            <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
+                <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-3 border-b border-slate-100 pb-4">
+                    <i class="fas fa-bell text-amber-500"></i> Persetujuan Reschedule Murid
+                </h3>
+                <div class="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    ${pendingReschedulesHTML}
+                </div>
             </div>
 
             <!-- PANEL BARU: INPUT VOCAB & REVIEW HAFALAN -->
@@ -1028,7 +1114,36 @@ function renderAdminCMS() {
     `;
 }
 
-// ==== FUNGSI ADMIN DATABASE ====
+// ==== FUNGSI ADMIN DATABASE & APPROVAL ====
+
+window.approveReschedule = async function(email, oldDate, newDate) {
+    let p = materials[`profile-${email}`];
+    if(!p.reschedules) p.reschedules = {};
+    
+    p.reschedules[oldDate] = newDate;
+    delete p.pendingReschedules[oldDate];
+    
+    document.body.style.cursor = 'wait';
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+    document.body.style.cursor = 'default';
+    
+    if (error) alert("Error: " + error.message);
+    else { alert("Jadwal disetujui!"); renderAdminCMS(); }
+}
+
+window.rejectReschedule = async function(email, oldDate) {
+    if(confirm("Yakin ingin menolak pengajuan reschedule ini?")) {
+        let p = materials[`profile-${email}`];
+        delete p.pendingReschedules[oldDate]; 
+        
+        document.body.style.cursor = 'wait';
+        const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+        document.body.style.cursor = 'default';
+        
+        if (error) alert("Error: " + error.message);
+        else { alert("Pengajuan ditolak."); renderAdminCMS(); }
+    }
+}
 
 window.saveVocabList = async function(e) {
     const m = document.getElementById('admin-vocab-month').value;
@@ -1102,10 +1217,8 @@ window.saveStudentSchedule = async function(e) {
         }
 
         if (clashingNames.length > 0) {
-            let confirmMsg = `⚠️ PERINGATAN TABRAKAN JADWAL DEFAULT!\n\nJadwal ini bertabrakan dengan murid lain:\n${[...new Set(clashingNames)].join('\n')}\n\nApakah mereka belajar di sesi/grup yang sama?\nKlik 'OK' untuk tetap menyimpan (menggabungkan grup), atau 'Batal'.`;
-            if (!confirm(confirmMsg)) {
-                return; 
-            }
+            let confirmMsg = `⚠️ PERINGATAN TABRAKAN JADWAL DEFAULT!\n\nJadwal ini bertabrakan dengan murid lain:\n${[...new Set(clashingNames)].join('\n')}\n\nApakah mereka belajar di sesi/grup yang sama?\nKlik 'OK' untuk tetap menyimpan, atau 'Batal'.`;
+            if (!confirm(confirmMsg)) { return; }
         }
     }
 
