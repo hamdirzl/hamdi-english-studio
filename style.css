@@ -1,50 +1,53 @@
 /* style.css */
-
-.font-inter {
-    font-family: 'Inter', sans-serif;
+body {
+    font-family: 'Poppins', sans-serif;
 }
 
 #sidebar {
-    transition: transform 0.3s ease-in-out;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Mempercantik Scrollbar dengan gaya macOS */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent; 
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #cbd5e1; 
-    border-radius: 10px;
+    border-radius: 20px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8; 
+    background-color: #94a3b8; 
 }
 
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-.no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
+/* Animasi Fade In & Elevasi Premium */
 .fade-in {
-    animation: fadeInUp 0.4s ease-out forwards;
+    animation: fadeInUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 @keyframes fadeInUp {
-    from { 
-        opacity: 0; 
-        transform: translateY(10px); 
-    }
-    to { 
-        opacity: 1; 
-        transform: translateY(0); 
-    }
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-slow {
+    0%, 100% { transform: scale(1); opacity: 0.15; }
+    50% { transform: scale(1.1); opacity: 0.25; }
+}
+.animate-pulse-slow {
+    animation: pulse-slow 8s ease-in-out infinite;
+}
+
+/* Kartu Interaktif */
+.hover-card {
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hover-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.08);
 }

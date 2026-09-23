@@ -3,67 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hamdi English Studio</title>
+    <title>Hamdi English Studio | Premium Portal</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
+    <!-- FontAwesome untuk Icon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts: Inter (Lebih bersih dan modern dibanding Poppins untuk UI aplikasi) -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- CSS Kustom -->
+    <!-- Google Fonts: Poppins (Lebih elegan dan geometris) -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900 font-inter">
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-indigo-200 selection:text-indigo-900">
 
-    <!-- Halaman Login -->
-    <div id="login-page" class="min-h-screen flex items-center justify-center p-4 bg-slate-50 relative overflow-hidden">
-        <div class="bg-white p-8 sm:p-10 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full relative z-10">
-            <div class="text-center mb-8">
-                <div class="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-                    <i class="fas fa-graduation-cap text-2xl text-white"></i>
+    <!-- Halaman Login Premium -->
+    <div id="login-page" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 relative overflow-hidden">
+        <!-- Elemen Latar Belakang Elegan -->
+        <div class="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-500 rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-pulse-slow"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-500 rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-pulse-slow" style="animation-delay: 2s;"></div>
+        
+        <div class="bg-white/10 backdrop-blur-2xl p-10 rounded-[2rem] shadow-2xl max-w-md w-full relative z-10 border border-white/20">
+            <div class="text-center mb-10">
+                <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/30">
+                    <i class="fas fa-graduation-cap text-3xl text-white"></i>
                 </div>
-                <h1 class="text-2xl font-bold text-slate-800 mb-1 tracking-tight">Hamdi Studio</h1>
-                <p class="text-slate-500 font-medium text-sm">Masuk ke portal belajar Anda</p>
+                <h1 class="text-3xl font-bold text-white mb-2 tracking-tight">Hamdi Studio</h1>
+                <p class="text-indigo-200 font-medium text-sm">Exclusive English Learning Portal</p>
             </div>
             
-            <div id="login-error" class="hidden bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg mb-6 text-sm text-center flex items-center justify-center font-medium">
+            <div id="login-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-200 p-4 rounded-xl mb-6 text-sm text-center flex items-center justify-center font-medium backdrop-blur-sm">
                 <i class="fas fa-exclamation-circle mr-2"></i>
-                <span>Email atau password salah.</span>
+                <span>Kredensial tidak valid. Silakan coba lagi.</span>
             </div>
             
-            <form id="login-form" class="space-y-4">
+            <form id="login-form" class="space-y-5">
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
+                    <label class="block text-sm font-medium text-indigo-100 mb-1.5 pl-1">Email Address</label>
                     <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                            <i class="fas fa-envelope text-slate-400"></i>
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fas fa-envelope text-indigo-300"></i>
                         </div>
-                        <input type="email" id="email" class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm" placeholder="Masukkan email" required>
+                        <input type="email" id="email" class="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:bg-white/10 text-white placeholder-indigo-300/50 outline-none transition-all" placeholder="Enter your email" required>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
+                    <label class="block text-sm font-medium text-indigo-100 mb-1.5 pl-1">Password</label>
                     <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                            <i class="fas fa-lock text-slate-400"></i>
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fas fa-lock text-indigo-300"></i>
                         </div>
-                        <input type="password" id="password" class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm" placeholder="••••••••" required>
+                        <input type="password" id="password" class="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:bg-white/10 text-white placeholder-indigo-300/50 outline-none transition-all" placeholder="••••••••" required>
                     </div>
                     <div class="flex justify-end mt-2">
-                        <a href="https://wa.me/6282298363945?text=Hi%20Bro%20Hamdi!%20Saya%20lupa%20password%20akun%20saya.%20Mohon%20bantuannya%20untuk%20reset." target="_blank" class="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
-                            Lupa password?
+                        <a href="https://wa.me/6282298363945" target="_blank" class="text-xs font-medium text-indigo-300 hover:text-white transition-colors">
+                            Forgot password?
                         </a>
                     </div>
                 </div>
-                <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition-all font-semibold shadow-sm mt-4 text-sm">
-                    Masuk
+                <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3.5 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all font-semibold shadow-lg shadow-indigo-500/30 mt-4">
+                    Sign In to Portal
                 </button>
             </form>
             
-            <div class="mt-8 pt-6 border-t border-slate-100 text-center">
-                <p class="text-sm text-slate-500 font-medium mb-3">Belum memiliki akun?</p>
-                <a href="https://wa.me/6282298363945?text=Hi%20Bro%20Hamdi!%20Saya%20tertarik%20belajar%20dan%20ingin%20membuat%20akun." target="_blank" class="inline-flex items-center justify-center px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg font-medium transition-colors w-full sm:w-auto text-sm">
-                    <i class="fab fa-whatsapp text-green-500 text-lg mr-2"></i> Hubungi Admin
+            <div class="mt-8 pt-6 border-t border-white/10 text-center">
+                <p class="text-sm text-indigo-200 mb-3">Belum memiliki akses?</p>
+                <a href="https://wa.me/6282298363945" target="_blank" class="inline-flex items-center justify-center px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-medium transition-all w-full shadow-sm">
+                    <i class="fab fa-whatsapp text-green-400 text-lg mr-2"></i> Hubungi Admin via WA
                 </a>
             </div>
         </div>
@@ -73,66 +76,69 @@
     <div id="app-page" class="hidden h-screen flex overflow-hidden bg-slate-50">
         
         <!-- Sidebar Navigation -->
-        <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-sm transform transition-transform duration-300 ease-in-out -translate-x-full md:translate-x-0 md:static flex flex-col border-r border-slate-200">
-            <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-white">
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.04)] transform transition-transform duration-300 ease-in-out -translate-x-full md:translate-x-0 md:static flex flex-col border-r border-slate-100">
+            <!-- Brand -->
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
-                        <i class="fas fa-graduation-cap text-white text-sm"></i>
-                    </div>
-                    <h2 class="text-lg font-bold text-slate-800 tracking-tight">Hamdi Studio</h2>
-                </div>
-                <button id="close-sidebar" class="md:hidden text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-times text-lg"></i></button>
-            </div>
-            
-            <div class="p-5 border-b border-slate-200 bg-slate-50">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-sm border border-blue-200" id="user-avatar">
-                        M
+                    <div class="w-10 h-10 bg-gradient-to-br from-slate-900 to-indigo-900 rounded-xl flex items-center justify-center shadow-md">
+                        <i class="fas fa-graduation-cap text-white text-lg"></i>
                     </div>
                     <div>
-                        <p id="user-name-display" class="text-sm font-bold text-slate-800 line-clamp-1"></p>
-                        <p id="user-role-display" class="text-xs font-medium text-slate-500 capitalize mt-0.5"></p>
+                        <h2 class="text-lg font-bold text-slate-800 tracking-tight leading-tight">Hamdi Studio</h2>
+                        <p class="text-[10px] uppercase tracking-widest text-amber-500 font-bold">Premium Class</p>
+                    </div>
+                </div>
+                <button id="close-sidebar" class="md:hidden text-slate-400 hover:text-slate-600 bg-slate-50 p-2 rounded-lg"><i class="fas fa-times text-lg"></i></button>
+            </div>
+            
+            <!-- User Profile (Sidebar) -->
+            <div class="p-5 mx-4 mt-4 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold shadow-sm" id="user-avatar">M</div>
+                    <div class="flex-1 overflow-hidden">
+                        <p id="user-name-display" class="text-sm font-bold text-slate-800 truncate"></p>
+                        <p id="user-role-display" class="text-xs font-semibold text-indigo-600 truncate"></p>
                     </div>
                 </div>
             </div>
 
+            <!-- Menu Navigation -->
             <div class="overflow-y-auto flex-1 p-4 custom-scrollbar" id="sidebar-menu">
                 <!-- Menu render via JS -->
             </div>
 
-            <div class="p-4 border-t border-slate-200 bg-white">
-                <button id="logout-btn" class="w-full flex items-center justify-center p-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all">
-                    <i class="fas fa-sign-out-alt mr-2"></i> Keluar
+            <div class="p-4 border-t border-slate-100">
+                <button id="logout-btn" class="w-full flex items-center justify-center p-3 text-sm font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-xl hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all">
+                    <i class="fas fa-sign-out-alt mr-2"></i> Log Out
                 </button>
             </div>
         </aside>
 
         <!-- Main Content Area -->
-        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <main class="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC]">
             <!-- Header Mobile -->
-            <header class="bg-white shadow-sm border-b border-slate-200 p-4 flex items-center md:hidden shrink-0 sticky top-0 z-40">
-                <button id="open-sidebar" class="text-slate-600 focus:outline-none p-1 mr-3"><i class="fas fa-bars text-lg"></i></button>
-                <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+            <header class="bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-100 p-4 flex items-center md:hidden shrink-0 sticky top-0 z-40">
+                <button id="open-sidebar" class="text-slate-600 p-2 bg-slate-50 rounded-lg"><i class="fas fa-bars text-xl"></i></button>
+                <div class="ml-4 flex items-center gap-2">
+                    <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
                         <i class="fas fa-graduation-cap text-white text-xs"></i>
                     </div>
-                    <h1 class="text-base font-bold text-slate-800">Hamdi Studio</h1>
+                    <h1 class="text-lg font-bold text-slate-800">Hamdi Studio</h1>
                 </div>
             </header>
 
-            <!-- Tempat Konten Utama -->
-            <div id="main-content" class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+            <!-- Main Workspace -->
+            <div id="main-content" class="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 custom-scrollbar relative">
                 <!-- Konten dinamis -->
             </div>
         </main>
     </div>
 
-    <!-- Library Supabase & Konfigurasi -->
+    <!-- Library Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         const SUPABASE_URL = "https://vpmnsuhyflzlhfnkvuko.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwbW5zdWh5Zmx6bGhmbmt2dWtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNDg5MjAsImV4cCI6MjEwNTYyNDkyMH0.ou6N7Wvfaibicuk4io-ptlJp87-MLwkpfRcHRbuVqXA"; 
-        
         window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     </script>
     <script src="script.js"></script>
