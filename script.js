@@ -2,11 +2,14 @@
 
 // ==== KONFIGURASI NOTIFIKASI TELEGRAM ====
 const TELEGRAM_BOT_TOKEN = "8783483454:AAFIMaNa4Z5-uUMXHOeqHZgkk2S9EK4gC0Y"; 
-// Masukkan angka ID Anda di bawah ini (Dapatkan dari @userinfobot)
+// MASUKKAN ANGKA ID ANDA DI BAWAH INI (Dapatkan dari @userinfobot)
 const TELEGRAM_CHAT_ID = "1225652735";
 
 function sendTelegramNotification(message) {
-    if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "TOKEN_BOT_ANDA_DISINI" || !TELEGRAM_CHAT_ID || TELEGRAM_CHAT_ID === "CHAT_ID_ANDA_DISINI") return;
+    if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "TOKEN_BOT_ANDA_DISINI" || !TELEGRAM_CHAT_ID || TELEGRAM_CHAT_ID === "CHAT_ID_ANDA_DISINI") {
+        console.warn("Telegram Chat ID belum diatur. Notifikasi dibatalkan.");
+        return;
+    }
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
     fetch(url, {
         method: 'POST',
@@ -282,6 +285,7 @@ function renderDashboard() {
     if (userRole === 'admin') {
         let adminGridHTML = '';
         let todayAdmin = new Date(); todayAdmin.setHours(0,0,0,0);
+        let pendingRescheduleCount = 0;
         
         for(let i=0; i<7; i++) {
             let curr = new Date(todayAdmin); curr.setDate(todayAdmin.getDate()+i);
@@ -290,8 +294,8 @@ function renderDashboard() {
             
             let bookings = [];
             students.forEach(s => {
+                let p = materials[`profile-${s.email}`];
                 if (isOccupied(s.email, currStr)) {
-                    let p = materials[`profile-${s.email}`];
                     let isPendingMoveAway = p.pendingReschedules && p.pendingReschedules[currStr] !== undefined;
                     let isPendingMoveHere = p.pendingReschedules && Object.values(p.pendingReschedules).includes(currStr);
                     
@@ -299,6 +303,11 @@ function renderDashboard() {
                     let color = isPendingMoveAway ? 'bg-amber-100 text-amber-700' : (isPendingMoveHere ? 'bg-sky-100 text-sky-700' : 'bg-indigo-100 text-indigo-700');
                     
                     bookings.push(`<span class="text-xs ${color} px-2 py-1 rounded font-bold">${p.time}</span> <span class="text-sm font-semibold">${s.name} ${statusLabel}</span>`);
+                }
+                
+                // Hitung total pending reschedule khusus untuk notifikasi banner
+                if (i === 0 && p && p.pendingReschedules) {
+                    pendingRescheduleCount += Object.keys(p.pendingReschedules).length;
                 }
             });
             
@@ -312,6 +321,25 @@ function renderDashboard() {
                         <i class="fas fa-calendar-day ${i===0?'text-amber-500':'text-slate-400'}"></i> ${i===0?'HARI INI - ':''}${displayDay}
                     </h4>
                     ${listHTML}
+                </div>
+            `;
+        }
+
+        // Tampilkan Banner Peringatan jika ada Reschedule yang menunggu
+        let alertHTML = '';
+        if (pendingRescheduleCount > 0) {
+            alertHTML = `
+                <div class="bg-amber-50 border-2 border-amber-300 p-5 rounded-2xl mb-8 flex flex-col md:flex-row items-center justify-between shadow-md relative overflow-hidden animate-pulse">
+                    <div class="flex items-center gap-4 mb-4 md:mb-0 z-10">
+                        <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-xl shrink-0"><i class="fas fa-bell"></i></div>
+                        <div>
+                            <h4 class="font-bold text-amber-900 text-lg">Ada ${pendingRescheduleCount} Permintaan Reschedule!</h4>
+                            <p class="text-amber-700 text-sm font-medium">Murid sedang menunggu persetujuan ganti jadwal dari Anda.</p>
+                        </div>
+                    </div>
+                    <button onclick="renderAdminCMS()" class="w-full md:w-auto bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-amber-200 z-10 flex items-center justify-center gap-2">
+                        Lihat & Setujui <i class="fas fa-arrow-right"></i>
+                    </button>
                 </div>
             `;
         }
@@ -331,6 +359,8 @@ function renderDashboard() {
                         </div>
                     </div>
                 </div>
+                
+                ${alertHTML}
                 
                 <h3 class="text-2xl font-bold text-slate-800 mb-4 px-2">📅 Master Jadwal 7 Hari Kedepan</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -450,19 +480,35 @@ function parseDriveLink(link) {
     return link;
 }
 
-window.submitVocab = async function(m, w, d) {
+// FUNGSI SUBMIT VOCABULARY
+window.submitVocab = async function(e, m, w, d) {
     let key = `vocab_status-${currentUser.email}-${m}-w${w}-d${d}`;
     materials[key] = { status: 'submitted', feedback: '' };
+    
+    // Memberikan Efek Loading Interaktif di Tombol
+    const btn = e.currentTarget; 
+    const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim Hafalan...'; 
+    btn.disabled = true;
     
     document.body.style.cursor = 'wait';
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
     document.body.style.cursor = 'default';
     
-    if (error) alert("Error: " + error.message);
-    else {
+    if (error) {
+        alert("Error: " + error.message);
+        btn.innerHTML = origText; 
+        btn.disabled = false;
+    } else {
+        // Pop-up Notifikasi Sukses Untuk Murid
+        alert("Luar biasa! 🌟\n\nHafalanmu telah dikirim ke Bro Hamdi untuk direview. Silakan tunggu feedback di halaman ini nanti.");
+        
         let monthTitle = months.find(mo=>mo.id===m)?.title || 'Materi';
-        // Kirim Notifikasi Telegram
+        
+        // Kirim Notifikasi Telegram ke Admin
         sendTelegramNotification(`📢 *Hafalan Masuk!*\n\nMurid: *${currentUser.name}*\nTelah menyetor hafalan Word Bank untuk:\nSesi: ${monthTitle} - W${w} D${d}.\n\nSegera cek dan berikan apresiasi di Admin CMS!`);
+        
+        // Render ulang halaman agar status tombol berubah
         renderMateri(m, w, d, monthTitle);
     }
 }
@@ -497,7 +543,7 @@ function renderMateri(monthId, week, day, monthTitle) {
 
         let actionUI = '';
         if (vocabStatus.status === 'none' || !vocabStatus.status) {
-            actionUI = `<button onclick="submitVocab('${monthId}', ${week}, ${day}')" class="w-full mt-6 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex items-center justify-center gap-2"><i class="fas fa-check-circle"></i> Saya Sudah Hafal Semua!</button>`;
+            actionUI = `<button onclick="submitVocab(event, '${monthId}', ${week}, ${day}')" class="w-full mt-6 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex items-center justify-center gap-2"><i class="fas fa-check-circle"></i> Saya Sudah Hafal Semua!</button>`;
         } else if (vocabStatus.status === 'submitted') {
             actionUI = `<div class="mt-6 text-amber-700 font-bold bg-amber-50 p-4 text-center rounded-xl border border-amber-200 flex items-center justify-center gap-2 shadow-inner"><i class="fas fa-hourglass-half fa-spin"></i> Menunggu Bro Hamdi memverifikasi hafalanmu...</div>`;
         } else if (vocabStatus.status === 'approved') {
@@ -698,6 +744,7 @@ window.updateRescheduleGrid = function() {
                 </div>`;
         } else {
             if (isPendingOld) {
+                // Jika jadwal ini sedang menunggu dipindah, hari lain diblokir
                 gridHTML += `<div class="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col relative opacity-50">
                     <div class="font-bold text-slate-400 text-sm mb-4 text-center border-b border-slate-200 pb-2">${displayDay}</div>
                     <div class="flex-1 flex flex-col justify-center items-center py-4 text-center">
@@ -894,8 +941,8 @@ function renderAdminCMS() {
                 <p class="text-slate-500 font-medium ml-14">Kelola konten, data murid, dan penjadwalan kelas.</p>
             </div>
 
-            <!-- PANEL: PERSETUJUAN RESCHEDULE (BARU) -->
-            <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
+            <!-- PANEL: PERSETUJUAN RESCHEDULE -->
+            <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8" id="admin-approval-panel">
                 <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-3 border-b border-slate-100 pb-4">
                     <i class="fas fa-bell text-amber-500"></i> Persetujuan Reschedule Murid
                 </h3>
@@ -904,7 +951,7 @@ function renderAdminCMS() {
                 </div>
             </div>
 
-            <!-- PANEL BARU: INPUT VOCAB & REVIEW HAFALAN -->
+            <!-- PANEL: INPUT VOCAB & REVIEW HAFALAN -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                 <!-- Input Vocab -->
                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
@@ -1112,6 +1159,12 @@ function renderAdminCMS() {
             
         </div>
     `;
+    
+    setTimeout(() => {
+        if (document.getElementById('admin-approval-panel') && document.getElementById('admin-approval-panel').innerHTML.includes('Setujui')) {
+            document.getElementById('admin-approval-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 100);
 }
 
 // ==== FUNGSI ADMIN DATABASE & APPROVAL ====
