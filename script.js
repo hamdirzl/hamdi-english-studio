@@ -588,13 +588,15 @@ function renderAdminCMS(tab = null) {
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sesi Bulan</label>
                         <select id="admin-exam-month" class="w-full bg-white border border-slate-200 py-2 px-3 rounded-lg text-xs outline-none focus:border-indigo-400 transition">${monthOptions}</select>
                     </div>
-                    <div class="sm:col-span-2 mt-1 flex gap-2">
+                    <div class="sm:col-span-2 mt-1 flex flex-wrap gap-2">
                         <button onclick="loadAdminExamData()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition">Muat / Buat Soal</button>
                         <button onclick="resetStudentExam()" class="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-undo mr-1"></i> Reset Ujian Murid</button>
+                        <button onclick="loadStudentExamForGrading()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> Nilai Jawaban Murid</button>
                     </div>
                 </div>
                 
-                <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-xl overflow-hidden">
+                <!-- Workspace Pembuatan Soal (Disembunyikan default) -->
+                <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-xl overflow-hidden mb-6">
                     <div class="flex overflow-x-auto border-b border-slate-200 bg-slate-50/80 custom-scrollbar">
                         <button onclick="switchExamTab('listening')" id="tab-listening" class="shrink-0 px-4 md:px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Listening</button>
                         <button onclick="switchExamTab('speaking')" id="tab-speaking" class="shrink-0 px-4 md:px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Speaking</button>
@@ -614,6 +616,9 @@ function renderAdminCMS(tab = null) {
                         <button onclick="saveAdminExamData(event)" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-xs font-bold shadow-sm transition">Simpan Seluruh Soal</button>
                     </div>
                 </div>
+
+                <!-- Workspace Penilaian (Disembunyikan default) -->
+                <div id="admin-grading-workspace" class="hidden border-t border-slate-200 pt-5 mt-2"></div>
             </div>
         `;
     }
@@ -656,6 +661,8 @@ window.loadAdminExamData = function() {
     adminExamState.month = document.getElementById('admin-exam-month').value;
     const key = `exam-${adminExamState.student}-${adminExamState.month}`;
     adminExamState.data = materials[key] || { listening: [], speaking: [], reading: [], writing: [] };
+    
+    document.getElementById('admin-grading-workspace').classList.add('hidden'); // Sembunyikan form nilai
     document.getElementById('admin-exam-workspace').classList.remove('hidden');
     switchExamTab('listening');
 }
@@ -826,7 +833,7 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
         </div>
     `;
 
-    // Cek apakah TAB SAAT INI sudah disubmit (bukan seluruh ujian sekaligus)
+    // Cek apakah TAB SAAT INI sudah disubmit
     const cat = currentStudentExamTab;
     const isTabSubmitted = examResult && (
         (examResult.submittedTabs && examResult.submittedTabs.includes(cat)) ||
@@ -835,10 +842,34 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
 
     let contentHTML = '';
 
+    // KODE BARU: Menampilkan Final Report jika ujian sudah dinilai Admin
+    if (examResult && examResult.isGraded) {
+        contentHTML += `
+            <div class="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 md:p-8 rounded-2xl text-white mb-8 shadow-lg relative overflow-hidden">
+                <div class="absolute right-0 top-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                <h3 class="font-bold text-lg md:text-xl mb-4 relative z-10"><i class="fas fa-award text-amber-300 mr-2"></i> Final Report Evaluation</h3>
+                <div class="grid grid-cols-2 gap-4 mb-5 relative z-10">
+                    <div class="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Skor Pilihan Ganda</p>
+                        <p class="text-2xl md:text-3xl font-bold text-white">${examResult.mcqScore}</p>
+                    </div>
+                    <div class="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Skor Essay & Speaking</p>
+                        <p class="text-2xl md:text-3xl font-bold text-white">${examResult.manualScore}</p>
+                    </div>
+                </div>
+                <div class="bg-white/10 p-4 md:p-5 rounded-xl border border-white/20 backdrop-blur-sm relative z-10">
+                    <p class="text-[10px] uppercase tracking-wider text-amber-200 mb-2 font-bold"><i class="fas fa-quote-left mr-1"></i> Admin Feedback</p>
+                    <p class="text-sm italic text-indigo-50 leading-relaxed">"${examResult.adminFeedback || 'Kerja bagus!'}"</p>
+                </div>
+            </div>
+        `;
+    }
+
     if (isTabSubmitted) {
         // TAMPILAN MODE HASIL (HANYA UNTUK TAB INI)
         if(examData[cat].length === 0) {
-            contentHTML = `<div class="bg-white p-8 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal di bagian ini.</p></div>`;
+            contentHTML += `<div class="bg-white p-8 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal di bagian ini.</p></div>`;
         } else {
             contentHTML += `<div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl font-bold text-sm shadow-sm flex items-center"><i class="fas fa-check-circle mr-2"></i> Bagian ${cat.toUpperCase()} telah disubmit.</div>`;
             contentHTML += `<h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 capitalize flex items-center gap-2"><span class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></span> ${cat} Section</h3>`;
@@ -872,7 +903,7 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
     } else {
         // TAMPILAN MODE PENGERJAAN FORM (HANYA UNTUK TAB INI)
         if (examData[cat].length === 0) {
-            contentHTML = `<div class="bg-white p-10 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal untuk bagian ${cat} ini.</p></div>`;
+            contentHTML += `<div class="bg-white p-10 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal untuk bagian ${cat} ini.</p></div>`;
         } else {
             contentHTML += `<div class="mb-8"><h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 capitalize flex items-center gap-2"><div class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></div> ${cat} Section</h3>`;
             examData[cat].forEach((q, idx) => {
@@ -1048,5 +1079,126 @@ window.resetStudentExam = async function() {
         }
     } else {
         alert("Belum ada data ujian yang disubmit oleh murid ini untuk bulan tersebut.");
+    }
+}
+
+// ==== PENILAIAN (GRADING) & FINAL REPORT ====
+window.loadStudentExamForGrading = function() {
+    const studentEmail = document.getElementById('admin-exam-student').value;
+    const monthId = document.getElementById('admin-exam-month').value;
+    const examKey = `exam-${studentEmail}-${monthId}`;
+    const resultKey = `exam_result-${studentEmail}-${monthId}`;
+    
+    const examData = materials[examKey];
+    const examResult = materials[resultKey];
+    const workspace = document.getElementById('admin-grading-workspace');
+
+    // Sembunyikan workspace pembuat soal
+    document.getElementById('admin-exam-workspace').classList.add('hidden');
+
+    if (!examData || !examResult || !examResult.answers) {
+        workspace.innerHTML = `<div class="p-5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">Belum ada ujian yang disubmit oleh murid ini.</div>`;
+        workspace.classList.remove('hidden');
+        return;
+    }
+
+    let html = `<div class="space-y-6">
+        <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex justify-between items-center">
+            <div>
+                <h4 class="font-bold text-indigo-900 text-sm">Lembar Penilaian: ${studentEmail}</h4>
+                <p class="text-[10px] text-indigo-600 mt-1">Skor Pilihan Ganda Otomatis: <strong>${examResult.mcqScore || 0}/100</strong></p>
+            </div>
+        </div>`;
+    
+    ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
+        if (examData[cat] && examData[cat].length > 0) {
+            html += `<div class="bg-slate-50 p-4 rounded-xl border border-slate-200"><h4 class="font-bold text-sm text-slate-800 mb-3 capitalize"><i class="fas fa-layer-group text-slate-400 mr-2"></i>${cat} Section</h4>`;
+            
+            examData[cat].forEach((q, idx) => {
+                let ans = examResult.answers[`${cat}_${idx}`];
+                let isMCQ = q.type === 'mcq';
+                let displayAns = ans !== undefined ? ans : '<span class="text-red-400 italic">Tidak dijawab</span>';
+                
+                if (isMCQ && ans !== undefined && ans !== '') displayAns = q.options[ans];
+                if (!isMCQ && typeof ans === 'string' && ans.startsWith('data:audio')) {
+                    displayAns = `<audio controls class="h-8 mt-2 w-full max-w-xs"><source src="${ans}"></audio>`;
+                }
+                
+                html += `
+                    <div class="mb-4 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                        <p class="text-xs font-semibold text-slate-700 mb-2">${idx+1}. ${q.question.replace(/\n/g, '<br>')}</p>
+                        <p class="text-[10px] text-slate-500 mb-3"><strong>Kunci Jawaban/Kriteria:</strong> ${isMCQ ? q.options[q.answer] : q.answer}</p>
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-800 mb-3"><strong>Jawaban Murid:</strong><br> ${displayAns}</div>
+                        
+                        ${!isMCQ ? `
+                            <label class="block text-[10px] font-bold text-emerald-600 mt-2 uppercase tracking-wide">Beri Nilai Manual (0-100):</label>
+                            <input type="number" id="score_${cat}_${idx}" placeholder="0 - 100" value="${examResult.scores ? (examResult.scores[`${cat}_${idx}`] || 0) : 0}" class="w-full mt-1.5 p-2.5 border border-emerald-200 bg-emerald-50 focus:bg-white rounded-lg text-xs font-bold outline-none focus:ring-1 focus:ring-emerald-500 transition">
+                        ` : `
+                            <p class="text-[10px] font-bold ${(ans == q.answer) ? 'text-emerald-500' : 'text-red-500'} bg-slate-50 inline-block px-2 py-1 rounded border border-slate-100"><i class="fas ${(ans == q.answer) ? 'fa-check' : 'fa-times'} mr-1"></i> ${(ans == q.answer) ? 'Benar' : 'Salah'}</p>
+                        `}
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+    });
+
+    html += `
+        <div class="bg-white p-5 rounded-xl border border-indigo-200 shadow-sm mt-4">
+            <label class="block text-xs font-bold text-indigo-800 mb-2"><i class="fas fa-comment-dots mr-1"></i> Catatan Final Report (Feedback Admin):</label>
+            <textarea id="admin-exam-feedback" rows="4" placeholder="Ketik kesimpulan, apresiasi, atau area yang perlu ditingkatkan..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs mb-4 outline-none focus:bg-white focus:border-indigo-400">${examResult.adminFeedback || ''}</textarea>
+            
+            <button onclick="saveExamGrades('${studentEmail}', '${monthId}')" class="w-full bg-indigo-600 text-white py-3 rounded-xl text-xs font-bold shadow-sm hover:bg-indigo-700 transition"><i class="fas fa-paper-plane mr-1"></i> Terbitkan Final Report ke Murid</button>
+        </div>
+    </div>`;
+    
+    workspace.innerHTML = html;
+    workspace.classList.remove('hidden');
+}
+
+window.saveExamGrades = async function(studentEmail, monthId) {
+    const examKey = `exam-${studentEmail}-${monthId}`;
+    const resultKey = `exam_result-${studentEmail}-${monthId}`;
+    const examData = materials[examKey];
+    let examResult = materials[resultKey];
+    
+    if (!examResult.scores) examResult.scores = {};
+    let manualTotal = 0;
+    let manualCount = 0;
+
+    // Ambil semua nilai dari input manual
+    ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
+        if (examData[cat]) {
+            examData[cat].forEach((q, idx) => {
+                if (q.type !== 'mcq') {
+                    let input = document.getElementById(`score_${cat}_${idx}`);
+                    if (input) {
+                        let score = parseInt(input.value) || 0;
+                        examResult.scores[`${cat}_${idx}`] = score;
+                        manualTotal += score;
+                        manualCount++;
+                    }
+                }
+            });
+        }
+    });
+
+    // Hitung rata-rata nilai Essay/Audio
+    examResult.manualScore = manualCount > 0 ? Math.round(manualTotal / manualCount) : 0;
+    examResult.adminFeedback = document.getElementById('admin-exam-feedback').value;
+    examResult.isGraded = true; // Tandai bahwa admin sudah selesai menilai
+
+    materials[resultKey] = examResult;
+    
+    document.body.style.cursor = 'wait';
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+    document.body.style.cursor = 'default';
+
+    if (!error) {
+        alert("Penilaian berhasil disimpan! Final Report sudah bisa dilihat oleh murid.");
+        // Kirim notif Telegram ke Anda sebagai log bahwa report terbit
+        sendTelegramNotification(`🎓 *FINAL REPORT DITERBITKAN*\n\nMurid: ${studentEmail}\nBulan: ${monthId}\nSkor PG: ${examResult.mcqScore}\nSkor Manual/Essay: ${examResult.manualScore}\n\nLaporan sudah masuk ke dashboard murid.`);
+    } else {
+        alert("Gagal menyimpan nilai: " + error.message);
     }
 }
