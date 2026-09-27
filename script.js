@@ -724,6 +724,7 @@ window.saveAdminExamData = async function(e) {
 let studentExamAnswers = {};
 let currentExamSession = null;
 let currentStudentExamTab = 'listening';
+let audioPlayCounts = {}; // State untuk melacak jumlah putar audio
 
 function getDriveDirectStreamLink(url) {
     if (!url) return '';
@@ -733,6 +734,32 @@ function getDriveDirectStreamLink(url) {
     if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
     return url;
 }
+
+// Fungsi Pembatas Audio (Maksimal 2x)
+window.checkAudioPlay = function(audioEl, key) {
+    if ((audioPlayCounts[key] || 0) >= 2) {
+        audioEl.pause();
+        audioEl.removeAttribute('controls');
+    }
+};
+
+window.incrementAudioPlay = function(audioEl, key) {
+    if (!audioPlayCounts[key]) audioPlayCounts[key] = 0;
+    audioPlayCounts[key]++;
+    let sisa = 2 - audioPlayCounts[key];
+    
+    let warnEl = document.getElementById(`audio-sisa-${key}`);
+    if(warnEl) warnEl.innerText = sisa;
+    
+    if (sisa <= 0) {
+        audioEl.removeAttribute('controls'); // Sembunyikan player
+        let container = document.getElementById(`audio-warn-${key}`);
+        if (container) {
+            container.innerHTML = `<i class="fas fa-ban"></i> Batas pemutaran audio telah habis.`;
+            container.className = "text-[10px] font-bold text-red-500 mt-1.5";
+        }
+    }
+};
 
 let mediaRecorder; let audioChunks = [];
 window.startVoiceRecord = async function(qIndex) {
@@ -769,7 +796,12 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
     const examKey = `exam-${email}-${monthId}`; const resultKey = `exam_result-${email}-${monthId}`;
     const examData = materials[examKey]; const examResult = materials[resultKey]; 
     
-    if (currentExamSession !== monthId) { studentExamAnswers = {}; currentExamSession = monthId; }
+    // Reset jawaban & log audio jika murid membuka sesi bulan yang berbeda
+    if (currentExamSession !== monthId) { 
+        studentExamAnswers = {}; 
+        audioPlayCounts = {}; 
+        currentExamSession = monthId; 
+    }
     currentStudentExamTab = tab;
 
     if (!examData) {
@@ -786,6 +818,7 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
         </div>
     `;
 
+    // 1. TAMPILAN JIKA UJIAN SUDAH DI-SUBMIT
     if (examResult) {
         let resultHTML = ''; const cat = currentStudentExamTab;
         if(examData[cat].length === 0) {
@@ -797,6 +830,8 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
                 let isMCQ = q.type === 'mcq'; let isCorrect = isMCQ ? (sAns == q.answer) : true;
                 let sAnsText = isMCQ && sAns !== '' ? q.options[sAns] : (sAns || 'Tidak dijawab');
                 let cAnsText = isMCQ ? q.options[q.answer] : q.answer;
+                
+                // Di mode hasil, audio bisa diputar bebas (tidak ada batasan)
                 let mediaHTML = q.mediaUrl ? `<audio controls class="w-full h-8 mt-3 mb-2 rounded-lg"><source src="${getDriveDirectStreamLink(q.mediaUrl)}"></audio>` : '';
 
                 resultHTML += `
@@ -816,6 +851,7 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
         return;
     }
 
+    // 2. TAMPILAN MENGERJAKAN UJIAN
     let formHTML = ''; const cat = currentStudentExamTab; 
     if (examData[cat].length === 0) {
         formHTML = `<div class="bg-white p-10 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal untuk bagian ${cat} ini.</p></div>`;
@@ -824,7 +860,31 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
         examData[cat].forEach((q, idx) => {
             let isMCQ = q.type === 'mcq'; let inputsHTML = '';
             let savedAns = studentExamAnswers[`${cat}_${idx}`] !== undefined ? studentExamAnswers[`${cat}_${idx}`] : '';
-            let mediaHTML = q.mediaUrl ? `<audio controls class="w-full h-10 mt-3 mb-4 rounded-lg bg-slate-50"><source src="${getDriveDirectStreamLink(q.mediaUrl)}"></audio>` : '';
+            
+            // Audio Player Terbatas (Listening)
+            let mediaHTML = '';
+            if (q.mediaUrl) {
+                let key = `${cat}_${idx}`;
+                let playCount = audioPlayCounts[key] || 0;
+                let sisa = 2 - playCount;
+                
+                if (sisa > 0) {
+                    mediaHTML = `
+                        <div class="mt-3 mb-4">
+                            <audio id="audio-${key}" controls class="w-full h-10 rounded-lg bg-slate-50" onplay="checkAudioPlay(this, '${key}')" onended="incrementAudioPlay(this, '${key}')">
+                                <source src="${getDriveDirectStreamLink(q.mediaUrl)}">
+                            </audio>
+                            <p id="audio-warn-${key}" class="text-[10px] font-bold text-amber-500 mt-1.5"><i class="fas fa-info-circle"></i> Sisa pemutaran: <span id="audio-sisa-${key}">${sisa}</span> kali</p>
+                        </div>
+                    `;
+                } else {
+                    mediaHTML = `
+                        <div class="mt-3 mb-4 p-3 bg-red-50 border border-red-100 rounded-lg text-center">
+                            <p class="text-[10px] font-bold text-red-500"><i class="fas fa-ban"></i> Batas pemutaran audio telah habis.</p>
+                        </div>
+                    `;
+                }
+            }
 
             if (isMCQ) {
                 inputsHTML = ['A','B','C','D'].map((lbl, oIdx) => `<label class="flex items-start md:items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-2"><input type="radio" name="ans_${cat}_${idx}" value="${oIdx}" ${savedAns == oIdx ? 'checked' : ''} onchange="recordAnswer('${cat}', ${idx}, ${oIdx})" class="w-4 h-4 mt-0.5 md:mt-0 text-indigo-600 shrink-0"><span class="text-xs md:text-sm font-medium text-slate-700 leading-snug">${lbl}. ${q.options[oIdx]}</span></label>`).join('');
