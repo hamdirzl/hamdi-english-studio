@@ -588,8 +588,9 @@ function renderAdminCMS(tab = null) {
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sesi Bulan</label>
                         <select id="admin-exam-month" class="w-full bg-white border border-slate-200 py-2 px-3 rounded-lg text-xs outline-none focus:border-indigo-400 transition">${monthOptions}</select>
                     </div>
-                    <div class="sm:col-span-2 mt-1">
-                        <button onclick="loadAdminExamData()" class="w-full bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition">Muat / Buat Soal</button>
+                    <div class="sm:col-span-2 mt-1 flex gap-2">
+                        <button onclick="loadAdminExamData()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition">Muat / Buat Soal</button>
+                        <button onclick="resetStudentExam()" class="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-undo mr-1"></i> Reset Ujian Murid</button>
                     </div>
                 </div>
                 
@@ -934,4 +935,41 @@ window.submitStudentExam = async function(monthId) {
     materials[resultKey] = { status: 'submitted', answers: studentExamAnswers, mcqScore: mcqScore, submittedAt: new Date().toISOString() };
     document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default';
     if (error) alert("Error: " + error.message); else { alert("Berhasil! Kirimkan file rekaman Speaking (jika ada) ke WA Admin."); sendTelegramNotification(`📝 Ujian Disubmit\nMurid: ${currentUser.name}\nSkor PG: ${mcqScore}/100`); renderExam(monthId, months.find(m => m.id === monthId).title, currentStudentExamTab); }
+}
+
+// ==== RESET UJIAN MURID ====
+window.resetStudentExam = async function() {
+    const studentEmail = document.getElementById('admin-exam-student').value;
+    const monthId = document.getElementById('admin-exam-month').value;
+    
+    if (!studentEmail || !monthId) {
+        alert("Pilih target murid dan sesi bulan terlebih dahulu.");
+        return;
+    }
+
+    const resultKey = `exam_result-${studentEmail}-${monthId}`;
+
+    if (materials[resultKey]) {
+        if (confirm(`Peringatan: Anda akan MENGHAPUS hasil ujian murid ${studentEmail} pada sesi ${monthId}. Murid akan dapat mengulang ujian dari awal. Lanjutkan?`)) {
+            
+            // Hapus hasil ujian dari state
+            delete materials[resultKey];
+            
+            // Reset riwayat pemutaran audio di memori sesi saat ini
+            audioPlayCounts = {}; 
+            currentExamSession = null;
+
+            document.body.style.cursor = 'wait';
+            const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+            document.body.style.cursor = 'default';
+            
+            if (!error) {
+                alert("Data ujian berhasil direset. Murid sekarang dapat mengerjakan ulang.");
+            } else {
+                alert("Gagal mereset ujian: " + error.message);
+            }
+        }
+    } else {
+        alert("Belum ada data ujian yang disubmit oleh murid ini untuk bulan tersebut.");
+    }
 }
