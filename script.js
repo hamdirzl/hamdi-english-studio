@@ -197,6 +197,12 @@ function renderSidebar() {
                 });
                 menuHTML += `</div></div>`;
             });
+            // MENU FINAL EXAM
+            menuHTML += `
+                <div class="px-3 py-2 mx-3 mb-2 mt-2 text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg cursor-pointer flex items-center transition-colors border border-amber-200" onclick="renderExam('${month.id}', '${month.title}')">
+                    <i class="fas fa-star mr-2 text-amber-500"></i> Final Exam
+                </div>
+            `;
             menuHTML += `</div></div>`;
         }
     });
@@ -899,6 +905,47 @@ function renderAdminCMS() {
                     ${students.length === 0 ? '<p class="text-center text-slate-400 font-medium py-6">Database kosong.</p>' : ''}
                 </div>
             </div>
+            
+            <!-- Group 7: Manajemen Ujian Bulanan (Per Murid) -->
+            <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm mt-8">
+                <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center"><i class="fas fa-file-signature"></i></div>
+                    Manajemen Ujian Bulanan (Custom per Murid)
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pilih Murid target</label>
+                        <select id="admin-exam-student" class="w-full border border-slate-200 bg-white py-3 px-4 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-400">
+                            ${studentOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pilih Bulan Ujian</label>
+                        <select id="admin-exam-month" class="w-full border border-slate-200 bg-white py-3 px-4 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-400">
+                            ${monthOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Listening (Teks / Link Audio)</label>
+                        <textarea id="admin-exam-listen" rows="2" placeholder="Masukkan instruksi atau link audio..." class="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-red-400"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Speaking (Topik / Instruksi)</label>
+                        <textarea id="admin-exam-speak" rows="2" placeholder="Masukkan topik speaking..." class="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-red-400"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Reading (Teks Bacaan)</label>
+                        <textarea id="admin-exam-read" rows="3" placeholder="Masukkan teks bacaan..." class="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-red-400"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Writing (Soal Menulis)</label>
+                        <textarea id="admin-exam-write" rows="3" placeholder="Masukkan instruksi writing..." class="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-red-400"></textarea>
+                    </div>
+                    <button onclick="saveExamData(event)" class="w-full bg-slate-900 text-white px-8 py-3.5 rounded-xl text-sm font-bold hover:bg-slate-800 shadow-lg shadow-slate-200 transition-colors mt-2">Simpan Soal Ujian</button>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -987,4 +1034,124 @@ window.saveMaterialData = async function() {
     
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
     if (error) { alert("Kegagalan unggah: " + error.message); } else { alert("Dokumen berhasil disematkan."); document.getElementById('admin-link').value = ''; document.getElementById('admin-recap-pdf').value = ''; }
+};
+
+// ==== FUNGSI UJIAN BULANAN ====
+window.saveExamData = async function(e) {
+    const student = document.getElementById('admin-exam-student').value;
+    const m = document.getElementById('admin-exam-month').value;
+    const listen = document.getElementById('admin-exam-listen').value;
+    const speak = document.getElementById('admin-exam-speak').value;
+    const read = document.getElementById('admin-exam-read').value;
+    const write = document.getElementById('admin-exam-write').value;
+    
+    // Menyimpan soal secara spesifik untuk email murid tertentu
+    const key = `exam-${student}-${m}`;
+    materials[key] = { listening: listen, speaking: speak, reading: read, writing: write };
+    
+    const btn = e.currentTarget; 
+    const origText = btn.innerHTML; 
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...'; 
+    btn.disabled = true;
+    
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
+    btn.innerHTML = origText; 
+    btn.disabled = false;
+    
+    if (error) {
+        alert("Gagal menyimpan soal ujian: " + error.message);
+    } else {
+        alert("Soal ujian berhasil didistribusikan untuk murid tersebut.");
+        document.getElementById('admin-exam-listen').value = '';
+        document.getElementById('admin-exam-speak').value = '';
+        document.getElementById('admin-exam-read').value = '';
+        document.getElementById('admin-exam-write').value = '';
+    }
+};
+
+window.renderExam = function(monthId, monthTitle) {
+    autoCloseSidebar();
+    // Mengambil data spesifik berdasarkan email murid yang login
+    const email = currentUser.email; 
+    const key = `exam-${email}-${monthId}`;
+    const examData = materials[key];
+    
+    // Jika soal belum dibuat oleh admin
+    if (!examData) {
+        mainContent.innerHTML = `
+            <div class="max-w-4xl mx-auto fade-in pb-12">
+                <div class="mb-8 flex items-center gap-5 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <button onclick="renderDashboard()" class="w-10 h-10 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <div><h2 class="text-xl font-bold text-slate-800">Final Exam: ${monthTitle}</h2></div>
+                </div>
+                <div class="bg-slate-50 p-16 rounded-3xl border-2 border-dashed border-slate-200 text-center shadow-inner">
+                    <i class="fas fa-clipboard-list text-5xl text-slate-300 mb-4 block"></i>
+                    <p class="text-slate-500 font-bold text-lg mb-2">Ujian belum tersedia</p>
+                    <p class="text-slate-400 text-sm">Admin belum mendistribusikan soal ujian untuk bulan ini ke akun Anda.</p>
+                </div>
+            </div>`;
+        return;
+    }
+
+    // Tampilan layout ujian menggunakan styling premium yang sudah ada
+    mainContent.innerHTML = `
+        <div class="max-w-6xl mx-auto fade-in pb-12">
+            <div class="mb-8 flex items-center gap-5 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <button onclick="renderDashboard()" class="w-10 h-10 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">Final Exam: ${monthTitle}</h2>
+                    <p class="text-xs font-bold text-amber-500 uppercase tracking-widest mt-1">Evaluasi Kompetensi Bulan Ini</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Listening -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover-card">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center"><i class="fas fa-headphones"></i></div> 
+                        1. Listening
+                    </h3>
+                    <div class="text-sm font-medium text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">${examData.listening || 'Tidak ada soal.'}</div>
+                </div>
+                
+                <!-- Speaking -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover-card">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center"><i class="fas fa-microphone"></i></div> 
+                        2. Speaking
+                    </h3>
+                    <div class="text-sm font-medium text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">${examData.speaking || 'Tidak ada soal.'}</div>
+                </div>
+                
+                <!-- Reading -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover-card">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center"><i class="fas fa-book-open"></i></div> 
+                        3. Reading
+                    </h3>
+                    <div class="text-sm font-medium text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap h-48 overflow-y-auto custom-scrollbar">${examData.reading || 'Tidak ada soal.'}</div>
+                </div>
+                
+                <!-- Writing -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover-card">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><i class="fas fa-pen-nib"></i></div> 
+                        4. Writing
+                    </h3>
+                    <div class="text-sm font-medium text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap h-48 overflow-y-auto custom-scrollbar">${examData.writing || 'Tidak ada soal.'}</div>
+                </div>
+            </div>
+            
+            <div class="mt-8 bg-gradient-to-r from-slate-900 to-indigo-900 p-8 rounded-3xl text-center shadow-lg shadow-indigo-900/20">
+                <p class="text-sm font-medium text-indigo-100 mb-4">Setelah mengerjakan, kirimkan hasil rekaman suara (Speaking) dan hasil teks (Writing) Anda secara langsung kepada Bro Hamdi.</p>
+                <a href="https://wa.me/6282298363945" target="_blank" class="inline-flex items-center justify-center px-8 py-3.5 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 transition-colors">
+                    <i class="fab fa-whatsapp text-xl mr-2"></i> Setor Jawaban Ujian
+                </a>
+            </div>
+        </div>
+    `;
 };
