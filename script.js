@@ -59,16 +59,13 @@ function getStudentNextSessionInfo(email) {
     let today = new Date(); today.setHours(0,0,0,0);
     let validDate = new Date(p.validUntil); let isValid = !isNaN(validDate);
     if (isValid) validDate.setHours(23,59,59,999);
-    
     if (isValid && today > validDate) return { expired: true, validDateStr: getDisplayDate(validDate) };
     
     for(let i=0; i<30; i++) {
         let curr = new Date(today); curr.setDate(today.getDate() + i);
         if (isValid && curr > validDate) break; 
         let currStr = formatDateForID(curr);
-        if (isOccupied(email, currStr)) {
-            return { dateStr: currStr, displayDate: getDisplayDate(curr), time: p.time, validDateStr: isValid ? getDisplayDate(validDate) : 'Belum diatur' };
-        }
+        if (isOccupied(email, currStr)) return { dateStr: currStr, displayDate: getDisplayDate(curr), time: p.time, validDateStr: isValid ? getDisplayDate(validDate) : 'Belum diatur' };
     }
     return { error: 'Tidak ada jadwal terdekat yang tersedia.' };
 }
@@ -134,17 +131,17 @@ function handleLogout() {
 // ==== RENDER SIDEBAR ====
 function renderSidebar() {
     let menuHTML = '<div class="space-y-1.5">';
-    menuHTML += `<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-2 pl-3">Main Menu</p>`;
+    menuHTML += `<p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-2 pl-3">Navigasi Utama</p>`;
     
     if (userRole === 'admin') {
-        menuHTML += `<button onclick="renderAdminCMS()" class="w-full flex items-center px-4 py-3 text-sm font-semibold rounded-xl text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-all group"><div class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mr-3 text-slate-500 group-hover:text-indigo-600 transition-colors"><i class="fas fa-layer-group"></i></div>Administrative</button>`;
+        menuHTML += `<button onclick="renderAdminCMS()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors group"><div class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mr-3 text-slate-500 group-hover:text-indigo-600 transition-colors"><i class="fas fa-layer-group text-xs"></i></div>Administrative</button>`;
     }
 
     menuHTML += `
-        <button onclick="renderDashboard()" class="w-full flex items-center px-4 py-3 text-sm font-semibold rounded-xl text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-all group"><div class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mr-3 text-slate-500 group-hover:text-indigo-600 transition-colors"><i class="fas fa-th-large"></i></div> Dashboard</button>
-        <button onclick="renderReschedule()" class="w-full flex items-center px-4 py-3 text-sm font-semibold rounded-xl text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-all group"><div class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mr-3 text-slate-500 group-hover:text-indigo-600 transition-colors"><i class="fas fa-calendar-alt"></i></div> Reschedule</button>
+        <button onclick="renderDashboard()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors group"><div class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mr-3 text-slate-500 group-hover:text-indigo-600 transition-colors"><i class="fas fa-home text-xs"></i></div> Dashboard</button>
+        <button onclick="renderReschedule()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors group"><div class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mr-3 text-slate-500 group-hover:text-indigo-600 transition-colors"><i class="fas fa-calendar-alt text-xs"></i></div> Reschedule</button>
     </div>
-    <div class="mt-8 mb-4"><p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 pl-3">Learning Modules</p><div class="space-y-1">
+    <div class="mt-6 mb-4"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-3">Modul Pembelajaran</p><div class="space-y-1">
     `;
 
     let maxMonthNum = 1; 
@@ -155,15 +152,15 @@ function renderSidebar() {
         const isLocked = userRole === 'student' && currentMonthNum > maxMonthNum;
 
         if (isLocked) {
-            menuHTML += `<div class="px-4 py-3 flex items-center text-slate-400 font-medium text-sm cursor-not-allowed opacity-70" onclick="alert('Modul terkunci. Hubungi admin.')"><i class="fas fa-lock w-6 text-slate-300"></i> ${month.title}</div>`;
+            menuHTML += `<div class="px-3 py-2.5 flex items-center text-slate-400 font-medium text-sm cursor-not-allowed opacity-60 rounded-xl" onclick="alert('Modul terkunci. Hubungi admin.')"><i class="fas fa-lock w-6 text-slate-300 text-xs"></i> ${month.title}</div>`;
         } else {
-            menuHTML += `<div><div class="px-4 py-3 flex justify-between items-center cursor-pointer rounded-xl hover:bg-slate-50 transition-colors text-slate-700 font-semibold text-sm" onclick="toggleMenu('m-${month.id}', this)"><div class="flex items-center"><i class="far fa-folder-open w-6 text-indigo-500"></i> ${month.title}</div><i class="fas fa-chevron-down text-[10px] text-slate-400 transition-transform"></i></div><div id="m-${month.id}" class="hidden pl-6 py-1 space-y-1 border-l-2 border-indigo-50 ml-5 my-1">`;
+            menuHTML += `<div><div class="px-3 py-2.5 flex justify-between items-center cursor-pointer rounded-xl hover:bg-slate-50 transition-colors text-slate-700 font-semibold text-sm" onclick="toggleMenu('m-${month.id}', this)"><div class="flex items-center"><i class="far fa-folder-open w-6 text-indigo-500 text-xs"></i> ${month.title}</div><i class="fas fa-chevron-down text-[10px] text-slate-400 transition-transform"></i></div><div id="m-${month.id}" class="hidden pl-5 py-1 space-y-1 border-l-2 border-slate-100 ml-4 my-1">`;
             month.weeks.forEach(week => {
-                menuHTML += `<div><div class="px-3 py-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 cursor-pointer flex justify-between items-center" onclick="toggleMenu('w-${month.id}-${week}', this)"><span>Week ${week}</span> <i class="fas fa-angle-down text-[10px] transition-transform"></i></div><div id="w-${month.id}-${week}" class="hidden pl-3 py-1 space-y-1">`;
-                [1, 2, 3].forEach(day => { menuHTML += `<div class="px-3 py-2 text-sm font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/50 rounded-lg cursor-pointer flex items-center transition-colors" onclick="renderMateri('${month.id}', ${week}, ${day}, '${month.title}')"><span class="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2"></span> Day ${day}</div>`; });
+                menuHTML += `<div><div class="px-3 py-2 text-xs font-semibold text-slate-500 hover:text-indigo-600 cursor-pointer flex justify-between items-center rounded-lg hover:bg-slate-50" onclick="toggleMenu('w-${month.id}-${week}', this)"><span>Week ${week}</span> <i class="fas fa-angle-down text-[10px] transition-transform"></i></div><div id="w-${month.id}-${week}" class="hidden pl-2 py-1 space-y-1">`;
+                [1, 2, 3].forEach(day => { menuHTML += `<div class="px-3 py-2 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer flex items-center transition-colors" onclick="renderMateri('${month.id}', ${week}, ${day}, '${month.title}')"><span class="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2"></span> Day ${day}</div>`; });
                 menuHTML += `</div></div>`;
             });
-            menuHTML += `<div class="px-3 py-2 mx-3 mb-2 mt-2 text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg cursor-pointer flex items-center transition-colors border border-amber-200" onclick="renderExam('${month.id}', '${month.title}')"><i class="fas fa-star mr-2 text-amber-500"></i> Final Exam</div></div></div>`;
+            menuHTML += `<div class="px-3 py-2 mx-2 mb-2 mt-2 text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg cursor-pointer flex items-center transition-colors border border-amber-100" onclick="renderExam('${month.id}', '${month.title}')"><i class="fas fa-star mr-2 text-amber-500"></i> Final Exam</div></div></div>`;
         }
     });
     menuHTML += `</div></div>`; sidebarMenu.innerHTML = menuHTML;
@@ -187,26 +184,26 @@ function renderDashboard() {
                     let isPendingMoveAway = p.pendingReschedules && p.pendingReschedules[currStr] !== undefined; let isPendingMoveHere = p.pendingReschedules && Object.values(p.pendingReschedules).includes(currStr);
                     let statusLabel = isPendingMoveAway ? ' (Pengajuan Keluar)' : (isPendingMoveHere ? ' (Validasi Masuk)' : '');
                     let badgeClass = isPendingMoveAway ? 'bg-amber-100 text-amber-700' : (isPendingMoveHere ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700');
-                    bookings.push(`<div class="flex items-center gap-2 sm:gap-3 p-3 bg-slate-50 rounded-xl mb-2 border border-slate-100"><div class="px-2 py-1 rounded bg-white font-bold text-[10px] sm:text-xs shadow-sm border border-slate-200 text-slate-600">${p.time}</div><div class="flex-1 text-xs sm:text-sm font-semibold text-slate-800">${s.name}</div>${statusLabel ? `<div class="text-[8px] sm:text-[10px] font-bold px-2 py-1 rounded-md ${badgeClass}">${statusLabel}</div>` : ''}</div>`);
+                    bookings.push(`<div class="flex items-center gap-2 md:gap-3 p-3 bg-slate-50 rounded-xl mb-2 border border-slate-100"><div class="px-2 py-1 rounded bg-white font-bold text-[10px] md:text-xs shadow-sm border border-slate-200 text-slate-600">${p.time}</div><div class="flex-1 text-xs md:text-sm font-semibold text-slate-800">${s.name}</div>${statusLabel ? `<div class="text-[8px] md:text-[10px] font-bold px-2 py-1 rounded-md ${badgeClass}">${statusLabel}</div>` : ''}</div>`);
                 }
                 if (i === 0 && p && p.pendingReschedules) { pendingRescheduleCount += Object.keys(p.pendingReschedules).length; }
             });
-            adminGridHTML += `<div class="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm hover-card"><h4 class="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3 mb-4 flex items-center justify-between"><span>${displayDay}</span>${i===0 ? '<span class="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full uppercase tracking-wider">HARI INI</span>' : ''}</h4><div class="space-y-1">${bookings.length === 0 ? `<p class="text-sm text-slate-400 italic text-center py-4">Jadwal Kosong</p>` : bookings.join('')}</div></div>`;
+            adminGridHTML += `<div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm hover-card"><h4 class="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3 mb-4 flex items-center justify-between"><span>${displayDay}</span>${i===0 ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded border border-indigo-100 uppercase font-bold tracking-wider">HARI INI</span>' : ''}</h4><div class="space-y-2">${bookings.length === 0 ? `<p class="text-sm text-slate-400 italic text-center py-4">Jadwal Kosong</p>` : bookings.join('')}</div></div>`;
         }
 
         let alertHTML = '';
         if (pendingRescheduleCount > 0) {
-            alertHTML = `<div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-5 md:p-6 rounded-2xl mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between shadow-sm"><div class="flex items-center gap-4 mb-4 md:mb-0"><div class="w-10 h-10 md:w-12 md:h-12 shrink-0 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500 text-lg md:text-xl"><i class="fas fa-bell"></i></div><div><h4 class="font-bold text-amber-900 text-base md:text-lg">Tinjauan Jadwal Diperlukan</h4><p class="text-amber-700 text-xs md:text-sm font-medium">Ada ${pendingRescheduleCount} permintaan jadwal baru dari murid.</p></div></div><button onclick="renderAdminCMS('overview')" class="w-full md:w-auto bg-amber-500 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-md">Review Sekarang</button></div>`;
+            alertHTML = `<div class="bg-amber-50 border border-amber-200 p-5 md:p-6 rounded-2xl mb-6 flex flex-col md:flex-row items-start md:items-center justify-between shadow-sm"><div class="flex items-center gap-4 mb-4 md:mb-0"><div class="w-10 h-10 md:w-12 md:h-12 shrink-0 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500 text-lg"><i class="fas fa-bell"></i></div><div><h4 class="font-bold text-amber-900 text-base">Tinjauan Jadwal Diperlukan</h4><p class="text-amber-700 text-xs md:text-sm font-medium mt-0.5">Ada ${pendingRescheduleCount} permintaan jadwal baru dari murid.</p></div></div><button onclick="renderAdminCMS('overview')" class="w-full md:w-auto bg-amber-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm text-sm">Review Sekarang</button></div>`;
         }
 
-        mainContent.innerHTML = `<div class="max-w-6xl mx-auto fade-in pb-10"><div class="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 rounded-2xl md:rounded-3xl p-6 md:p-10 text-white shadow-xl mb-6 md:mb-8 relative overflow-hidden"><h2 class="text-2xl md:text-3xl font-bold mb-2">Selamat Datang, Bro Hamdi.</h2></div>${alertHTML}<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">${adminGridHTML}</div></div>`;
+        mainContent.innerHTML = `<div class="max-w-6xl mx-auto fade-in pb-10"><div class="bg-indigo-600 rounded-2xl p-6 md:p-10 text-white shadow-md mb-6 relative overflow-hidden"><div class="absolute right-0 top-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div><h2 class="text-2xl md:text-3xl font-bold mb-1 relative z-10">Administrator Workspace</h2><p class="text-indigo-100 text-sm relative z-10">Selamat datang kembali, Bro Hamdi.</p></div>${alertHTML}<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">${adminGridHTML}</div></div>`;
         return;
     }
 
     let nextSesh = getStudentNextSessionInfo(currentUser.email);
-    let premiumCardContent = nextSesh.expired ? `<div class="bg-red-50 border border-red-200 p-5 rounded-2xl mt-5"><p class="text-red-800 font-bold">Masa Aktif Berakhir</p></div>` : (nextSesh.error ? `<div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 mt-5 text-sm font-medium text-slate-500 text-center">${nextSesh.error}</div>` : `<div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm mt-5 flex items-center justify-between group"><div><p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1">Kelas Mendatang</p><p class="font-bold text-xl md:text-2xl text-slate-800 mb-1">${nextSesh.displayDate}</p><p class="text-xs md:text-sm font-semibold text-slate-500 flex items-center gap-2"><i class="far fa-clock"></i> Pukul: ${nextSesh.time}</p></div></div><p class="text-[10px] md:text-xs text-slate-400 mt-4 text-center">Akses s/d: ${nextSesh.validDateStr}</p>`);
+    let premiumCardContent = nextSesh.expired ? `<div class="bg-red-50 border border-red-200 p-5 rounded-2xl mt-4"><p class="text-red-800 font-bold text-sm">Masa Aktif Berakhir</p></div>` : (nextSesh.error ? `<div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 mt-4 text-sm font-medium text-slate-500 text-center">${nextSesh.error}</div>` : `<div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 mt-4 flex items-center justify-between"><div class="flex items-center gap-4"><div class="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center text-indigo-600 text-xl"><i class="far fa-calendar-check"></i></div><div><p class="font-bold text-lg text-slate-800 leading-tight">${nextSesh.displayDate}</p><p class="text-xs md:text-sm font-medium text-slate-500 mt-0.5"><i class="far fa-clock mr-1"></i> ${nextSesh.time}</p></div></div></div><p class="text-[10px] font-semibold text-slate-400 mt-3 uppercase tracking-wider text-center">Berlaku s/d: ${nextSesh.validDateStr}</p>`);
 
-    mainContent.innerHTML = `<div class="max-w-5xl mx-auto fade-in pb-10"><div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl md:rounded-3xl p-6 md:p-10 text-white shadow-xl mb-6 md:mb-8"><h2 class="text-2xl md:text-3xl font-bold mb-2">Selamat Datang, ${currentUser.name.split(' ')[0]}.</h2></div><div class="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm hover-card"><h3 class="text-base md:text-lg font-bold text-slate-800 flex items-center gap-3">Informasi Penjadwalan</h3>${premiumCardContent}</div></div>`;
+    mainContent.innerHTML = `<div class="max-w-5xl mx-auto fade-in pb-10"><div class="bg-indigo-600 rounded-2xl p-6 md:p-10 text-white shadow-md mb-6 relative overflow-hidden"><div class="absolute right-0 top-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div><h2 class="text-2xl md:text-3xl font-bold mb-1 relative z-10">Welcome, ${currentUser.name.split(' ')[0]}.</h2><p class="text-indigo-100 text-sm relative z-10">Lanjutkan perjalanan belajarmu hari ini.</p></div><div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover-card"><h3 class="text-base font-bold text-slate-800">Informasi Jadwal Kelas</h3>${premiumCardContent}</div></div>`;
 }
 
 // ==== MATERI & RESCHEDULE ====
@@ -227,28 +224,28 @@ function renderMateri(monthId, week, day, monthTitle) {
     
     let vocabHTML = '';
     if (vocabData) {
-        let wordCards = vocabData.split('\n').filter(l => l.includes('=')).map(w => `<div class="snap-center shrink-0 w-40 md:w-44 bg-white p-4 md:p-5 rounded-2xl border border-slate-100 text-center shadow-sm"><p class="font-bold text-slate-800 text-base md:text-lg mb-1">${w.split('=')[0].trim()}</p><p class="text-[10px] md:text-xs font-semibold text-indigo-500 bg-indigo-50 py-1 px-2 rounded-md inline-block">${w.split('=')[1].trim()}</p></div>`).join('');
-        let actionUI = (!vocabStatus.status || vocabStatus.status === 'none') ? `<button onclick="submitVocab(this, '${monthId}', ${week}, ${day})" class="mt-5 w-full md:w-auto bg-slate-900 text-white px-8 py-3 rounded-xl text-sm font-bold">Selesai Dihafal</button>` : (vocabStatus.status === 'submitted' ? `<div class="mt-5 text-sm font-bold text-amber-600 bg-amber-50 px-6 py-3 rounded-xl inline-block">Menunggu Verifikasi</div>` : `<div class="mt-5 bg-emerald-50 px-6 py-3 rounded-xl border border-emerald-200 inline-block"><p class="text-sm font-bold text-emerald-800"><i class="fas fa-check-circle"></i> Terverifikasi</p></div>`);
-        vocabHTML = `<div class="mb-8 bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm"><h3 class="text-base md:text-lg font-bold text-slate-800 mb-5">Daily Vocabulary</h3><div class="flex overflow-x-auto gap-3 md:gap-4 pb-4 snap-x bg-slate-50/50 p-3 md:p-4 rounded-xl custom-scrollbar">${wordCards}</div><div class="text-center">${userRole === 'student' ? actionUI : ''}</div></div>`;
+        let wordCards = vocabData.split('\n').filter(l => l.includes('=')).map(w => `<div class="snap-center shrink-0 w-36 md:w-44 bg-white p-4 rounded-xl border border-slate-200 text-center shadow-sm"><p class="font-bold text-slate-800 text-sm md:text-base mb-1">${w.split('=')[0].trim()}</p><p class="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 py-1 px-2 rounded-md inline-block">${w.split('=')[1].trim()}</p></div>`).join('');
+        let actionUI = (!vocabStatus.status || vocabStatus.status === 'none') ? `<button onclick="submitVocab(this, '${monthId}', ${week}, ${day})" class="mt-4 w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all">Tandai Selesai Dihafal</button>` : (vocabStatus.status === 'submitted' ? `<div class="mt-4 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-100 px-4 py-2.5 rounded-xl inline-block">Menunggu Verifikasi Admin</div>` : `<div class="mt-4 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200 inline-block"><p class="text-xs font-bold text-emerald-700"><i class="fas fa-check-circle mr-1"></i> Terverifikasi</p></div>`);
+        vocabHTML = `<div class="mb-6 bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm"><h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-spell-check text-indigo-500 mr-2"></i> Daily Vocabulary</h3><div class="flex overflow-x-auto gap-3 pb-4 snap-x bg-slate-50/80 p-3 rounded-xl border border-slate-100 custom-scrollbar">${wordCards}</div><div class="text-center">${userRole === 'student' ? actionUI : ''}</div></div>`;
     }
 
     mainContent.innerHTML = `
-        <div class="max-w-6xl mx-auto fade-in pb-12">
-            <div class="mb-6 md:mb-8 flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"><button onclick="renderDashboard()" class="w-10 h-10 shrink-0 bg-slate-50 rounded-xl"><i class="fas fa-arrow-left"></i></button><div><h2 class="text-lg md:text-xl font-bold">${monthTitle} (W${week} D${day})</h2></div></div>
+        <div class="max-w-5xl mx-auto fade-in pb-12">
+            <div class="mb-6 flex items-center gap-3 bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm"><button onclick="renderDashboard()" class="w-9 h-9 md:w-10 md:h-10 shrink-0 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-arrow-left text-slate-500"></i></button><div><h2 class="text-base md:text-lg font-bold text-slate-800">${monthTitle} <span class="text-slate-400 font-medium text-sm">| W${week} D${day}</span></h2></div></div>
             ${vocabHTML}
-            <div class="grid grid-cols-1 gap-6 md:gap-10">
-                <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm"><h3 class="text-base md:text-lg font-bold mb-5">Modul Presentasi</h3>${linkDrive ? `<iframe src="${linkDrive}" class="w-full h-[50vh] md:h-[70vh] rounded-xl md:rounded-2xl"></iframe>` : `<p class="text-slate-500 text-sm">Belum ada dokumen.</p>`}</div>
-                <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm"><h3 class="text-base md:text-lg font-bold mb-5">Catatan Rangkuman</h3>${recapDrive ? `<iframe src="${recapDrive}" class="w-full h-[50vh] md:h-[70vh] rounded-xl md:rounded-2xl"></iframe>` : `<p class="text-slate-500 text-sm">Belum ada dokumen.</p>`}</div>
+            <div class="grid grid-cols-1 gap-6">
+                <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm"><h3 class="text-sm font-bold text-slate-800 mb-4"><i class="fas fa-file-pdf text-red-500 mr-2"></i> Modul Presentasi</h3>${linkDrive ? `<iframe src="${linkDrive}" class="w-full h-[50vh] md:h-[70vh] rounded-xl border border-slate-100 bg-slate-50"></iframe>` : `<div class="py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200"><p class="text-slate-400 text-sm font-medium">Belum ada dokumen.</p></div>`}</div>
+                <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm"><h3 class="text-sm font-bold text-slate-800 mb-4"><i class="fas fa-clipboard-check text-emerald-500 mr-2"></i> Catatan Rangkuman</h3>${recapDrive ? `<iframe src="${recapDrive}" class="w-full h-[50vh] md:h-[70vh] rounded-xl border border-slate-100 bg-slate-50"></iframe>` : `<div class="py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200"><p class="text-slate-400 text-sm font-medium">Belum ada dokumen.</p></div>`}</div>
             </div>
         </div>
     `;
 }
 
-window.processReschedule = async function(newDateStr) { /* Logic tetap sama */ }
-window.updateRescheduleGrid = function() { /* Logic tetap sama */ }
-function renderReschedule() { /* Logic tetap sama */ }
+window.processReschedule = async function(newDateStr) { /* Sama dengan versi aslinya */ }
+window.updateRescheduleGrid = function() { /* Sama dengan versi aslinya */ }
+function renderReschedule() { /* Sama dengan versi aslinya */ }
 
-// ==== ADMIN CMS UTAMA (DENGAN TAB & RESPONSIVE) ====
+// ==== ADMIN CMS UTAMA (DENGAN TAB MODERN & RESPONSIVE) ====
 function renderAdminCMS(tab = null) {
     autoCloseSidebar(); if (userRole !== 'admin') return;
     if (tab) currentAdminTab = tab; 
@@ -259,21 +256,13 @@ function renderAdminCMS(tab = null) {
     const dayOptions = [1,2,3].map(d => `<option value="${d}">Day ${d}</option>`).join('');
     const studentOptions = students.map(s => `<option value="${s.email}">${s.name} (${s.email})</option>`).join('');
 
-    // MENU TABS (Scroll horizontal di mobile)
+    // Segmented Control Tabs style Apple
     let tabsHTML = `
-        <div class="flex overflow-x-auto gap-2 md:gap-3 mb-6 md:mb-8 border-b border-slate-200 pb-2 md:pb-4 custom-scrollbar snap-x">
-            <button onclick="renderAdminCMS('overview')" class="shrink-0 snap-center px-4 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${currentAdminTab === 'overview' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}">
-                <i class="fas fa-home"></i> Overview
-            </button>
-            <button onclick="renderAdminCMS('users')" class="shrink-0 snap-center px-4 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${currentAdminTab === 'users' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}">
-                <i class="fas fa-users"></i> Akun & Jadwal
-            </button>
-            <button onclick="renderAdminCMS('materials')" class="shrink-0 snap-center px-4 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${currentAdminTab === 'materials' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}">
-                <i class="fas fa-book"></i> Materi & Tugas
-            </button>
-            <button onclick="renderAdminCMS('exam')" class="shrink-0 snap-center px-4 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-colors flex items-center gap-2 ${currentAdminTab === 'exam' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}">
-                <i class="fas fa-file-signature"></i> Ujian Bulanan
-            </button>
+        <div class="flex overflow-x-auto gap-1 mb-6 md:mb-8 bg-slate-200/50 p-1.5 rounded-xl max-w-full md:max-w-fit custom-scrollbar border border-slate-200">
+            <button onclick="renderAdminCMS('overview')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentAdminTab === 'overview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}"><i class="fas fa-home"></i> Overview</button>
+            <button onclick="renderAdminCMS('users')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentAdminTab === 'users' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}"><i class="fas fa-users"></i> Akun & Jadwal</button>
+            <button onclick="renderAdminCMS('materials')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentAdminTab === 'materials' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}"><i class="fas fa-book"></i> Materi</button>
+            <button onclick="renderAdminCMS('exam')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentAdminTab === 'exam' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}"><i class="fas fa-file-signature"></i> Ujian</button>
         </div>
     `;
 
@@ -287,99 +276,102 @@ function renderAdminCMS(tab = null) {
             if (p && p.pendingReschedules) {
                 for (const [oldD, newD] of Object.entries(p.pendingReschedules)) {
                     pendingReschedulesHTML += `
-                        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between bg-slate-50 border border-slate-200 p-4 rounded-xl mb-3">
-                            <div class="mb-3 lg:mb-0 w-full">
-                                <span class="font-bold text-slate-800 block md:inline text-sm">${s.name}</span>
-                                <span class="text-xs font-semibold text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 block md:inline-block mt-2 md:mt-0 md:ml-3">
-                                    ${getDisplayDate(parseDateStr(oldD))} <i class="fas fa-arrow-right text-indigo-400 mx-1 md:mx-2"></i> ${getDisplayDate(parseDateStr(newD))}
+                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between bg-white border border-slate-200 p-4 rounded-xl mb-3 shadow-sm">
+                            <div class="mb-3 md:mb-0 w-full">
+                                <span class="font-bold text-slate-800 text-sm block md:inline">${s.name}</span>
+                                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 block md:inline-block mt-2 md:mt-0 md:ml-2">
+                                    ${getDisplayDate(parseDateStr(oldD))} <i class="fas fa-arrow-right text-slate-400 mx-1"></i> ${getDisplayDate(parseDateStr(newD))}
                                 </span>
                             </div>
-                            <div class="flex gap-2 w-full lg:w-auto">
-                                <button onclick="approveReschedule('${s.email}', '${oldD}', '${newD}')" class="flex-1 lg:flex-none bg-slate-900 text-white px-4 py-2 rounded-lg text-xs md:text-sm font-bold"><i class="fas fa-check mr-1"></i>Terima</button>
-                                <button onclick="rejectReschedule('${s.email}', '${oldD}')" class="flex-1 lg:flex-none bg-white text-slate-600 border border-slate-300 px-4 py-2 rounded-lg text-xs md:text-sm font-bold"><i class="fas fa-times mr-1"></i>Tolak</button>
+                            <div class="flex gap-2 w-full md:w-auto">
+                                <button onclick="approveReschedule('${s.email}', '${oldD}', '${newD}')" class="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition"><i class="fas fa-check mr-1"></i> Terima</button>
+                                <button onclick="rejectReschedule('${s.email}', '${oldD}')" class="flex-1 md:flex-none bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 px-4 py-2 rounded-lg text-xs font-semibold transition"><i class="fas fa-times mr-1"></i> Tolak</button>
                             </div>
                         </div>
                     `;
                 }
             }
         });
-        if (!pendingReschedulesHTML) pendingReschedulesHTML = `<div class="bg-slate-50 py-6 md:py-8 rounded-xl border border-dashed border-slate-200 text-center"><p class="text-slate-400 text-xs md:text-sm font-medium">Tidak ada antrean validasi jadwal saat ini.</p></div>`;
+        if (!pendingReschedulesHTML) pendingReschedulesHTML = `<div class="bg-slate-50 py-8 rounded-xl border border-dashed border-slate-200 text-center"><p class="text-slate-400 text-sm font-medium">Tidak ada antrean validasi jadwal saat ini.</p></div>`;
 
         contentHTML = `
-            <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
-                <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 md:mb-6 flex items-center gap-3">
-                    <div class="w-8 h-8 shrink-0 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><i class="fas fa-bell"></i></div> Validasi Jadwal
-                </h3>
-                <div>${pendingReschedulesHTML}</div>
+            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-base font-bold text-slate-800 mb-5 flex items-center gap-2"><i class="fas fa-bell text-amber-500"></i> Validasi Perubahan Jadwal</h3>
+                <div class="bg-slate-50/50 p-2 md:p-4 rounded-xl">${pendingReschedulesHTML}</div>
             </div>
 
-            <div class="bg-white p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center mt-6 md:mt-8">
-                <div class="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center text-xl md:text-2xl mb-4 shadow-sm"><i class="fas fa-folder-plus"></i></div>
-                <h3 class="text-base md:text-lg font-bold text-slate-800 mb-2">Buka Modul Bulan Baru</h3>
-                <p class="text-xs md:text-sm font-medium text-slate-500 mb-5 md:mb-6">Tambahkan kerangka bulan otomatis ke sistem.</p>
-                <button onclick="addNewMonth()" class="w-full max-w-xs bg-indigo-50 text-indigo-700 py-3 rounded-xl text-xs md:text-sm font-bold border border-indigo-200">Generate New Month</button>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between mt-6 gap-4">
+                <div class="flex items-center gap-4 text-center sm:text-left">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shrink-0 mx-auto sm:mx-0"><i class="fas fa-folder-plus"></i></div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800">Modul Bulan Baru</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Generate kerangka folder bulan secara otomatis.</p>
+                    </div>
+                </div>
+                <button onclick="addNewMonth()" class="w-full sm:w-auto bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-2.5 px-5 rounded-xl text-xs font-bold border border-indigo-100 transition shrink-0">Generate Month</button>
             </div>
         `;
     } 
     // === TAB 2: AKUN & JADWAL ===
     else if (currentAdminTab === 'users') {
         let studentsRows = students.map((s, idx) => `
-            <tr class="border-b border-slate-50 hover:bg-slate-50/50">
-                <td class="p-3 md:p-4 text-slate-800 text-xs md:text-sm font-medium whitespace-nowrap">${s.name}</td>
-                <td class="p-3 md:p-4 text-slate-500 text-xs md:text-sm whitespace-nowrap">${s.email}</td>
-                <td class="p-3 md:p-4">
-                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-2 md:px-3 py-1.5 rounded-lg w-max">
-                        <input type="password" value="${s.password}" id="pwd-${idx}" class="bg-transparent border-none w-12 md:w-16 outline-none text-slate-600 font-mono text-[10px] md:text-xs" readonly>
-                        <button onclick="togglePassword('pwd-${idx}')" class="text-slate-400 hover:text-indigo-500"><i class="fas fa-eye text-xs md:text-sm"></i></button>
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                <td class="p-3 text-slate-800 text-xs font-medium">${s.name}</td>
+                <td class="p-3 text-slate-500 text-xs hidden sm:table-cell">${s.email}</td>
+                <td class="p-3">
+                    <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg w-max">
+                        <input type="password" value="${s.password}" id="pwd-${idx}" class="bg-transparent border-none w-12 outline-none text-slate-600 font-mono text-[10px]" readonly>
+                        <button onclick="togglePassword('pwd-${idx}')" class="text-slate-400 hover:text-indigo-600"><i class="fas fa-eye text-xs"></i></button>
                     </div>
                 </td>
-                <td class="p-3 md:p-4 text-center whitespace-nowrap">
-                    <button onclick="editStudentPassword('${s.email}')" class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-blue-50 text-blue-600 mx-0.5"><i class="fas fa-key text-[10px] md:text-xs"></i></button>
-                    <button onclick="deleteStudentAccount('${s.email}')" class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-red-50 text-red-600 mx-0.5"><i class="fas fa-trash-alt text-[10px] md:text-xs"></i></button>
+                <td class="p-3 text-right whitespace-nowrap">
+                    <button onclick="editStudentPassword('${s.email}')" class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition inline-flex items-center justify-center mx-0.5"><i class="fas fa-key text-[10px]"></i></button>
+                    <button onclick="deleteStudentAccount('${s.email}')" class="w-7 h-7 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition inline-flex items-center justify-center mx-0.5"><i class="fas fa-trash-alt text-[10px]"></i></button>
                 </td>
             </tr>
         `).join('');
 
         contentHTML = `
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
-                <!-- Pendaftaran -->
-                <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
-                    <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 flex items-center gap-3"><i class="fas fa-user-plus text-emerald-500"></i> Daftar Akun</h3>
-                    <input type="text" id="new-stu-name" placeholder="Nama Lengkap" class="w-full p-3 border border-slate-200 bg-slate-50 rounded-xl text-sm mb-3 outline-none">
-                    <input type="email" id="new-stu-email" placeholder="Alamat Email" class="w-full p-3 border border-slate-200 bg-slate-50 rounded-xl text-sm mb-3 outline-none">
-                    <input type="text" id="new-stu-pass" placeholder="Password Standar" class="w-full p-3 border border-slate-200 bg-slate-50 rounded-xl text-sm mb-4 md:mb-5 outline-none">
-                    <button onclick="addNewStudent()" class="w-full bg-slate-900 text-white py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-bold shadow-md">Daftarkan Akun</button>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-user-plus text-emerald-500 mr-2"></i> Pendaftaran Akun</h3>
+                    <div class="space-y-3">
+                        <input type="text" id="new-stu-name" placeholder="Nama Lengkap" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 focus:bg-white outline-none transition">
+                        <input type="email" id="new-stu-email" placeholder="Alamat Email" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 focus:bg-white outline-none transition">
+                        <input type="text" id="new-stu-pass" placeholder="Password Standar" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 focus:bg-white outline-none transition">
+                        <button onclick="addNewStudent()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold shadow-sm transition">Daftarkan Akun</button>
+                    </div>
                 </div>
                 
-                <!-- Jadwal Master -->
-                <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
-                    <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 flex items-center gap-3"><div class="w-8 h-8 shrink-0 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center"><i class="fas fa-user-cog"></i></div> Jadwal Master</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                        <div><label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-1">Pilih Murid</label><select id="admin-sched-student" class="w-full border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${studentOptions}</select></div>
-                        <div><label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-1">Max Modul</label><select id="admin-sched-max-month" class="w-full border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${maxMonthOptions}</select></div>
-                        <div><label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-1">Masa Aktif</label><input type="date" id="admin-sched-date" class="w-full border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm"></div>
-                        <div><label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-1">Jam Kelas</label>
+                <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-user-cog text-purple-500 mr-2"></i> Jadwal Master</h3>
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Pilih Murid</label><select id="admin-sched-student" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition">${studentOptions}</select></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Max Modul</label><select id="admin-sched-max-month" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition">${maxMonthOptions}</select></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Masa Aktif</label><input type="date" id="admin-sched-date" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition text-slate-600"></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1">Jam Kelas</label>
                             <div class="flex items-center gap-1">
-                                <input type="time" id="admin-sched-start" class="w-full border border-slate-200 bg-slate-50 p-2 rounded-lg text-[10px] md:text-xs"> <span>-</span>
-                                <input type="time" id="admin-sched-end" class="w-full border border-slate-200 bg-slate-50 p-2 rounded-lg text-[10px] md:text-xs">
+                                <input type="time" id="admin-sched-start" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-[10px] outline-none">
+                                <span class="text-slate-400 font-bold">-</span>
+                                <input type="time" id="admin-sched-end" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-[10px] outline-none">
                             </div>
                         </div>
                     </div>
-                    <label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-2">Hari Default</label>
-                    <div class="flex flex-wrap gap-2 mb-4 md:mb-5">
-                        ${['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'].map(d => `<label class="flex items-center gap-1.5 bg-slate-50 px-2 md:px-3 py-1 md:py-1.5 rounded-lg border border-slate-200 text-[10px] md:text-xs font-semibold cursor-pointer"><input type="checkbox" value="${d}" class="admin-day-cb w-3 h-3 text-purple-600"> ${d.substring(0,3)}</label>`).join('')}
+                    <label class="block text-[10px] font-bold text-slate-500 mb-2">Hari Default</label>
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        ${['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'].map(d => `<label class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 text-[10px] font-semibold cursor-pointer hover:border-indigo-300 transition"><input type="checkbox" value="${d}" class="admin-day-cb w-3 h-3 text-indigo-600"> ${d.substring(0,3)}</label>`).join('')}
                     </div>
-                    <button onclick="saveStudentSchedule(event)" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs md:text-sm font-bold shadow-md">Simpan Jadwal</button>
+                    <button onclick="saveStudentSchedule(event)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold shadow-sm transition">Simpan Konfigurasi</button>
                 </div>
             </div>
 
-            <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
-                <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 flex items-center gap-3"><div class="w-8 h-8 shrink-0 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center"><i class="fas fa-database"></i></div> Database Murid</h3>
-                <div class="overflow-x-auto border border-slate-100 rounded-xl custom-scrollbar">
-                    <table class="w-full text-left border-collapse text-sm min-w-[500px]">
+            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-database text-slate-500 mr-2"></i> Database Kredensial</h3>
+                <div class="overflow-x-auto rounded-xl border border-slate-100">
+                    <table class="w-full text-left border-collapse text-sm min-w-[400px]">
                         <thead>
-                            <tr class="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-100">
-                                <th class="p-3 md:p-4">Nama Lengkap</th><th class="p-3 md:p-4">Email</th><th class="p-3 md:p-4">Sandi</th><th class="p-3 md:p-4 text-center">Tindakan</th>
+                            <tr class="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
+                                <th class="p-3">Nama</th><th class="p-3 hidden sm:table-cell">Email</th><th class="p-3">Sandi</th><th class="p-3 text-right">Tindakan</th>
                             </tr>
                         </thead>
                         <tbody>${studentsRows}</tbody>
@@ -391,48 +383,48 @@ function renderAdminCMS(tab = null) {
     // === TAB 3: MATERI & TUGAS ===
     else if (currentAdminTab === 'materials') {
         contentHTML = `
-            <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm mb-6 md:mb-8">
-                <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 flex items-center gap-3"><div class="w-8 h-8 shrink-0 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center"><i class="fas fa-cloud-upload-alt"></i></div> Upload Dokumen</h3>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
-                    <div class="lg:col-span-1 lg:border-r border-slate-100 lg:pr-6">
-                        <label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-2">Target Akses</label>
-                        <select id="admin-target-student" class="w-full border border-slate-200 bg-slate-50 py-3 px-3 md:px-4 rounded-xl text-xs md:text-sm mb-4"><option value="all">Global (Semua)</option>${studentOptions}</select>
-                        <label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-2">Pilih Sesi</label>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <select id="admin-month" class="border border-slate-200 bg-slate-50 py-2.5 px-2 rounded-lg text-xs md:text-sm">${monthOptions}</select>
-                            <select id="admin-week" class="border border-slate-200 bg-slate-50 py-2.5 px-2 rounded-lg text-xs md:text-sm">${weekOptions}</select>
-                            <select id="admin-day" class="border border-slate-200 bg-slate-50 py-2.5 px-2 rounded-lg text-xs md:text-sm">${dayOptions}</select>
+            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+                <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-cloud-upload-alt text-blue-500 mr-2"></i> Modul Presentasi & Rangkuman (PDF)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div class="md:col-span-1 border-b md:border-b-0 md:border-r border-slate-100 pb-4 md:pb-0 md:pr-5">
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Target Akses</label>
+                        <select id="admin-target-student" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs mb-3 outline-none focus:ring-1 focus:ring-indigo-500 transition"><option value="all">Global (Semua)</option>${studentOptions}</select>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Pilih Sesi</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <select id="admin-month" class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-[10px] outline-none focus:ring-1 focus:ring-indigo-500">${monthOptions}</select>
+                            <select id="admin-week" class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-[10px] outline-none focus:ring-1 focus:ring-indigo-500">${weekOptions}</select>
+                            <select id="admin-day" class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-[10px] outline-none focus:ring-1 focus:ring-indigo-500">${dayOptions}</select>
                         </div>
                     </div>
-                    <div class="lg:col-span-2 space-y-3 md:space-y-4">
-                        <div><label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-1 md:mb-2">URL Presentasi</label><input type="text" id="admin-link" placeholder="Google Drive Link" class="w-full p-3 border border-slate-200 bg-slate-50 rounded-xl text-xs md:text-sm"></div>
-                        <div><label class="block text-[10px] md:text-xs font-bold text-slate-500 mb-1 md:mb-2">URL Rangkuman</label><input type="text" id="admin-recap-pdf" placeholder="Google Drive Link" class="w-full p-3 border border-slate-200 bg-slate-50 rounded-xl text-xs md:text-sm"></div>
-                        <button onclick="saveMaterialData()" class="w-full md:w-auto bg-slate-900 text-white px-8 py-3 rounded-xl text-xs md:text-sm font-bold shadow-md mt-2">Simpan Dokumen</button>
+                    <div class="md:col-span-2 space-y-3">
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1"><i class="fab fa-google-drive text-blue-500 mr-1"></i> Tautan Presentasi</label><input type="text" id="admin-link" placeholder="Paste URL GDrive" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-400 transition"></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 mb-1"><i class="fab fa-google-drive text-emerald-500 mr-1"></i> Tautan Rangkuman</label><input type="text" id="admin-recap-pdf" placeholder="Paste URL GDrive" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-400 transition"></div>
+                        <button onclick="saveMaterialData()" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition mt-1">Simpan Tautan</button>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
-                    <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 flex items-center gap-3"><div class="w-8 h-8 shrink-0 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center"><i class="fas fa-book"></i></div> Kosakata</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3 mb-3 md:mb-4">
-                        <select id="admin-vocab-month" class="border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${monthOptions}</select>
-                        <select id="admin-vocab-week" class="border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${weekOptions}</select>
-                        <select id="admin-vocab-day" class="border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${dayOptions}</select>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-book text-indigo-500 mr-2"></i> Distribusi Kosakata</h3>
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <select id="admin-vocab-month" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none">${monthOptions}</select>
+                        <select id="admin-vocab-week" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none">${weekOptions}</select>
+                        <select id="admin-vocab-day" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none">${dayOptions}</select>
                     </div>
-                    <textarea id="admin-vocab-list" rows="4" placeholder="Format: Word = Arti" class="w-full p-3 md:p-4 border border-slate-200 bg-slate-50 rounded-xl text-xs md:text-sm mb-4 outline-none"></textarea>
-                    <button onclick="saveVocabList(event)" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs md:text-sm font-bold shadow-md">Publikasi</button>
+                    <textarea id="admin-vocab-list" rows="4" placeholder="Format:\nApple = Apel\nBook = Buku" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs mb-3 outline-none focus:bg-white focus:border-indigo-400 transition"></textarea>
+                    <button onclick="saveVocabList(event)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold shadow-sm transition">Publikasi</button>
                 </div>
                 
-                <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
-                    <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 flex items-center gap-3"><div class="w-8 h-8 shrink-0 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center"><i class="fas fa-check-double"></i></div> Hafalan</h3>
-                    <select id="admin-review-student" class="w-full border border-slate-200 bg-slate-50 py-3 px-3 md:px-4 rounded-xl text-xs md:text-sm mb-3 md:mb-4">${studentOptions}</select>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3 mb-4 md:mb-5">
-                        <select id="admin-review-month" class="border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${monthOptions}</select>
-                        <select id="admin-review-week" class="border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${weekOptions}</select>
-                        <select id="admin-review-day" class="border border-slate-200 bg-slate-50 p-2.5 rounded-xl text-xs md:text-sm">${dayOptions}</select>
+                <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-check-double text-emerald-500 mr-2"></i> Verifikasi Hafalan</h3>
+                    <select id="admin-review-student" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs mb-3 outline-none">${studentOptions}</select>
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <select id="admin-review-month" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none">${monthOptions}</select>
+                        <select id="admin-review-week" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none">${weekOptions}</select>
+                        <select id="admin-review-day" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs outline-none">${dayOptions}</select>
                     </div>
-                    <button onclick="checkVocabStatus(this)" class="w-full bg-white border border-slate-300 py-3 rounded-xl text-xs md:text-sm font-bold hover:bg-slate-50 shadow-sm"><i class="fas fa-search mr-2"></i> Periksa</button>
+                    <button onclick="checkVocabStatus(this)" class="w-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition"><i class="fas fa-search mr-1"></i> Periksa Status</button>
                     <div id="vocab-review-result" class="mt-4"></div>
                 </div>
             </div>
@@ -441,43 +433,43 @@ function renderAdminCMS(tab = null) {
     // === TAB 4: UJIAN BULANAN ===
     else if (currentAdminTab === 'exam') {
         contentHTML = `
-            <div class="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
-                <h3 class="text-base md:text-lg font-bold text-slate-800 mb-5 md:mb-6 flex items-center gap-3">
-                    <div class="w-8 h-8 shrink-0 rounded-lg bg-red-100 text-red-600 flex items-center justify-center"><i class="fas fa-file-signature"></i></div> Form Builder Ujian
+            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center">
+                    <i class="fas fa-file-signature text-amber-500 mr-2"></i> Form Builder Ujian
                 </h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-5 md:mb-6 bg-slate-50 p-4 md:p-5 rounded-xl border border-slate-100">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <div>
-                        <label class="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Murid</label>
-                        <select id="admin-exam-student" class="w-full border border-slate-200 bg-white py-2.5 md:py-3 px-3 md:px-4 rounded-xl text-xs md:text-sm outline-none">${studentOptions}</select>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Target Murid</label>
+                        <select id="admin-exam-student" class="w-full bg-white border border-slate-200 py-2 px-3 rounded-lg text-xs outline-none focus:border-indigo-400 transition">${studentOptions}</select>
                     </div>
                     <div>
-                        <label class="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Bulan</label>
-                        <select id="admin-exam-month" class="w-full border border-slate-200 bg-white py-2.5 md:py-3 px-3 md:px-4 rounded-xl text-xs md:text-sm outline-none">${monthOptions}</select>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sesi Bulan</label>
+                        <select id="admin-exam-month" class="w-full bg-white border border-slate-200 py-2 px-3 rounded-lg text-xs outline-none focus:border-indigo-400 transition">${monthOptions}</select>
                     </div>
-                    <div class="sm:col-span-2 mt-1 md:mt-2">
-                        <button onclick="loadAdminExamData()" class="w-full bg-slate-800 text-white px-6 py-3 rounded-xl text-xs md:text-sm font-bold shadow-md hover:bg-slate-700 transition">Muat / Buat Soal</button>
+                    <div class="sm:col-span-2 mt-1">
+                        <button onclick="loadAdminExamData()" class="w-full bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition">Muat / Buat Soal</button>
                     </div>
                 </div>
                 
                 <!-- Workspace Pembuat Soal -->
-                <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-2xl overflow-hidden">
-                    <div class="flex overflow-x-auto border-b border-slate-200 bg-slate-50 custom-scrollbar">
-                        <button onclick="switchExamTab('listening')" id="tab-listening" class="shrink-0 px-4 md:px-6 py-3 text-xs md:text-sm font-bold border-b-2 border-transparent text-slate-500">Listening</button>
-                        <button onclick="switchExamTab('speaking')" id="tab-speaking" class="shrink-0 px-4 md:px-6 py-3 text-xs md:text-sm font-bold border-b-2 border-transparent text-slate-500">Speaking</button>
-                        <button onclick="switchExamTab('reading')" id="tab-reading" class="shrink-0 px-4 md:px-6 py-3 text-xs md:text-sm font-bold border-b-2 border-transparent text-slate-500">Reading</button>
-                        <button onclick="switchExamTab('writing')" id="tab-writing" class="shrink-0 px-4 md:px-6 py-3 text-xs md:text-sm font-bold border-b-2 border-transparent text-slate-500">Writing</button>
+                <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-xl overflow-hidden">
+                    <div class="flex overflow-x-auto border-b border-slate-200 bg-slate-50/80 custom-scrollbar">
+                        <button onclick="switchExamTab('listening')" id="tab-listening" class="shrink-0 px-4 md:px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Listening</button>
+                        <button onclick="switchExamTab('speaking')" id="tab-speaking" class="shrink-0 px-4 md:px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Speaking</button>
+                        <button onclick="switchExamTab('reading')" id="tab-reading" class="shrink-0 px-4 md:px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Reading</button>
+                        <button onclick="switchExamTab('writing')" id="tab-writing" class="shrink-0 px-4 md:px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Writing</button>
                     </div>
                     
-                    <div class="p-4 md:p-6 bg-slate-50/50">
-                        <div id="admin-exam-questions-container" class="space-y-4 md:space-y-6 mb-4 md:mb-6"></div>
-                        <div class="flex flex-col sm:flex-row gap-3 md:gap-4">
-                            <button onclick="addExamQuestion('mcq')" class="flex-1 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl text-xs md:text-sm font-bold shadow-sm"><i class="fas fa-plus-circle text-blue-500 mr-2"></i> Pilihan Ganda</button>
-                            <button onclick="addExamQuestion('essay')" class="flex-1 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl text-xs md:text-sm font-bold shadow-sm"><i class="fas fa-align-left text-emerald-500 mr-2"></i> Essay</button>
+                    <div class="p-4 md:p-5 bg-slate-50/50">
+                        <div id="admin-exam-questions-container" class="space-y-4 mb-5"></div>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button onclick="addExamQuestion('mcq')" class="flex-1 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-list-ul text-blue-500 mr-1.5"></i> Tambah Pilihan Ganda</button>
+                            <button onclick="addExamQuestion('essay')" class="flex-1 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-align-left text-emerald-500 mr-1.5"></i> Tambah Essay</button>
                         </div>
                     </div>
                     
-                    <div class="p-4 bg-white border-t border-slate-200">
-                        <button onclick="saveAdminExamData(event)" class="w-full bg-slate-900 text-white py-3.5 rounded-xl text-xs md:text-sm font-bold shadow-md">Simpan Seluruh Ujian (4 Kategori)</button>
+                    <div class="p-3 bg-slate-50 border-t border-slate-200 text-right">
+                        <button onclick="saveAdminExamData(event)" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-xs font-bold shadow-sm transition">Simpan Seluruh Soal</button>
                     </div>
                 </div>
             </div>
@@ -486,13 +478,13 @@ function renderAdminCMS(tab = null) {
 
     // Render Master Layout
     mainContent.innerHTML = `
-        <div class="max-w-6xl mx-auto fade-in pb-16">
-            <div class="mb-3 md:mb-5">
-                <h2 class="text-xl md:text-3xl font-bold text-slate-800 mb-1 md:mb-2">Administrative Control</h2>
-                <p class="text-slate-500 font-medium text-xs md:text-sm mb-4 md:mb-6">Pusat kontrol penjadwalan, akun, dan kurikulum.</p>
+        <div class="max-w-5xl mx-auto fade-in pb-16">
+            <div class="mb-4 md:mb-6">
+                <h2 class="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">Administrative Control</h2>
+                <p class="text-slate-500 font-medium text-xs md:text-sm mt-0.5">Pusat kelola data, jadwal, dan kurikulum ujian.</p>
             </div>
             ${tabsHTML}
-            <div class="fade-in space-y-6 md:space-y-8">${contentHTML}</div>
+            <div class="fade-in">${contentHTML}</div>
         </div>
     `;
 
@@ -503,19 +495,19 @@ function renderAdminCMS(tab = null) {
     }
 }
 
-// ==== FUNGSI DATABASE KHUSUS ADMIN (Singkat) ====
+// ==== FUNGSI DATABASE KHUSUS ADMIN ====
 window.approveReschedule = async function(email, oldDate, newDate) { let p = materials[`profile-${email}`]; if(!p.reschedules) p.reschedules = {}; p.reschedules[oldDate] = newDate; delete p.pendingReschedules[oldDate]; document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default'; if (error) alert(error.message); else renderAdminCMS(); }
 window.rejectReschedule = async function(email, oldDate) { if(confirm("Tolak pengajuan?")) { let p = materials[`profile-${email}`]; delete p.pendingReschedules[oldDate]; document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default'; if (error) alert(error.message); else renderAdminCMS(); } }
-window.saveVocabList = async function(e) { const m = document.getElementById('admin-vocab-month').value; const w = document.getElementById('admin-vocab-week').value; const d = document.getElementById('admin-vocab-day').value; materials[`vocab-${m}-w${w}-d${d}`] = document.getElementById('admin-vocab-list').value; const btn = e.currentTarget; const origText = btn.innerHTML; btn.innerHTML = 'Memproses...'; btn.disabled = true; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); btn.innerHTML = origText; btn.disabled = false; if (error) alert(error.message); else { alert("Tersimpan."); document.getElementById('admin-vocab-list').value = ''; } }
-window.checkVocabStatus = async function(btnElement) { let resDiv = document.getElementById('vocab-review-result'); let origText = ''; if(btnElement) { origText = btnElement.innerHTML; btnElement.innerHTML = 'Cek Server...'; btnElement.disabled = true; } try { const { data } = await window.supabaseClient.from('app_data').select('*'); if (data) { const matData = data.find(d => d.key === 'hes_materials'); if (matData && matData.value) materials = matData.value; } } catch(e) {} if(btnElement) { btnElement.innerHTML = origText; btnElement.disabled = false; } const email = document.getElementById('admin-review-student').value; const m = document.getElementById('admin-review-month').value; const w = document.getElementById('admin-review-week').value; const d = document.getElementById('admin-review-day').value; let statusObj = materials[`vocab_status-${email}-${m}-w${w}-d${d}`]; if (!statusObj || statusObj.status === 'none') { resDiv.innerHTML = `<div class="bg-slate-50 p-4 rounded-xl text-xs text-center">Belum ada tugas.</div>`; } else if (statusObj.status === 'submitted') { resDiv.innerHTML = `<div class="bg-amber-50 p-4 rounded-xl mt-4"><p class="text-xs font-bold text-amber-800 mb-2">Siap verifikasi.</p><input type="text" id="admin-feedback" placeholder="Catatan positif..." class="w-full p-2 rounded-lg text-xs mb-2"><button onclick="approveVocab('${email}', '${m}', '${w}', '${d}')" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold w-full md:w-auto">Verifikasi</button></div>`; } else if (statusObj.status === 'approved') { resDiv.innerHTML = `<div class="bg-emerald-50 p-3 rounded-xl text-xs font-bold text-emerald-700 text-center mt-3">Telah diverifikasi.</div>`; } }
-window.approveVocab = async function(email, m, w, d) { let feedback = document.getElementById('admin-feedback').value || 'Good Job!'; materials[`vocab_status-${email}-${m}-w${w}-d${d}`] = { status: 'approved', feedback: feedback }; document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default'; if (!error) { alert("Sukses"); checkVocabStatus(); } }
+window.saveVocabList = async function(e) { const m = document.getElementById('admin-vocab-month').value; const w = document.getElementById('admin-vocab-week').value; const d = document.getElementById('admin-vocab-day').value; materials[`vocab-${m}-w${w}-d${d}`] = document.getElementById('admin-vocab-list').value; const btn = e.currentTarget; const origText = btn.innerHTML; btn.innerHTML = 'Proses...'; btn.disabled = true; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); btn.innerHTML = origText; btn.disabled = false; if (!error) { alert("Tersimpan."); document.getElementById('admin-vocab-list').value = ''; } }
+window.checkVocabStatus = async function(btnElement) { let resDiv = document.getElementById('vocab-review-result'); let origText = ''; if(btnElement) { origText = btnElement.innerHTML; btnElement.innerHTML = 'Cek Server...'; btnElement.disabled = true; } try { const { data } = await window.supabaseClient.from('app_data').select('*'); if (data) { const matData = data.find(d => d.key === 'hes_materials'); if (matData && matData.value) materials = matData.value; } } catch(e) {} if(btnElement) { btnElement.innerHTML = origText; btnElement.disabled = false; } const email = document.getElementById('admin-review-student').value; const m = document.getElementById('admin-review-month').value; const w = document.getElementById('admin-review-week').value; const d = document.getElementById('admin-review-day').value; let statusObj = materials[`vocab_status-${email}-${m}-w${w}-d${d}`]; if (!statusObj || statusObj.status === 'none') { resDiv.innerHTML = `<div class="bg-slate-50 p-3 rounded-lg text-[10px] text-center text-slate-500 font-medium border border-slate-200">Belum ada tugas disubmit.</div>`; } else if (statusObj.status === 'submitted') { resDiv.innerHTML = `<div class="bg-amber-50 p-3 rounded-xl border border-amber-100 mt-3"><p class="text-[10px] font-bold text-amber-800 mb-2">Siap verifikasi.</p><input type="text" id="admin-feedback" placeholder="Catatan opsional..." class="w-full p-2 bg-white border border-amber-200 rounded-lg text-xs mb-2 outline-none"><button onclick="approveVocab('${email}', '${m}', '${w}', '${d}')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold w-full">Setujui Hafalan</button></div>`; } else if (statusObj.status === 'approved') { resDiv.innerHTML = `<div class="bg-emerald-50 p-2.5 rounded-lg text-xs font-bold text-emerald-700 text-center mt-3 border border-emerald-100"><i class="fas fa-check-circle mr-1"></i> Telah diverifikasi.</div>`; } }
+window.approveVocab = async function(email, m, w, d) { let feedback = document.getElementById('admin-feedback').value || 'Good Job!'; materials[`vocab_status-${email}-${m}-w${w}-d${d}`] = { status: 'approved', feedback: feedback }; document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default'; if (!error) { checkVocabStatus(); } }
 window.togglePassword = function(id) { const input = document.getElementById(id); input.type = input.type === 'password' ? 'text' : 'password'; }
 window.editStudentPassword = async function(email) { const i = students.findIndex(s => s.email === email); if(i === -1) return; const np = prompt(`Password baru untuk ${students[i].name}:`, students[i].password); if(np && np.trim() !== '') { students[i].password = np.trim(); const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_students', value: students }]); if (!error) renderAdminCMS(); } }
 window.deleteStudentAccount = async function(email) { if(confirm(`Hapus permanen akun ${email}?`)) { students = students.filter(s => s.email !== email); const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_students', value: students }]); if (!error) renderAdminCMS(); } }
-window.saveStudentSchedule = async function(e) { const email = document.getElementById('admin-sched-student').value; let profile = materials[`profile-${email}`] || {}; profile.validUntil = document.getElementById('admin-sched-date').value || profile.validUntil || 'Belum diatur'; const sT = document.getElementById('admin-sched-start').value; const eT = document.getElementById('admin-sched-end').value; if (sT && eT) profile.time = `${sT} - ${eT}`; profile.maxMonth = document.getElementById('admin-sched-max-month').value || profile.maxMonth || 1; const selDays = Array.from(document.querySelectorAll('.admin-day-cb:checked')).map(cb => cb.value); if(selDays.length > 0) profile.days = selDays; materials[`profile-${email}`] = profile; const btn = e.currentTarget; const origText = btn.innerHTML; btn.innerHTML = 'Sinkronisasi...'; btn.disabled = true; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); btn.innerHTML = origText; btn.disabled = false; if (!error) alert("Tersimpan."); }
-window.addNewMonth = async function() { const nextNum = months.length + 1; months.push({ id: `m${nextNum}`, title: `Month ${nextNum}`, weeks: [1, 2, 3, 4] }); const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_months', value: months }]); if (!error) { alert(`Month ${nextNum} sukses.`); renderSidebar(); renderAdminCMS(); } else months.pop(); };
-window.addNewStudent = async function() { const name = document.getElementById('new-stu-name').value; const email = document.getElementById('new-stu-email').value; const pass = document.getElementById('new-stu-pass').value; if(!name || !email || !pass) return alert("Lengkapi data"); students.push({ name: name, email: email, password: pass }); const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_students', value: students }]); if (!error) { alert("Sukses."); renderAdminCMS(); } else students.pop(); }
-window.saveMaterialData = async function() { const ts = document.getElementById('admin-target-student').value; const m = document.getElementById('admin-month').value; const w = document.getElementById('admin-week').value; const d = document.getElementById('admin-day').value; const link = document.getElementById('admin-link').value; const recap = document.getElementById('admin-recap-pdf').value; const keyPref = `${ts}-${m}-w${w}-d${d}`; if(link) materials[`${keyPref}-link`] = link; if(recap) materials[`${keyPref}-recap`] = recap; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); if (!error) { alert("Tersimpan."); document.getElementById('admin-link').value = ''; document.getElementById('admin-recap-pdf').value = ''; } };
+window.saveStudentSchedule = async function(e) { const email = document.getElementById('admin-sched-student').value; let profile = materials[`profile-${email}`] || {}; profile.validUntil = document.getElementById('admin-sched-date').value || profile.validUntil || 'Belum diatur'; const sT = document.getElementById('admin-sched-start').value; const eT = document.getElementById('admin-sched-end').value; if (sT && eT) profile.time = `${sT} - ${eT}`; profile.maxMonth = document.getElementById('admin-sched-max-month').value || profile.maxMonth || 1; const selDays = Array.from(document.querySelectorAll('.admin-day-cb:checked')).map(cb => cb.value); if(selDays.length > 0) profile.days = selDays; materials[`profile-${email}`] = profile; const btn = e.currentTarget; const origText = btn.innerHTML; btn.innerHTML = 'Menyimpan...'; btn.disabled = true; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); btn.innerHTML = origText; btn.disabled = false; if (!error) alert("Jadwal tersimpan."); }
+window.addNewMonth = async function() { const nextNum = months.length + 1; months.push({ id: `m${nextNum}`, title: `Month ${nextNum}`, weeks: [1, 2, 3, 4] }); const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_months', value: months }]); if (!error) { alert(`Month ${nextNum} sukses dibuat.`); renderSidebar(); renderAdminCMS(); } else months.pop(); };
+window.addNewStudent = async function() { const name = document.getElementById('new-stu-name').value; const email = document.getElementById('new-stu-email').value; const pass = document.getElementById('new-stu-pass').value; if(!name || !email || !pass) return alert("Lengkapi data!"); students.push({ name: name, email: email, password: pass }); const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_students', value: students }]); if (!error) { alert("Akun didaftarkan."); renderAdminCMS(); } else students.pop(); }
+window.saveMaterialData = async function() { const ts = document.getElementById('admin-target-student').value; const m = document.getElementById('admin-month').value; const w = document.getElementById('admin-week').value; const d = document.getElementById('admin-day').value; const link = document.getElementById('admin-link').value; const recap = document.getElementById('admin-recap-pdf').value; const keyPref = `${ts}-${m}-w${w}-d${d}`; if(link) materials[`${keyPref}-link`] = link; if(recap) materials[`${keyPref}-recap`] = recap; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); if (!error) { alert("Modul tersimpan."); document.getElementById('admin-link').value = ''; document.getElementById('admin-recap-pdf').value = ''; } };
 
 // ==== EXAM BUILDER (ADMIN) ====
 window.loadAdminExamData = function() {
@@ -530,8 +522,8 @@ window.switchExamTab = function(tabName) {
     adminExamState.activeTab = tabName;
     ['listening', 'speaking', 'reading', 'writing'].forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
-        if(t === tabName) { btn.classList.add('border-blue-500', 'text-blue-600'); btn.classList.remove('border-transparent', 'text-slate-500'); }
-        else { btn.classList.remove('border-blue-500', 'text-blue-600'); btn.classList.add('border-transparent', 'text-slate-500'); }
+        if(t === tabName) { btn.classList.add('border-indigo-500', 'text-indigo-600'); btn.classList.remove('border-transparent', 'text-slate-500'); }
+        else { btn.classList.remove('border-indigo-500', 'text-indigo-600'); btn.classList.add('border-transparent', 'text-slate-500'); }
     });
     renderExamQuestions();
 }
@@ -547,29 +539,29 @@ window.updateExamField = function(index, field, value, optIndex = null) {
 window.renderExamQuestions = function() {
     const container = document.getElementById('admin-exam-questions-container');
     const questions = adminExamState.data[adminExamState.activeTab];
-    if(questions.length === 0) { container.innerHTML = `<div class="text-center py-8 bg-white rounded-xl border border-dashed border-slate-300"><p class="text-slate-400 font-medium text-xs md:text-sm">Belum ada soal untuk sesi ini.</p></div>`; return; }
+    if(questions.length === 0) { container.innerHTML = `<div class="text-center py-6 bg-white rounded-xl border border-dashed border-slate-300"><p class="text-slate-400 font-medium text-xs">Belum ada soal.</p></div>`; return; }
 
     container.innerHTML = questions.map((q, idx) => {
         let isMCQ = q.type === 'mcq'; let bodyHTML = '';
         if (isMCQ) {
             let optionsHTML = ['A', 'B', 'C', 'D'].map((lbl, oIdx) => `
-                <div class="flex items-center gap-2 md:gap-3 mb-2">
-                    <input type="radio" name="correct_${adminExamState.activeTab}_${idx}" value="${oIdx}" ${q.answer == oIdx ? 'checked' : ''} onchange="updateExamField(${idx}, 'answer', ${oIdx})" class="w-4 h-4 text-blue-600 shrink-0">
-                    <span class="font-bold text-xs md:text-sm text-slate-500 w-3 md:w-4 shrink-0">${lbl}.</span>
-                    <input type="text" value="${q.options[oIdx]}" onchange="updateExamField(${idx}, 'options', this.value, ${oIdx})" placeholder="Opsi ${lbl}" class="flex-1 min-w-0 p-2 md:p-2.5 border border-slate-200 rounded-lg text-xs md:text-sm outline-none bg-white">
+                <div class="flex items-center gap-2 mb-2">
+                    <input type="radio" name="correct_${adminExamState.activeTab}_${idx}" value="${oIdx}" ${q.answer == oIdx ? 'checked' : ''} onchange="updateExamField(${idx}, 'answer', ${oIdx})" class="w-3.5 h-3.5 text-indigo-600 shrink-0">
+                    <span class="font-bold text-xs text-slate-500 w-3 shrink-0">${lbl}.</span>
+                    <input type="text" value="${q.options[oIdx]}" onchange="updateExamField(${idx}, 'options', this.value, ${oIdx})" placeholder="Teks opsi" class="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-indigo-400 transition">
                 </div>
             `).join('');
-            bodyHTML = `<div class="mt-3 md:mt-4 p-3 md:p-4 bg-slate-50 rounded-xl border border-slate-200"><p class="text-[10px] md:text-xs font-bold text-slate-500 mb-2 md:mb-3 uppercase">Opsi Jawaban (Pilih Kunci yang Benar)</p>${optionsHTML}</div>`;
+            bodyHTML = `<div class="mt-3 p-3 bg-slate-100/50 rounded-xl border border-slate-200"><p class="text-[9px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Opsi & Kunci Jawaban</p>${optionsHTML}</div>`;
         } else {
-            bodyHTML = `<div class="mt-3 md:mt-4 p-3 md:p-4 bg-slate-50 rounded-xl border border-slate-200"><p class="text-[10px] md:text-xs font-bold text-slate-500 mb-2 uppercase">Kunci Jawaban / Penilaian</p><textarea onchange="updateExamField(${idx}, 'answer', this.value)" rows="2" class="w-full p-2.5 md:p-3 border border-slate-200 rounded-lg text-xs md:text-sm outline-none bg-white">${q.answer}</textarea></div>`;
+            bodyHTML = `<div class="mt-3 p-3 bg-slate-100/50 rounded-xl border border-slate-200"><p class="text-[9px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Kriteria Jawaban Essay</p><textarea onchange="updateExamField(${idx}, 'answer', this.value)" rows="2" class="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-indigo-400 transition">${q.answer}</textarea></div>`;
         }
         return `
-            <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm relative">
-                <div class="absolute top-3 right-3 md:top-4 md:right-4 flex gap-1 md:gap-2"><span class="bg-slate-100 text-slate-500 text-[8px] md:text-[10px] font-bold px-1.5 py-1 rounded uppercase">${isMCQ ? 'Pilihan Ganda' : 'Essay'}</span><button onclick="removeExamQuestion(${idx})" class="text-red-400 hover:text-red-600"><i class="fas fa-trash-alt text-xs md:text-sm"></i></button></div>
-                <h4 class="font-bold text-sm md:text-base text-slate-700 mb-2 md:mb-3">Soal ${idx + 1}</h4>
-                <textarea onchange="updateExamField(${idx}, 'question', this.value)" rows="3" class="w-full p-2.5 md:p-3 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-slate-50" placeholder="Tulis pertanyaan...">${q.question}</textarea>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
+                <div class="absolute top-3 right-3 flex gap-1"><span class="bg-slate-100 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">${isMCQ ? 'PG' : 'Essay'}</span><button onclick="removeExamQuestion(${idx})" class="text-red-400 hover:text-red-600"><i class="fas fa-trash text-xs"></i></button></div>
+                <h4 class="font-bold text-xs text-slate-700 mb-2">Soal ${idx + 1}</h4>
+                <textarea onchange="updateExamField(${idx}, 'question', this.value)" rows="2" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-400 transition" placeholder="Ketik pertanyaan...">${q.question}</textarea>
                 ${bodyHTML}
-                <div class="mt-3 md:mt-4"><p class="text-[10px] md:text-xs font-bold text-slate-500 mb-2 uppercase"><i class="fas fa-lightbulb text-amber-500 mr-1"></i> Penjelasan</p><textarea onchange="updateExamField(${idx}, 'explanation', this.value)" rows="2" class="w-full p-2.5 md:p-3 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-white">${q.explanation}</textarea></div>
+                <div class="mt-3"><p class="text-[9px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider"><i class="fas fa-lightbulb text-amber-500 mr-1"></i> Penjelasan Singkat</p><textarea onchange="updateExamField(${idx}, 'explanation', this.value)" rows="1" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-400 transition" placeholder="Opsional...">${q.explanation}</textarea></div>
             </div>
         `;
     }).join('');
@@ -579,7 +571,7 @@ window.saveAdminExamData = async function(e) {
     const btn = e.currentTarget; const origText = btn.innerHTML; btn.innerHTML = 'Menyimpan...'; btn.disabled = true;
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]);
     btn.innerHTML = origText; btn.disabled = false;
-    if (error) alert("Error: " + error.message); else alert("Ujian tersimpan!");
+    if (error) alert("Gagal: " + error.message); else alert("Ujian berhasil disimpan.");
 }
 
 // ==== PENGERJAAN UJIAN (MURID) ====
@@ -590,7 +582,7 @@ window.renderExam = function(monthId, monthTitle) {
     const examData = materials[examKey]; const examResult = materials[resultKey]; 
     
     if (!examData) {
-        mainContent.innerHTML = `<div class="max-w-4xl mx-auto fade-in pb-12"><div class="mb-6 md:mb-8 flex items-center gap-4 md:gap-5 bg-white p-4 rounded-2xl border border-slate-100"><button onclick="renderDashboard()" class="w-10 h-10 shrink-0 bg-slate-50 rounded-xl"><i class="fas fa-arrow-left"></i></button><h2 class="text-lg md:text-xl font-bold">Final Exam: ${monthTitle}</h2></div><div class="bg-slate-50 p-10 md:p-16 rounded-3xl border-2 border-dashed border-slate-200 text-center"><p class="text-slate-500 font-bold text-sm md:text-base">Ujian belum tersedia</p></div></div>`;
+        mainContent.innerHTML = `<div class="max-w-4xl mx-auto fade-in pb-12"><div class="mb-6 flex items-center gap-4 bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm"><button onclick="renderDashboard()" class="w-9 h-9 md:w-10 md:h-10 shrink-0 bg-slate-50 rounded-xl hover:bg-slate-100 border border-slate-100"><i class="fas fa-arrow-left text-slate-500"></i></button><h2 class="text-base md:text-lg font-bold text-slate-800">Final Exam: ${monthTitle}</h2></div><div class="bg-slate-50 p-10 rounded-2xl border border-dashed border-slate-300 text-center"><p class="text-slate-500 font-medium text-sm">Ujian belum tersedia untuk bulan ini.</p></div></div>`;
         return;
     }
 
@@ -598,7 +590,7 @@ window.renderExam = function(monthId, monthTitle) {
         let resultHTML = '';
         ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
             if(examData[cat].length === 0) return;
-            resultHTML += `<h3 class="text-base md:text-lg font-bold text-slate-800 mt-6 md:mt-8 mb-3 md:mb-4 capitalize border-b pb-2">${cat}</h3>`;
+            resultHTML += `<h3 class="text-sm md:text-base font-bold text-slate-800 mt-6 md:mt-8 mb-3 capitalize flex items-center gap-2"><span class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></span> ${cat} Section</h3>`;
             examData[cat].forEach((q, idx) => {
                 let sAns = examResult.answers[`${cat}_${idx}`] !== undefined ? examResult.answers[`${cat}_${idx}`] : '';
                 let isMCQ = q.type === 'mcq'; let isCorrect = isMCQ ? (sAns == q.answer) : true;
@@ -606,41 +598,41 @@ window.renderExam = function(monthId, monthTitle) {
                 let cAnsText = isMCQ ? q.options[q.answer] : q.answer;
 
                 resultHTML += `
-                    <div class="bg-white p-4 md:p-6 rounded-2xl border ${isMCQ ? (isCorrect ? 'border-emerald-200' : 'border-red-200') : 'border-slate-200'} shadow-sm mb-4">
-                        <p class="font-bold text-sm md:text-base text-slate-700 mb-3 md:mb-4">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-3 md:mb-4">
-                            <div class="bg-slate-50 p-3 md:p-4 rounded-xl border border-slate-100"><p class="text-[9px] md:text-[10px] font-bold uppercase text-slate-400 mb-1">Jawaban Anda</p><p class="text-xs md:text-sm font-semibold ${isMCQ ? (isCorrect ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700'}">${sAnsText}</p></div>
-                            <div class="bg-blue-50 p-3 md:p-4 rounded-xl border border-blue-100"><p class="text-[9px] md:text-[10px] font-bold uppercase text-blue-400 mb-1">Kunci Jawaban</p><p class="text-xs md:text-sm font-semibold text-blue-800">${cAnsText || 'Menunggu penilaian'}</p></div>
+                    <div class="bg-white p-4 md:p-5 rounded-2xl border ${isMCQ ? (isCorrect ? 'border-emerald-200 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.1)]' : 'border-red-200 shadow-[0_2px_10px_-3px_rgba(239,68,68,0.1)]') : 'border-slate-200 shadow-sm'} mb-4">
+                        <p class="font-semibold text-xs md:text-sm text-slate-700 mb-3 leading-relaxed">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100"><p class="text-[9px] font-bold uppercase text-slate-400 mb-1">Jawaban Anda</p><p class="text-xs font-semibold ${isMCQ ? (isCorrect ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700'}">${sAnsText}</p></div>
+                            <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100"><p class="text-[9px] font-bold uppercase text-indigo-400 mb-1">Kunci Jawaban</p><p class="text-xs font-semibold text-indigo-700">${cAnsText || 'Diperiksa manual'}</p></div>
                         </div>
-                        ${q.explanation ? `<div class="bg-amber-50 p-3 md:p-4 rounded-xl border border-amber-100"><p class="text-[9px] md:text-[10px] font-bold uppercase text-amber-500 mb-1">Pembahasan</p><p class="text-xs md:text-sm text-amber-900">${q.explanation}</p></div>` : ''}
+                        ${q.explanation ? `<div class="bg-amber-50/80 p-3 rounded-xl border border-amber-100/50 flex gap-2"><i class="fas fa-lightbulb text-amber-500 text-xs mt-0.5"></i><div><p class="text-[9px] font-bold uppercase text-amber-600 mb-0.5">Pembahasan</p><p class="text-xs text-amber-800">${q.explanation}</p></div></div>` : ''}
                     </div>
                 `;
             });
         });
 
-        mainContent.innerHTML = `<div class="max-w-5xl mx-auto fade-in pb-12"><div class="mb-6 md:mb-8 bg-white p-5 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm text-center"><h2 class="text-xl md:text-2xl font-bold text-slate-800 mb-2">Hasil Ujian: ${monthTitle}</h2><div class="inline-block bg-emerald-100 text-emerald-800 px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold text-base md:text-xl mt-2">Skor PG: ${examResult.mcqScore} / 100</div><p class="text-[10px] md:text-xs text-slate-400 mt-3">*Skor essay dinilai manual oleh admin.</p></div>${resultHTML}<button onclick="renderDashboard()" class="mt-5 w-full bg-slate-900 text-white py-3.5 md:py-4 rounded-xl text-sm font-bold shadow-lg">Kembali ke Dashboard</button></div>`;
+        mainContent.innerHTML = `<div class="max-w-4xl mx-auto fade-in pb-12"><div class="mb-6 bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm text-center"><h2 class="text-lg md:text-xl font-bold text-slate-800 mb-2">Hasil Evaluasi: ${monthTitle}</h2><div class="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-2.5 rounded-xl font-bold text-sm md:text-base mt-2 shadow-sm">Skor Pilihan Ganda: ${examResult.mcqScore} / 100</div><p class="text-[10px] text-slate-400 mt-3 font-medium">*Jawaban essay akan dinilai dan di-review manual oleh Bro Hamdi.</p></div>${resultHTML}<button onclick="renderDashboard()" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-sm font-semibold shadow-sm transition">Kembali ke Dashboard</button></div>`;
         return;
     }
 
     studentExamAnswers = {}; let formHTML = '';
     ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
         if(examData[cat].length === 0) return;
-        formHTML += `<div class="mb-8 md:mb-10"><h3 class="text-lg md:text-xl font-bold text-indigo-900 mb-4 md:mb-6 capitalize flex items-center gap-2 md:gap-3"><span class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs md:text-sm"><i class="fas fa-layer-group"></i></span> ${cat} Section</h3>`;
+        formHTML += `<div class="mb-8"><h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 capitalize flex items-center gap-2"><div class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></div> ${cat} Section</h3>`;
         examData[cat].forEach((q, idx) => {
             let isMCQ = q.type === 'mcq'; let inputsHTML = '';
             if (isMCQ) {
-                inputsHTML = ['A','B','C','D'].map((lbl, oIdx) => `<label class="flex items-start md:items-center gap-2 md:gap-3 p-2.5 md:p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-2"><input type="radio" name="ans_${cat}_${idx}" value="${oIdx}" onchange="recordAnswer('${cat}', ${idx}, ${oIdx})" class="w-3.5 h-3.5 md:w-4 md:h-4 mt-0.5 md:mt-0 text-indigo-600 shrink-0"><span class="text-xs md:text-sm font-medium text-slate-700 leading-tight">${lbl}. ${q.options[oIdx]}</span></label>`).join('');
-            } else { inputsHTML = `<textarea onchange="recordAnswer('${cat}', ${idx}, this.value)" rows="4" class="w-full p-3 md:p-4 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-slate-50"></textarea>`; }
-            formHTML += `<div class="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm mb-5 md:mb-6"><p class="font-bold text-slate-800 mb-4 text-sm md:text-base">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>${inputsHTML}</div>`;
+                inputsHTML = ['A','B','C','D'].map((lbl, oIdx) => `<label class="flex items-start md:items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-2"><input type="radio" name="ans_${cat}_${idx}" value="${oIdx}" onchange="recordAnswer('${cat}', ${idx}, ${oIdx})" class="w-4 h-4 mt-0.5 md:mt-0 text-indigo-600 shrink-0"><span class="text-xs md:text-sm font-medium text-slate-700 leading-snug">${lbl}. ${q.options[oIdx]}</span></label>`).join('');
+            } else { inputsHTML = `<textarea onchange="recordAnswer('${cat}', ${idx}, this.value)" rows="3" class="w-full p-3 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-slate-50 focus:bg-white focus:border-indigo-400 transition" placeholder="Ketik jawaban Anda..."></textarea>`; }
+            formHTML += `<div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm mb-4 md:mb-5"><p class="font-semibold text-slate-800 mb-4 text-xs md:text-sm leading-relaxed">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>${inputsHTML}</div>`;
         });
         formHTML += `</div>`;
     });
 
-    mainContent.innerHTML = `<div class="max-w-4xl mx-auto fade-in pb-20"><div class="mb-6 md:mb-8 flex items-center gap-3 md:gap-5 bg-white p-3 md:p-4 rounded-2xl border border-slate-100 shadow-sm sticky top-0 z-10"><button onclick="renderDashboard()" class="w-9 h-9 md:w-10 md:h-10 shrink-0 bg-slate-50 rounded-xl text-slate-600 hover:bg-slate-100"><i class="fas fa-arrow-left"></i></button><div><h2 class="text-base md:text-xl font-bold text-slate-800">Final Exam: ${monthTitle}</h2><p class="text-[9px] md:text-xs font-bold text-amber-500 uppercase mt-0.5 md:mt-1">Kerjakan dengan jujur</p></div></div>${formHTML}<div class="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-2xl md:rounded-3xl text-center shadow-lg"><p class="text-xs md:text-sm font-medium text-indigo-100 mb-4 md:mb-6">Pastikan semua soal terjawab.</p><button onclick="submitStudentExam('${monthId}')" class="px-6 md:px-10 py-3.5 md:py-4 bg-emerald-500 text-white rounded-xl text-sm md:text-lg font-bold w-full md:w-auto hover:bg-emerald-600 transition">Submit Ujian</button></div></div>`;
+    mainContent.innerHTML = `<div class="max-w-3xl mx-auto fade-in pb-20"><div class="mb-6 flex items-center gap-3 md:gap-4 bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm sticky top-2 z-10"><button onclick="renderDashboard()" class="w-9 h-9 shrink-0 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 hover:bg-slate-100"><i class="fas fa-arrow-left text-xs md:text-sm"></i></button><div><h2 class="text-sm md:text-base font-bold text-slate-800">Ujian: ${monthTitle}</h2><p class="text-[9px] md:text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-0.5">Harap kerjakan dengan jujur</p></div></div>${formHTML}<div class="bg-indigo-600 p-6 md:p-8 rounded-2xl text-center shadow-md relative overflow-hidden"><div class="absolute right-0 top-0 -mt-10 -mr-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div><p class="text-xs md:text-sm font-medium text-indigo-100 mb-5 relative z-10">Pastikan semua soal terjawab sebelum melakukan submit.</p><button onclick="submitStudentExam('${monthId}')" class="px-6 md:px-8 py-3 bg-white text-indigo-600 rounded-xl text-xs md:text-sm font-bold w-full md:w-auto hover:bg-slate-50 shadow-sm transition relative z-10">Submit Ujian Sekarang</button></div></div>`;
 };
 window.recordAnswer = function(category, qIndex, value) { studentExamAnswers[`${category}_${qIndex}`] = value; }
 window.submitStudentExam = async function(monthId) {
-    if(!confirm("Kirim jawaban sekarang? Pastikan sudah terisi.")) return;
+    if(!confirm("Anda yakin ingin mengirim jawaban sekarang?")) return;
     const email = currentUser.email; const examKey = `exam-${email}-${monthId}`; const resultKey = `exam_result-${email}-${monthId}`; const examData = materials[examKey];
     let totalMCQ = 0; let correctMCQ = 0;
     ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
@@ -649,5 +641,5 @@ window.submitStudentExam = async function(monthId) {
     let mcqScore = totalMCQ > 0 ? Math.round((correctMCQ / totalMCQ) * 100) : 0;
     materials[resultKey] = { status: 'submitted', answers: studentExamAnswers, mcqScore: mcqScore, submittedAt: new Date().toISOString() };
     document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default';
-    if (error) alert("Error: " + error.message); else { alert("Ujian disubmit!"); sendTelegramNotification(`📝 Ujian Disubmit\n\nMurid: ${currentUser.name}\nSkor PG: ${mcqScore}/100`); renderExam(monthId, months.find(m => m.id === monthId).title); }
+    if (error) alert("Error: " + error.message); else { sendTelegramNotification(`📝 Ujian Disubmit\nMurid: ${currentUser.name}\nSkor PG: ${mcqScore}/100`); renderExam(monthId, months.find(m => m.id === monthId).title); }
 }

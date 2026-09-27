@@ -1,53 +1,57 @@
 /* style.css */
 body {
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Inter', sans-serif;
+    background-color: #F8FAFC;
 }
 
 #sidebar {
-    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Mempercantik Scrollbar dengan gaya macOS */
+/* Scrollbar Elegan ala macOS */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent; 
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #cbd5e1; 
-    border-radius: 20px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
+    border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: #94a3b8; 
+    background: #94a3b8; 
 }
 
-/* Animasi Fade In & Elevasi Premium */
+/* Animasi Fade In Lembut */
 .fade-in {
-    animation: fadeInUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    animation: fadeIn 0.4s ease-out forwards;
 }
-
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(15px); }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse-slow {
-    0%, 100% { transform: scale(1); opacity: 0.15; }
-    50% { transform: scale(1.1); opacity: 0.25; }
-}
-.animate-pulse-slow {
-    animation: pulse-slow 8s ease-in-out infinite;
-}
-
-/* Kartu Interaktif */
+/* Interaksi Kartu yang Profesional */
 .hover-card {
-    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: all 0.2s ease-in-out;
 }
 .hover-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+    border-color: #e2e8f0;
+}
+
+/* Input Radio/Checkbox Styling */
+input[type="radio"], input[type="checkbox"] {
+    accent-color: #4f46e5;
+    cursor: pointer;
+}
+
+/* Efek Transisi General */
+button, input, select, textarea, a {
+    transition-property: color, background-color, border-color, box-shadow, transform;
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
