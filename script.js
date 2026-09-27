@@ -206,7 +206,7 @@ function renderDashboard() {
     mainContent.innerHTML = `<div class="max-w-5xl mx-auto fade-in pb-10"><div class="bg-indigo-600 rounded-2xl p-6 md:p-10 text-white shadow-md mb-6 relative overflow-hidden"><div class="absolute right-0 top-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div><h2 class="text-2xl md:text-3xl font-bold mb-1 relative z-10">Welcome, ${currentUser.name.split(' ')[0]}.</h2><p class="text-indigo-100 text-sm relative z-10">Lanjutkan perjalanan belajarmu hari ini.</p></div><div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover-card"><h3 class="text-base font-bold text-slate-800">Informasi Jadwal Kelas</h3>${premiumCardContent}</div></div>`;
 }
 
-// ==== MATERI & RESCHEDULE ====
+// ==== MATERI ====
 function parseDriveLink(link) { if (!link) return ''; if (link.includes('drive.google.com/file/d/')) { const match = link.match(/\/d\/(.+?)\//); if (match && match[1]) return `https://drive.google.com/file/d/${match[1]}/preview`; } return link; }
 
 window.submitVocab = async function(btnElement, m, w, d) {
@@ -241,8 +241,7 @@ function renderMateri(monthId, week, day, monthTitle) {
     `;
 }
 
-// ==== RESCHEDULE (DIPERBAIKI & RESPONSIVE UI) ====
-
+// ==== RESCHEDULE ====
 window.processReschedule = async function(newDateStr) {
     let oldDateStr = document.getElementById('reschedule-old-day').value;
     if (!oldDateStr) { alert('Silakan pilih jadwal awal pada dropdown.'); return; }
@@ -393,7 +392,7 @@ window.renderReschedule = function() {
     if (!isBlocked) window.updateRescheduleGrid();
 }
 
-// ==== ADMIN CMS UTAMA (DENGAN TAB MODERN & RESPONSIVE) ====
+// ==== ADMIN CMS UTAMA ====
 function renderAdminCMS(tab = null) {
     autoCloseSidebar(); if (userRole !== 'admin') return;
     if (tab) currentAdminTab = tab; 
@@ -404,7 +403,6 @@ function renderAdminCMS(tab = null) {
     const dayOptions = [1,2,3].map(d => `<option value="${d}">Day ${d}</option>`).join('');
     const studentOptions = students.map(s => `<option value="${s.email}">${s.name} (${s.email})</option>`).join('');
 
-    // Segmented Control Tabs style Apple
     let tabsHTML = `
         <div class="flex overflow-x-auto gap-1 mb-6 md:mb-8 bg-slate-200/50 p-1.5 rounded-xl max-w-full md:max-w-fit custom-scrollbar border border-slate-200">
             <button onclick="renderAdminCMS('overview')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentAdminTab === 'overview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}"><i class="fas fa-home"></i> Overview</button>
@@ -416,7 +414,6 @@ function renderAdminCMS(tab = null) {
 
     let contentHTML = '';
 
-    // === TAB 1: OVERVIEW ===
     if (currentAdminTab === 'overview') {
         let pendingReschedulesHTML = '';
         students.forEach(s => {
@@ -460,7 +457,6 @@ function renderAdminCMS(tab = null) {
             </div>
         `;
     } 
-    // === TAB 2: AKUN & JADWAL ===
     else if (currentAdminTab === 'users') {
         let studentsRows = students.map((s, idx) => `
             <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
@@ -528,7 +524,6 @@ function renderAdminCMS(tab = null) {
             </div>
         `;
     }
-    // === TAB 3: MATERI & TUGAS ===
     else if (currentAdminTab === 'materials') {
         contentHTML = `
             <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
@@ -578,7 +573,6 @@ function renderAdminCMS(tab = null) {
             </div>
         `;
     }
-    // === TAB 4: UJIAN BULANAN ===
     else if (currentAdminTab === 'exam') {
         contentHTML = `
             <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -599,7 +593,6 @@ function renderAdminCMS(tab = null) {
                     </div>
                 </div>
                 
-                <!-- Workspace Pembuat Soal -->
                 <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-xl overflow-hidden">
                     <div class="flex overflow-x-auto border-b border-slate-200 bg-slate-50/80 custom-scrollbar">
                         <button onclick="switchExamTab('listening')" id="tab-listening" class="shrink-0 px-4 md:px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Listening</button>
@@ -624,7 +617,6 @@ function renderAdminCMS(tab = null) {
         `;
     }
 
-    // Render Master Layout
     mainContent.innerHTML = `
         <div class="max-w-5xl mx-auto fade-in pb-16">
             <div class="mb-4 md:mb-6">
@@ -643,7 +635,7 @@ function renderAdminCMS(tab = null) {
     }
 }
 
-// ==== FUNGSI DATABASE KHUSUS ADMIN ====
+// ==== FUNGSI ADMIN DB ====
 window.approveReschedule = async function(email, oldDate, newDate) { let p = materials[`profile-${email}`]; if(!p.reschedules) p.reschedules = {}; p.reschedules[oldDate] = newDate; delete p.pendingReschedules[oldDate]; document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default'; if (error) alert(error.message); else renderAdminCMS(); }
 window.rejectReschedule = async function(email, oldDate) { if(confirm("Tolak pengajuan?")) { let p = materials[`profile-${email}`]; delete p.pendingReschedules[oldDate]; document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default'; if (error) alert(error.message); else renderAdminCMS(); } }
 window.saveVocabList = async function(e) { const m = document.getElementById('admin-vocab-month').value; const w = document.getElementById('admin-vocab-week').value; const d = document.getElementById('admin-vocab-day').value; materials[`vocab-${m}-w${w}-d${d}`] = document.getElementById('admin-vocab-list').value; const btn = e.currentTarget; const origText = btn.innerHTML; btn.innerHTML = 'Proses...'; btn.disabled = true; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); btn.innerHTML = origText; btn.disabled = false; if (!error) { alert("Tersimpan."); document.getElementById('admin-vocab-list').value = ''; } }
@@ -676,7 +668,9 @@ window.switchExamTab = function(tabName) {
     renderExamQuestions();
 }
 window.addExamQuestion = function(type) {
-    adminExamState.data[adminExamState.activeTab].push({ id: Date.now().toString(), type: type, question: '', options: type === 'mcq' ? ['','','',''] : [], answer: type === 'mcq' ? 0 : '', explanation: '' });
+    adminExamState.data[adminExamState.activeTab].push({ 
+        id: Date.now().toString(), type: type, question: '', mediaUrl: '', options: type === 'mcq' ? ['','','',''] : [], answer: type === 'mcq' ? 0 : '', explanation: '' 
+    });
     renderExamQuestions();
 }
 window.removeExamQuestion = function(index) { if(confirm("Hapus soal ini?")) { adminExamState.data[adminExamState.activeTab].splice(index, 1); renderExamQuestions(); } }
@@ -707,7 +701,11 @@ window.renderExamQuestions = function() {
             <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
                 <div class="absolute top-3 right-3 flex gap-1"><span class="bg-slate-100 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">${isMCQ ? 'PG' : 'Essay'}</span><button onclick="removeExamQuestion(${idx})" class="text-red-400 hover:text-red-600"><i class="fas fa-trash text-xs"></i></button></div>
                 <h4 class="font-bold text-xs text-slate-700 mb-2">Soal ${idx + 1}</h4>
-                <textarea onchange="updateExamField(${idx}, 'question', this.value)" rows="2" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-400 transition" placeholder="Ketik pertanyaan...">${q.question}</textarea>
+                <textarea onchange="updateExamField(${idx}, 'question', this.value)" rows="2" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-400 transition mb-2" placeholder="Ketik pertanyaan...">${q.question}</textarea>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none"><i class="fab fa-google-drive text-blue-400 text-xs"></i></div>
+                    <input type="text" onchange="updateExamField(${idx}, 'mediaUrl', this.value)" value="${q.mediaUrl || ''}" class="w-full pl-8 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-400 transition" placeholder="Opsional: Tautan Audio GDrive">
+                </div>
                 ${bodyHTML}
                 <div class="mt-3"><p class="text-[9px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider"><i class="fas fa-lightbulb text-amber-500 mr-1"></i> Penjelasan Singkat</p><textarea onchange="updateExamField(${idx}, 'explanation', this.value)" rows="1" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-400 transition" placeholder="Opsional...">${q.explanation}</textarea></div>
             </div>
@@ -727,20 +725,51 @@ let studentExamAnswers = {};
 let currentExamSession = null;
 let currentStudentExamTab = 'listening';
 
-window.renderExam = function(monthId, monthTitle, tab = 'listening') {
-    autoCloseSidebar(); 
-    const email = currentUser.email; 
-    const examKey = `exam-${email}-${monthId}`; 
-    const resultKey = `exam_result-${email}-${monthId}`;
-    const examData = materials[examKey]; 
-    const examResult = materials[resultKey]; 
-    
-    // Me-reset jawaban sementara HANYA jika murid membuka ujian untuk sesi bulan yang berbeda
-    if (currentExamSession !== monthId) {
-        studentExamAnswers = {};
-        currentExamSession = monthId;
+function getDriveDirectStreamLink(url) {
+    if (!url) return '';
+    let id = ''; const parts = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (parts && parts[1]) id = parts[1];
+    else { try { const urlParams = new URLSearchParams(url.split('?')[1]); if (urlParams.has('id')) id = urlParams.get('id'); } catch(e){} }
+    if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
+    return url;
+}
+
+let mediaRecorder; let audioChunks = [];
+window.startVoiceRecord = async function(qIndex) {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); 
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const playback = document.getElementById(`audio-playback-${qIndex}`);
+            playback.src = audioUrl; playback.classList.remove('hidden');
+            const downloadBtn = document.getElementById(`audio-download-${qIndex}`);
+            downloadBtn.href = audioUrl; downloadBtn.download = `Speaking_Answer_Q${qIndex + 1}.webm`; downloadBtn.classList.remove('hidden');
+        };
+        mediaRecorder.start();
+        document.getElementById(`btn-record-${qIndex}`).classList.add('hidden');
+        document.getElementById(`btn-stop-${qIndex}`).classList.remove('hidden');
+    } catch (err) { alert("Gagal mengakses mikrofon. Izinkan mikrofon pada browser Anda."); }
+}
+
+window.stopVoiceRecord = function(qIndex) {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        document.getElementById(`btn-stop-${qIndex}`).classList.add('hidden');
+        const recordBtn = document.getElementById(`btn-record-${qIndex}`);
+        recordBtn.classList.remove('hidden'); recordBtn.innerHTML = '<i class="fas fa-redo mr-1"></i> Rekam Ulang';
+        recordBtn.classList.replace('bg-indigo-600', 'bg-slate-600'); recordBtn.classList.replace('hover:bg-indigo-700', 'hover:bg-slate-700');
     }
+}
+
+window.renderExam = function(monthId, monthTitle, tab = 'listening') {
+    autoCloseSidebar(); const email = currentUser.email; 
+    const examKey = `exam-${email}-${monthId}`; const resultKey = `exam_result-${email}-${monthId}`;
+    const examData = materials[examKey]; const examResult = materials[resultKey]; 
     
+    if (currentExamSession !== monthId) { studentExamAnswers = {}; currentExamSession = monthId; }
     currentStudentExamTab = tab;
 
     if (!examData) {
@@ -748,7 +777,6 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
         return;
     }
 
-    // TAB MENU HTML (Digunakan di mode Mengerjakan dan mode Hasil Ujian)
     let tabsHTML = `
         <div class="flex overflow-x-auto gap-1 mb-6 bg-slate-200/50 p-1.5 rounded-xl max-w-full md:max-w-fit custom-scrollbar border border-slate-200">
             <button onclick="renderExam('${monthId}', '${monthTitle}', 'listening')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentStudentExamTab === 'listening' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">Listening</button>
@@ -758,26 +786,24 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
         </div>
     `;
 
-    // 1. TAMPILAN JIKA UJIAN SUDAH DI-SUBMIT (HASIL)
     if (examResult) {
-        let resultHTML = '';
-        const cat = currentStudentExamTab; // Tampilkan hasil per tab yang aktif
-        
+        let resultHTML = ''; const cat = currentStudentExamTab;
         if(examData[cat].length === 0) {
             resultHTML = `<div class="bg-white p-8 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal di bagian ini.</p></div>`;
         } else {
             resultHTML += `<h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 capitalize flex items-center gap-2"><span class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></span> ${cat} Section</h3>`;
-            
             examData[cat].forEach((q, idx) => {
                 let sAns = examResult.answers[`${cat}_${idx}`] !== undefined ? examResult.answers[`${cat}_${idx}`] : '';
                 let isMCQ = q.type === 'mcq'; let isCorrect = isMCQ ? (sAns == q.answer) : true;
                 let sAnsText = isMCQ && sAns !== '' ? q.options[sAns] : (sAns || 'Tidak dijawab');
                 let cAnsText = isMCQ ? q.options[q.answer] : q.answer;
+                let mediaHTML = q.mediaUrl ? `<audio controls class="w-full h-8 mt-3 mb-2 rounded-lg"><source src="${getDriveDirectStreamLink(q.mediaUrl)}"></audio>` : '';
 
                 resultHTML += `
                     <div class="bg-white p-4 md:p-5 rounded-2xl border ${isMCQ ? (isCorrect ? 'border-emerald-200 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.1)]' : 'border-red-200 shadow-[0_2px_10px_-3px_rgba(239,68,68,0.1)]') : 'border-slate-200 shadow-sm'} mb-4">
-                        <p class="font-semibold text-xs md:text-sm text-slate-700 mb-3 leading-relaxed">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <p class="font-semibold text-xs md:text-sm text-slate-700 mb-2 leading-relaxed">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>
+                        ${mediaHTML}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 mt-3">
                             <div class="bg-slate-50 p-3 rounded-xl border border-slate-100"><p class="text-[9px] font-bold uppercase text-slate-400 mb-1">Jawaban Anda</p><p class="text-xs font-semibold ${isMCQ ? (isCorrect ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700'}">${sAnsText}</p></div>
                             <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100"><p class="text-[9px] font-bold uppercase text-indigo-400 mb-1">Kunci Jawaban</p><p class="text-xs font-semibold text-indigo-700">${cAnsText || 'Diperiksa manual'}</p></div>
                         </div>
@@ -786,105 +812,66 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
                 `;
             });
         }
-
-        mainContent.innerHTML = `
-            <div class="max-w-4xl mx-auto fade-in pb-12">
-                <div class="mb-6 bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm text-center">
-                    <h2 class="text-lg md:text-xl font-bold text-slate-800 mb-2">Hasil Evaluasi: ${monthTitle}</h2>
-                    <div class="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-2.5 rounded-xl font-bold text-sm md:text-base mt-2 shadow-sm">Skor Pilihan Ganda: ${examResult.mcqScore} / 100</div>
-                    <p class="text-[10px] text-slate-400 mt-3 font-medium">*Jawaban essay akan dinilai dan di-review manual oleh Admin.</p>
-                </div>
-                ${tabsHTML}
-                ${resultHTML}
-                <button onclick="renderDashboard()" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-sm font-semibold shadow-sm transition">Kembali ke Dashboard</button>
-            </div>`;
+        mainContent.innerHTML = `<div class="max-w-4xl mx-auto fade-in pb-12"><div class="mb-6 bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm text-center"><h2 class="text-lg md:text-xl font-bold text-slate-800 mb-2">Hasil Evaluasi: ${monthTitle}</h2><div class="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-2.5 rounded-xl font-bold text-sm md:text-base mt-2 shadow-sm">Skor PG: ${examResult.mcqScore} / 100</div><p class="text-[10px] text-slate-400 mt-3 font-medium">*Jawaban essay/rekaman dinilai manual oleh Admin.</p></div>${tabsHTML}${resultHTML}<button onclick="renderDashboard()" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-sm font-semibold shadow-sm transition">Kembali ke Dashboard</button></div>`;
         return;
     }
 
-    // 2. TAMPILAN MENGERJAKAN UJIAN (TABBED)
-    let formHTML = '';
-    const cat = currentStudentExamTab; // Targetkan tab spesifik
-    
+    let formHTML = ''; const cat = currentStudentExamTab; 
     if (examData[cat].length === 0) {
         formHTML = `<div class="bg-white p-10 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal untuk bagian ${cat} ini.</p></div>`;
     } else {
         formHTML += `<div class="mb-8"><h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 capitalize flex items-center gap-2"><div class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></div> ${cat} Section</h3>`;
         examData[cat].forEach((q, idx) => {
             let isMCQ = q.type === 'mcq'; let inputsHTML = '';
-            
-            // Muat ulang jawaban jika murid kembali ke tab ini
             let savedAns = studentExamAnswers[`${cat}_${idx}`] !== undefined ? studentExamAnswers[`${cat}_${idx}`] : '';
-            
+            let mediaHTML = q.mediaUrl ? `<audio controls class="w-full h-10 mt-3 mb-4 rounded-lg bg-slate-50"><source src="${getDriveDirectStreamLink(q.mediaUrl)}"></audio>` : '';
+
             if (isMCQ) {
-                inputsHTML = ['A','B','C','D'].map((lbl, oIdx) => `
-                    <label class="flex items-start md:items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-2">
-                        <input type="radio" name="ans_${cat}_${idx}" value="${oIdx}" ${savedAns == oIdx ? 'checked' : ''} onchange="recordAnswer('${cat}', ${idx}, ${oIdx})" class="w-4 h-4 mt-0.5 md:mt-0 text-indigo-600 shrink-0">
-                        <span class="text-xs md:text-sm font-medium text-slate-700 leading-snug">${lbl}. ${q.options[oIdx]}</span>
-                    </label>
-                `).join('');
+                inputsHTML = ['A','B','C','D'].map((lbl, oIdx) => `<label class="flex items-start md:items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-2"><input type="radio" name="ans_${cat}_${idx}" value="${oIdx}" ${savedAns == oIdx ? 'checked' : ''} onchange="recordAnswer('${cat}', ${idx}, ${oIdx})" class="w-4 h-4 mt-0.5 md:mt-0 text-indigo-600 shrink-0"><span class="text-xs md:text-sm font-medium text-slate-700 leading-snug">${lbl}. ${q.options[oIdx]}</span></label>`).join('');
             } else { 
-                inputsHTML = `<textarea onchange="recordAnswer('${cat}', ${idx}, this.value)" rows="3" class="w-full p-3 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-slate-50 focus:bg-white focus:border-indigo-400 transition" placeholder="Ketik jawaban Anda...">${savedAns}</textarea>`; 
+                inputsHTML = `<textarea onchange="recordAnswer('${cat}', ${idx}, this.value)" rows="3" class="w-full p-3 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-slate-50 focus:bg-white focus:border-indigo-400 transition" placeholder="Ketik jawaban tertulis Anda...">${savedAns}</textarea>`; 
+                if (cat === 'speaking') {
+                    inputsHTML = `
+                        <div class="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl mb-4 shadow-sm">
+                            <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-2">Live Voice Recorder</p>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <button id="btn-record-${idx}" onclick="startVoiceRecord(${idx})" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-indigo-700 transition"><i class="fas fa-microphone mr-1"></i> Mulai Rekam</button>
+                                <button id="btn-stop-${idx}" onclick="stopVoiceRecord(${idx})" class="hidden bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-red-600 transition animate-pulse"><i class="fas fa-stop mr-1"></i> Berhenti</button>
+                                <audio id="audio-playback-${idx}" controls class="hidden h-8 w-full max-w-[200px]"></audio>
+                                <a id="audio-download-${idx}" class="hidden bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition" download><i class="fas fa-download mr-1"></i> Simpan File</a>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-2 font-medium leading-tight">*Tekan Mulai Rekam, berbicaralah, lalu tekan Berhenti. <strong class="text-indigo-600">Simpan File</strong> audio dan kirimkan ke WhatsApp Admin nanti.</p>
+                        </div>
+                        ${inputsHTML}
+                    `;
+                }
             }
-            formHTML += `<div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm mb-4 md:mb-5"><p class="font-semibold text-slate-800 mb-4 text-xs md:text-sm leading-relaxed">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>${inputsHTML}</div>`;
+            formHTML += `<div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm mb-4 md:mb-5"><p class="font-semibold text-slate-800 text-xs md:text-sm leading-relaxed">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>${mediaHTML}<div class="mt-4">${inputsHTML}</div></div>`;
         });
         formHTML += `</div>`;
     }
 
     mainContent.innerHTML = `
         <div class="max-w-3xl mx-auto fade-in pb-20">
-            <div class="mb-6 flex items-center gap-3 md:gap-4 bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm sticky top-2 z-10">
-                <button onclick="renderDashboard()" class="w-9 h-9 shrink-0 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 hover:bg-slate-100"><i class="fas fa-arrow-left text-xs md:text-sm"></i></button>
-                <div>
-                    <h2 class="text-sm md:text-base font-bold text-slate-800">Ujian: ${monthTitle}</h2>
-                    <p class="text-[9px] md:text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-0.5">Harap kerjakan dengan jujur</p>
-                </div>
-            </div>
-            
+            <div class="mb-6 flex items-center gap-3 md:gap-4 bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm sticky top-2 z-10"><button onclick="renderDashboard()" class="w-9 h-9 shrink-0 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 hover:bg-slate-100"><i class="fas fa-arrow-left text-xs md:text-sm"></i></button><div><h2 class="text-sm md:text-base font-bold text-slate-800">Ujian: ${monthTitle}</h2><p class="text-[9px] md:text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-0.5">Harap kerjakan dengan jujur</p></div></div>
             ${tabsHTML}
             ${formHTML}
-            
-            <div class="bg-indigo-600 p-6 md:p-8 rounded-2xl text-center shadow-md relative overflow-hidden mt-8">
-                <div class="absolute right-0 top-0 -mt-10 -mr-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                <p class="text-xs md:text-sm font-medium text-indigo-100 mb-5 relative z-10">Pastikan semua soal di setiap tab/kategori telah Anda cek dan jawab sebelum melakukan submit final.</p>
-                <button onclick="submitStudentExam('${monthId}')" class="px-6 md:px-8 py-3 bg-white text-indigo-600 rounded-xl text-xs md:text-sm font-bold w-full md:w-auto hover:bg-slate-50 shadow-sm transition relative z-10">Submit Ujian Sekarang</button>
-            </div>
+            <div class="bg-indigo-600 p-6 md:p-8 rounded-2xl text-center shadow-md relative overflow-hidden mt-8"><div class="absolute right-0 top-0 -mt-10 -mr-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div><p class="text-xs md:text-sm font-medium text-indigo-100 mb-5 relative z-10">Pastikan semua tab telah terisi sebelum Submit. Jika ada rekaman Speaking, kirim ke WhatsApp Admin.</p><button onclick="submitStudentExam('${monthId}')" class="px-6 md:px-8 py-3 bg-white text-indigo-600 rounded-xl text-xs md:text-sm font-bold w-full md:w-auto hover:bg-slate-50 shadow-sm transition relative z-10">Submit Ujian Sekarang</button></div>
         </div>
     `;
 };
 
-window.recordAnswer = function(category, qIndex, value) { 
-    studentExamAnswers[`${category}_${qIndex}`] = value; 
-}
+window.recordAnswer = function(category, qIndex, value) { studentExamAnswers[`${category}_${qIndex}`] = value; }
 
 window.submitStudentExam = async function(monthId) {
-    if(!confirm("Anda yakin ingin mengirim jawaban sekarang? Pastikan Anda sudah mengecek seluruh tab (Listening, Speaking, Reading, Writing).")) return;
-    
-    const email = currentUser.email; 
-    const examKey = `exam-${email}-${monthId}`; 
-    const resultKey = `exam_result-${email}-${monthId}`; 
-    const examData = materials[examKey];
-    
+    if(!confirm("Yakin ingin mengirim jawaban sekarang? Pastikan Anda sudah mengecek seluruh tab.")) return;
+    const email = currentUser.email; const examKey = `exam-${email}-${monthId}`; const resultKey = `exam_result-${email}-${monthId}`; const examData = materials[examKey];
     let totalMCQ = 0; let correctMCQ = 0;
     ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
-        examData[cat].forEach((q, idx) => { 
-            if(q.type === 'mcq') { 
-                totalMCQ++; 
-                let sAns = studentExamAnswers[`${cat}_${idx}`]; 
-                if(sAns !== undefined && sAns == q.answer) correctMCQ++; 
-            } 
-        });
+        examData[cat].forEach((q, idx) => { if(q.type === 'mcq') { totalMCQ++; let sAns = studentExamAnswers[`${cat}_${idx}`]; if(sAns !== undefined && sAns == q.answer) correctMCQ++; } });
     });
-    
     let mcqScore = totalMCQ > 0 ? Math.round((correctMCQ / totalMCQ) * 100) : 0;
     materials[resultKey] = { status: 'submitted', answers: studentExamAnswers, mcqScore: mcqScore, submittedAt: new Date().toISOString() };
-    
-    document.body.style.cursor = 'wait'; 
-    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); 
-    document.body.style.cursor = 'default';
-    
-    if (error) alert("Error: " + error.message); 
-    else { 
-        sendTelegramNotification(`📝 Ujian Disubmit\nMurid: ${currentUser.name}\nSkor PG: ${mcqScore}/100`); 
-        renderExam(monthId, months.find(m => m.id === monthId).title, currentStudentExamTab); 
-    }
+    document.body.style.cursor = 'wait'; const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); document.body.style.cursor = 'default';
+    if (error) alert("Error: " + error.message); else { alert("Berhasil! Kirimkan file rekaman Speaking (jika ada) ke WA Admin."); sendTelegramNotification(`📝 Ujian Disubmit\nMurid: ${currentUser.name}\nSkor PG: ${mcqScore}/100`); renderExam(monthId, months.find(m => m.id === monthId).title, currentStudentExamTab); }
 }
