@@ -811,7 +811,6 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
     const examKey = `exam-${email}-${monthId}`; const resultKey = `exam_result-${email}-${monthId}`;
     const examData = materials[examKey]; const examResult = materials[resultKey]; 
     
-    // Reset jawaban & log audio jika murid membuka sesi bulan yang berbeda
     if (currentExamSession !== monthId) { 
         studentExamAnswers = {}; 
         audioPlayCounts = {}; 
@@ -826,14 +825,13 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
 
     let tabsHTML = `
         <div class="flex overflow-x-auto gap-1 mb-6 bg-slate-200/50 p-1.5 rounded-xl max-w-full md:max-w-fit custom-scrollbar border border-slate-200">
-            <button onclick="renderExam('${monthId}', '${monthTitle}', 'listening')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentStudentExamTab === 'listening' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">Listening</button>
-            <button onclick="renderExam('${monthId}', '${monthTitle}', 'speaking')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentStudentExamTab === 'speaking' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">Speaking</button>
             <button onclick="renderExam('${monthId}', '${monthTitle}', 'reading')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentStudentExamTab === 'reading' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">Reading</button>
             <button onclick="renderExam('${monthId}', '${monthTitle}', 'writing')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentStudentExamTab === 'writing' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">Writing</button>
+            <button onclick="renderExam('${monthId}', '${monthTitle}', 'speaking')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentStudentExamTab === 'speaking' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">Speaking</button>
+            <button onclick="renderExam('${monthId}', '${monthTitle}', 'listening')" class="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${currentStudentExamTab === 'listening' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">Listening</button>
         </div>
     `;
 
-    // Cek apakah TAB SAAT INI sudah disubmit
     const cat = currentStudentExamTab;
     const isTabSubmitted = examResult && (
         (examResult.submittedTabs && examResult.submittedTabs.includes(cat)) ||
@@ -842,20 +840,29 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
 
     let contentHTML = '';
 
-    // KODE BARU: Menampilkan Final Report jika ujian sudah dinilai Admin
+    // Tampilkan Nilai Per Kategori (Bukan Kumulatif)
     if (examResult && examResult.isGraded) {
+        const sScores = examResult.sectionScores || { reading: 0, writing: 0, speaking: 0, listening: 0 };
         contentHTML += `
             <div class="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 md:p-8 rounded-2xl text-white mb-8 shadow-lg relative overflow-hidden">
                 <div class="absolute right-0 top-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
                 <h3 class="font-bold text-lg md:text-xl mb-4 relative z-10"><i class="fas fa-award text-amber-300 mr-2"></i> Final Report Evaluation</h3>
-                <div class="grid grid-cols-2 gap-4 mb-5 relative z-10">
-                    <div class="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-sm text-center">
-                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Skor Pilihan Ganda</p>
-                        <p class="text-2xl md:text-3xl font-bold text-white">${examResult.mcqScore}</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 relative z-10">
+                    <div class="bg-white/10 p-3.5 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Reading</p>
+                        <p class="text-xl md:text-2xl font-bold text-white">${sScores.reading ?? 0}</p>
                     </div>
-                    <div class="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-sm text-center">
-                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Skor Essay & Speaking</p>
-                        <p class="text-2xl md:text-3xl font-bold text-white">${examResult.manualScore}</p>
+                    <div class="bg-white/10 p-3.5 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Writing</p>
+                        <p class="text-xl md:text-2xl font-bold text-white">${sScores.writing ?? 0}</p>
+                    </div>
+                    <div class="bg-white/10 p-3.5 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Speaking</p>
+                        <p class="text-xl md:text-2xl font-bold text-white">${sScores.speaking ?? 0}</p>
+                    </div>
+                    <div class="bg-white/10 p-3.5 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+                        <p class="text-[9px] md:text-[10px] uppercase tracking-wider text-indigo-100 mb-1 font-semibold">Listening</p>
+                        <p class="text-xl md:text-2xl font-bold text-white">${sScores.listening ?? 0}</p>
                     </div>
                 </div>
                 <div class="bg-white/10 p-4 md:p-5 rounded-xl border border-white/20 backdrop-blur-sm relative z-10">
@@ -867,20 +874,18 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
     }
 
     if (isTabSubmitted) {
-        // TAMPILAN MODE HASIL (HANYA UNTUK TAB INI)
-        if(examData[cat].length === 0) {
+        if(!examData[cat] || examData[cat].length === 0) {
             contentHTML += `<div class="bg-white p-8 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal di bagian ini.</p></div>`;
         } else {
             contentHTML += `<div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl font-bold text-sm shadow-sm flex items-center"><i class="fas fa-check-circle mr-2"></i> Bagian ${cat.toUpperCase()} telah disubmit.</div>`;
             contentHTML += `<h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 capitalize flex items-center gap-2"><span class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></span> ${cat} Section</h3>`;
             
             examData[cat].forEach((q, idx) => {
-                let sAns = examResult.answers[`${cat}_${idx}`] !== undefined ? examResult.answers[`${cat}_${idx}`] : '';
-                let isMCQ = q.type === 'mcq'; let isCorrect = isMCQ ? (sAns == q.answer) : true;
+                let sAns = (examResult.answers && examResult.answers[`${cat}_${idx}`] !== undefined) ? examResult.answers[`${cat}_${idx}`] : '';
+                let isMCQ = q.type === 'mcq'; let isCorrect = isMCQ ? (sAns !== '' && sAns == q.answer) : true;
                 let sAnsText = isMCQ && sAns !== '' ? q.options[sAns] : (sAns || 'Tidak dijawab');
                 let cAnsText = isMCQ ? q.options[q.answer] : q.answer;
                 
-                // Tambahan agar Admin/User bisa memutar Base64 audio rekaman Speaking
                 if (!isMCQ && typeof sAns === 'string' && sAns.startsWith('data:audio')) {
                     sAnsText = `<audio controls class="w-full h-8 mt-2"><source src="${sAns}"></audio>`;
                 }
@@ -901,8 +906,7 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
             });
         }
     } else {
-        // TAMPILAN MODE PENGERJAAN FORM (HANYA UNTUK TAB INI)
-        if (examData[cat].length === 0) {
+        if (!examData[cat] || examData[cat].length === 0) {
             contentHTML += `<div class="bg-white p-10 rounded-2xl border border-dashed border-slate-200 text-center mb-6"><p class="text-slate-400 text-sm font-medium">Tidak ada soal untuk bagian ${cat} ini.</p></div>`;
         } else {
             contentHTML += `<div class="mb-8"><h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 capitalize flex items-center gap-2"><div class="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]"><i class="fas fa-cube"></i></div> ${cat} Section</h3>`;
@@ -934,28 +938,28 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
                 }
 
                 if (isMCQ) {
-                    inputsHTML = ['A','B','C','D'].map((lbl, oIdx) => `<label class="flex items-start md:items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-2"><input type="radio" name="ans_${cat}_${idx}" value="${oIdx}" ${savedAns == oIdx ? 'checked' : ''} onchange="recordAnswer('${cat}', ${idx}, ${oIdx})" class="w-4 h-4 mt-0.5 md:mt-0 text-indigo-600 shrink-0"><span class="text-xs md:text-sm font-medium text-slate-700 leading-snug">${lbl}. ${q.options[oIdx]}</span></label>`).join('');
+                    inputsHTML = ['A','B','C','D'].map((lbl, oIdx) => `<label class="flex items-start md:items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-2"><input type="radio" name="ans_${cat}_${idx}" value="${oIdx}" ${savedAns !== '' && savedAns == oIdx ? 'checked' : ''} onchange="recordAnswer('${cat}', ${idx}, ${oIdx})" class="w-4 h-4 mt-0.5 md:mt-0 text-indigo-600 shrink-0"><span class="text-xs md:text-sm font-medium text-slate-700 leading-snug">${lbl}. ${q.options[oIdx]}</span></label>`).join('');
                 } else { 
-                    inputsHTML = `<textarea onchange="recordAnswer('${cat}', ${idx}, this.value)" rows="3" class="w-full p-3 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-slate-50 focus:bg-white focus:border-indigo-400 transition" placeholder="Ketik jawaban tertulis Anda...">${savedAns}</textarea>`; 
                     if (cat === 'speaking') {
+                        let hasAudio = typeof savedAns === 'string' && savedAns.startsWith('data:audio');
                         inputsHTML = `
-                            <div class="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl mb-4 shadow-sm">
+                            <div class="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl mb-2 shadow-sm">
                                 <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-2">Live Voice Recorder</p>
                                 <div class="flex flex-wrap items-center gap-3">
-                                    <button id="btn-record-${idx}" onclick="startVoiceRecord(${idx})" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-indigo-700 transition"><i class="fas fa-microphone mr-1"></i> Mulai Rekam</button>
-                                    <button id="btn-stop-${idx}" onclick="stopVoiceRecord(${idx})" class="hidden bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-red-600 transition animate-pulse"><i class="fas fa-stop mr-1"></i> Berhenti</button>
-                                    <audio id="audio-playback-${idx}" controls class="hidden h-8 w-full max-w-[200px]"></audio>
+                                    <button type="button" id="btn-record-${idx}" onclick="startVoiceRecord(${idx})" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-indigo-700 transition"><i class="fas fa-microphone mr-1"></i> ${hasAudio ? 'Rekam Ulang' : 'Mulai Rekam'}</button>
+                                    <button type="button" id="btn-stop-${idx}" onclick="stopVoiceRecord(${idx})" class="hidden bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-red-600 transition animate-pulse"><i class="fas fa-stop mr-1"></i> Berhenti</button>
+                                    <audio id="audio-playback-${idx}" controls src="${hasAudio ? savedAns : ''}" class="${hasAudio ? '' : 'hidden'} h-8 w-full max-w-[220px]"></audio>
                                 </div>
-                                <p class="text-[10px] text-slate-500 mt-2 font-medium leading-tight">*Tekan Mulai Rekam, berbicaralah, lalu tekan Berhenti. <strong class="text-indigo-600">Jawaban akan tersimpan secara otomatis</strong> tanpa perlu kirim ke WA.</p>
+                                <p class="text-[10px] text-slate-500 mt-2 font-medium leading-tight">*Tekan Mulai Rekam, berbicaralah, lalu tekan Berhenti. <strong class="text-indigo-600">Rekaman akan tersimpan otomatis</strong>.</p>
                             </div>
-                            ${inputsHTML}
                         `;
+                    } else {
+                        inputsHTML = `<textarea oninput="recordAnswer('${cat}', ${idx}, this.value)" onchange="recordAnswer('${cat}', ${idx}, this.value)" rows="3" class="w-full p-3 border border-slate-200 rounded-xl text-xs md:text-sm outline-none bg-slate-50 focus:bg-white focus:border-indigo-400 transition" placeholder="Ketik jawaban tertulis Anda...">${savedAns}</textarea>`; 
                     }
                 }
                 contentHTML += `<div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm mb-4 md:mb-5"><p class="font-semibold text-slate-800 text-xs md:text-sm leading-relaxed">${idx + 1}. ${q.question.replace(/\n/g, '<br>')}</p>${mediaHTML}<div class="mt-4">${inputsHTML}</div></div>`;
             });
             
-            // Tampilan Footer Button Submit Khusus Per-Tab
             contentHTML += `
                 </div>
                 <div class="bg-indigo-600 p-6 md:p-8 rounded-2xl text-center shadow-md relative overflow-hidden mt-8">
@@ -976,7 +980,6 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
                         <h2 class="text-sm md:text-base font-bold text-slate-800">Ujian: ${monthTitle}</h2>
                         <p class="text-[9px] md:text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-0.5">Kerjakan per bagian (tab)</p>
                     </div>
-                    ${(examResult && examResult.mcqScore !== undefined) ? `<div class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">Skor PG Total: ${examResult.mcqScore}</div>` : ''}
                 </div>
             </div>
             ${tabsHTML}
@@ -987,21 +990,58 @@ window.renderExam = function(monthId, monthTitle, tab = 'listening') {
 
 window.recordAnswer = function(category, qIndex, value) { studentExamAnswers[`${category}_${qIndex}`] = value; }
 
+// Fungsi bantu untuk menghitung nilai per kategori (0 - 100)
+window.calculateCategoryScore = function(cat, examData, examResult) {
+    if (!examData || !examData[cat] || examData[cat].length === 0) return 0;
+    let totalScore = 0;
+    let totalQuestions = examData[cat].length;
+    examData[cat].forEach((q, idx) => {
+        let ans = examResult.answers ? examResult.answers[`${cat}_${idx}`] : undefined;
+        if (q.type === 'mcq') {
+            if (ans !== undefined && ans !== '' && ans == q.answer) {
+                totalScore += 100; // Jika benar bernilai 100 poin per soal sebelum dirata-ratakan
+            }
+        } else {
+            let manual = (examResult.scores && examResult.scores[`${cat}_${idx}`] !== undefined) ? parseFloat(examResult.scores[`${cat}_${idx}`]) : 0;
+            totalScore += (isNaN(manual) ? 0 : manual);
+        }
+    });
+    return Math.round(totalScore / totalQuestions);
+};
+
 window.submitStudentExam = async function(monthId, tab) {
     if(!confirm(`Yakin ingin mengirim jawaban untuk bagian ${tab.toUpperCase()}? Bagian ini tidak bisa diubah lagi setelah disubmit.`)) return;
-    const email = currentUser.email; const examKey = `exam-${email}-${monthId}`; const resultKey = `exam_result-${email}-${monthId}`;
+    
+    document.body.style.cursor = 'wait';
+    // PENTING: Tarik data terbaru dari Supabase dulu agar tidak menimpa data lain
+    try {
+        const { data } = await window.supabaseClient.from('app_data').select('*');
+        if (data) {
+            const matData = data.find(d => d.key === 'hes_materials');
+            if (matData && matData.value) materials = matData.value;
+        }
+    } catch(e) { console.error("Gagal sinkronisasi awal:", e); }
+
+    const email = currentUser.email; 
+    const examKey = `exam-${email}-${monthId}`; 
+    const resultKey = `exam_result-${email}-${monthId}`;
     const examData = materials[examKey];
 
-    // Ambil data result jika sudah ada (karena disubmit bertahap), atau buat object baru
     let currentResult = materials[resultKey] || {
         status: 'partial',
         answers: {},
-        mcqScore: 0,
+        scores: {},
+        sectionScores: { reading: 0, writing: 0, speaking: 0, listening: 0 },
         submittedTabs: []
     };
 
-    // Pindahkan jawaban murid khusus untuk tab yang bersangkutan ke memori database
-    if (examData[tab]) {
+    if (!currentResult.answers) currentResult.answers = {};
+    if (!currentResult.scores) currentResult.scores = {};
+    if (!currentResult.sectionScores) currentResult.sectionScores = { reading: 0, writing: 0, speaking: 0, listening: 0 };
+    if (!currentResult.submittedTabs) currentResult.submittedTabs = [];
+
+    // Simpan seluruh jawaban di tab ini
+    if (examData && examData[tab]) {
         examData[tab].forEach((q, idx) => {
             let ans = studentExamAnswers[`${tab}_${idx}`];
             if (ans !== undefined) {
@@ -1010,37 +1050,25 @@ window.submitStudentExam = async function(monthId, tab) {
         });
     }
 
-    // Kalkulasi ulang Skor Pilihan Ganda secara kumulatif 
-    let totalMCQ = 0; let correctMCQ = 0;
-    ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
-        if (examData[cat]) {
-            examData[cat].forEach((q, idx) => { 
-                if(q.type === 'mcq') { 
-                    totalMCQ++; 
-                    let finalAns = currentResult.answers[`${cat}_${idx}`]; 
-                    if(finalAns !== undefined && finalAns == q.answer) correctMCQ++; 
-                } 
-            });
-        }
+    // Hitung nilai per kategori masing-masing (Reading, Writing, Speaking, Listening)
+    ['reading', 'writing', 'speaking', 'listening'].forEach(c => {
+        currentResult.sectionScores[c] = calculateCategoryScore(c, examData, currentResult);
     });
 
-    currentResult.mcqScore = totalMCQ > 0 ? Math.round((correctMCQ / totalMCQ) * 100) : 0;
     currentResult.submittedAt = new Date().toISOString();
-    
-    // Tandai bahwa tab ini sudah disubmit agar terkunci
     if (!currentResult.submittedTabs.includes(tab)) {
         currentResult.submittedTabs.push(tab);
     }
 
     materials[resultKey] = currentResult;
-    document.body.style.cursor = 'wait'; 
     const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: materials }]); 
     document.body.style.cursor = 'default';
     
-    if (error) alert("Error: " + error.message); 
-    else { 
+    if (error) {
+        alert("Error menyimpan jawaban: " + error.message); 
+    } else { 
         alert(`Ujian bagian ${tab.toUpperCase()} berhasil disubmit!`); 
-        sendTelegramNotification(`📝 Ujian Disubmit (Bagian ${tab.toUpperCase()})\nMurid: ${currentUser.name}\nSkor PG Sementara: ${currentResult.mcqScore}/100`); 
+        sendTelegramNotification(`📝 Ujian Disubmit (Bagian ${tab.toUpperCase()})\nMurid: ${currentUser.name}\nSkor Sementara ${tab.toUpperCase()}: ${currentResult.sectionScores[tab]}/100`); 
         renderExam(monthId, months.find(m => m.id === monthId).title, tab); 
     }
 }
@@ -1083,111 +1111,265 @@ window.resetStudentExam = async function() {
 }
 
 // ==== PENILAIAN (GRADING) & FINAL REPORT ====
-window.loadStudentExamForGrading = function() {
-    const studentEmail = document.getElementById('admin-exam-student').value;
-    const monthId = document.getElementById('admin-exam-month').value;
-    const examKey = `exam-${studentEmail}-${monthId}`;
-    const resultKey = `exam_result-${studentEmail}-${monthId}`;
-    
-    const examData = materials[examKey];
-    const examResult = materials[resultKey];
-    const workspace = document.getElementById('admin-grading-workspace');
+let currentAdminGradingTab = 'reading';
 
-    // Sembunyikan workspace pembuat soal
-    document.getElementById('admin-exam-workspace').classList.add('hidden');
-
-    if (!examData || !examResult || !examResult.answers) {
-        workspace.innerHTML = `<div class="p-5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">Belum ada ujian yang disubmit oleh murid ini.</div>`;
-        workspace.classList.remove('hidden');
-        return;
-    }
-
-    let html = `<div class="space-y-6">
-        <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex justify-between items-center">
-            <div>
-                <h4 class="font-bold text-indigo-900 text-sm">Lembar Penilaian: ${studentEmail}</h4>
-                <p class="text-[10px] text-indigo-600 mt-1">Skor Pilihan Ganda Otomatis: <strong>${examResult.mcqScore || 0}/100</strong></p>
-            </div>
-        </div>`;
-    
-    ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
-        if (examData[cat] && examData[cat].length > 0) {
-            html += `<div class="bg-slate-50 p-4 rounded-xl border border-slate-200"><h4 class="font-bold text-sm text-slate-800 mb-3 capitalize"><i class="fas fa-layer-group text-slate-400 mr-2"></i>${cat} Section</h4>`;
-            
-            examData[cat].forEach((q, idx) => {
-                let ans = examResult.answers[`${cat}_${idx}`];
-                let isMCQ = q.type === 'mcq';
-                let displayAns = ans !== undefined ? ans : '<span class="text-red-400 italic">Tidak dijawab</span>';
-                
-                if (isMCQ && ans !== undefined && ans !== '') displayAns = q.options[ans];
-                if (!isMCQ && typeof ans === 'string' && ans.startsWith('data:audio')) {
-                    displayAns = `<audio controls class="h-8 mt-2 w-full max-w-xs"><source src="${ans}"></audio>`;
-                }
-                
-                html += `
-                    <div class="mb-4 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                        <p class="text-xs font-semibold text-slate-700 mb-2">${idx+1}. ${q.question.replace(/\n/g, '<br>')}</p>
-                        <p class="text-[10px] text-slate-500 mb-3"><strong>Kunci Jawaban/Kriteria:</strong> ${isMCQ ? q.options[q.answer] : q.answer}</p>
-                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-800 mb-3"><strong>Jawaban Murid:</strong><br> ${displayAns}</div>
-                        
-                        ${!isMCQ ? `
-                            <label class="block text-[10px] font-bold text-emerald-600 mt-2 uppercase tracking-wide">Beri Nilai Manual (0-100):</label>
-                            <input type="number" id="score_${cat}_${idx}" placeholder="0 - 100" value="${examResult.scores ? (examResult.scores[`${cat}_${idx}`] || 0) : 0}" class="w-full mt-1.5 p-2.5 border border-emerald-200 bg-emerald-50 focus:bg-white rounded-lg text-xs font-bold outline-none focus:ring-1 focus:ring-emerald-500 transition">
-                        ` : `
-                            <p class="text-[10px] font-bold ${(ans == q.answer) ? 'text-emerald-500' : 'text-red-500'} bg-slate-50 inline-block px-2 py-1 rounded border border-slate-100"><i class="fas ${(ans == q.answer) ? 'fa-check' : 'fa-times'} mr-1"></i> ${(ans == q.answer) ? 'Benar' : 'Salah'}</p>
-                        `}
-                    </div>
-                `;
-            });
-            html += `</div>`;
-        }
-    });
-
-    html += `
-        <div class="bg-white p-5 rounded-xl border border-indigo-200 shadow-sm mt-4">
-            <label class="block text-xs font-bold text-indigo-800 mb-2"><i class="fas fa-comment-dots mr-1"></i> Catatan Final Report (Feedback Admin):</label>
-            <textarea id="admin-exam-feedback" rows="4" placeholder="Ketik kesimpulan, apresiasi, atau area yang perlu ditingkatkan..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs mb-4 outline-none focus:bg-white focus:border-indigo-400">${examResult.adminFeedback || ''}</textarea>
-            
-            <button onclick="saveExamGrades('${studentEmail}', '${monthId}')" class="w-full bg-indigo-600 text-white py-3 rounded-xl text-xs font-bold shadow-sm hover:bg-indigo-700 transition"><i class="fas fa-paper-plane mr-1"></i> Terbitkan Final Report ke Murid</button>
-        </div>
-    </div>`;
-    
-    workspace.innerHTML = html;
-    workspace.classList.remove('hidden');
-}
-
-window.saveExamGrades = async function(studentEmail, monthId) {
+// Simpan nilai input sementara saat Admin berpindah tab penilaian
+window.preserveCurrentDomScores = function(studentEmail, monthId) {
     const examKey = `exam-${studentEmail}-${monthId}`;
     const resultKey = `exam_result-${studentEmail}-${monthId}`;
     const examData = materials[examKey];
     let examResult = materials[resultKey];
-    
+    if (!examData || !examResult) return;
     if (!examResult.scores) examResult.scores = {};
-    let manualTotal = 0;
-    let manualCount = 0;
 
-    // Ambil semua nilai dari input manual
-    ['listening', 'speaking', 'reading', 'writing'].forEach(cat => {
+    ['reading', 'writing', 'speaking', 'listening'].forEach(cat => {
         if (examData[cat]) {
             examData[cat].forEach((q, idx) => {
                 if (q.type !== 'mcq') {
                     let input = document.getElementById(`score_${cat}_${idx}`);
                     if (input) {
-                        let score = parseInt(input.value) || 0;
-                        examResult.scores[`${cat}_${idx}`] = score;
-                        manualTotal += score;
-                        manualCount++;
+                        examResult.scores[`${cat}_${idx}`] = parseFloat(input.value) || 0;
                     }
                 }
             });
         }
     });
 
-    // Hitung rata-rata nilai Essay/Audio
-    examResult.manualScore = manualCount > 0 ? Math.round(manualTotal / manualCount) : 0;
-    examResult.adminFeedback = document.getElementById('admin-exam-feedback').value;
-    examResult.isGraded = true; // Tandai bahwa admin sudah selesai menilai
+    let fbInput = document.getElementById('admin-exam-feedback');
+    if (fbInput) {
+        examResult.adminFeedback = fbInput.value;
+    }
+};
 
+window.switchAdminGradingTab = function(tabName) {
+    const studentEmail = document.getElementById('admin-exam-student').value;
+    const monthId = document.getElementById('admin-exam-month').value;
+    preserveCurrentDomScores(studentEmail, monthId);
+    currentAdminGradingTab = tabName;
+    renderAdminGradingView(studentEmail, monthId);
+};
+
+window.updateManualScoreRealtime = function(cat, idx, val, studentEmail, monthId) {
+    const resultKey = `exam_result-${studentEmail}-${monthId}`;
+    let examResult = materials[resultKey];
+    if (!examResult) return;
+    if (!examResult.scores) examResult.scores = {};
+    examResult.scores[`${cat}_${idx}`] = parseFloat(val) || 0;
+};
+
+// FUNGSI UTAMA MEMUAT JAWABAN MURID (ASYNC DARI SUPABASE)
+window.loadStudentExamForGrading = async function() {
+    const studentEmail = document.getElementById('admin-exam-student').value;
+    const monthId = document.getElementById('admin-exam-month').value;
+    const workspace = document.getElementById('admin-grading-workspace');
+
+    // Sembunyikan workspace pembuat soal
+    document.getElementById('admin-exam-workspace').classList.add('hidden');
+    workspace.classList.remove('hidden');
+    workspace.innerHTML = `<div class="p-8 text-center text-xs font-bold text-indigo-600"><i class="fas fa-spinner fa-spin mr-2 text-base"></i> Mengambil data jawaban terbaru dari server...</div>`;
+
+    // Ambil data terbaru dari Supabase agar jawaban & audio murid pasti muncul
+    try {
+        const { data, error } = await window.supabaseClient.from('app_data').select('*');
+        if (data) {
+            const matData = data.find(d => d.key === 'hes_materials');
+            if (matData && matData.value) materials = matData.value;
+        }
+    } catch (e) {
+        console.error("Gagal menarik data terbaru:", e);
+    }
+
+    currentAdminGradingTab = 'reading'; // Mulai dari Reading sesuai urutan
+    renderAdminGradingView(studentEmail, monthId);
+};
+
+window.renderAdminGradingView = function(studentEmail, monthId) {
+    const examKey = `exam-${studentEmail}-${monthId}`;
+    const resultKey = `exam_result-${studentEmail}-${monthId}`;
+    const examData = materials[examKey];
+    const examResult = materials[resultKey];
+    const workspace = document.getElementById('admin-grading-workspace');
+
+    if (!examData) {
+        workspace.innerHTML = `<div class="p-5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">Soal ujian belum dibuat untuk murid dan bulan ini.</div>`;
+        return;
+    }
+
+    if (!examResult || !examResult.answers || Object.keys(examResult.answers).length === 0) {
+        workspace.innerHTML = `<div class="p-5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">Belum ada jawaban ujian yang disubmit oleh murid ini (${studentEmail}).</div>`;
+        return;
+    }
+
+    if (!examResult.scores) examResult.scores = {};
+    if (!examResult.sectionScores) examResult.sectionScores = { reading: 0, writing: 0, speaking: 0, listening: 0 };
+
+    // Hitung skor terbaru untuk ke-4 kategori
+    const categories = ['reading', 'writing', 'speaking', 'listening'];
+    categories.forEach(c => {
+        examResult.sectionScores[c] = calculateCategoryScore(c, examData, examResult);
+    });
+
+    const cat = currentAdminGradingTab;
+    const questions = examData[cat] || [];
+
+    // Hitung detail statistik khusus untuk kategori yang sedang dibuka
+    let mcqCorrect = 0;
+    let mcqTotal = 0;
+    questions.forEach((q, idx) => {
+        if (q.type === 'mcq') {
+            mcqTotal++;
+            let ans = examResult.answers[`${cat}_${idx}`];
+            if (ans !== undefined && ans !== '' && ans == q.answer) mcqCorrect++;
+        }
+    });
+
+    // Navigasi Tab Penilaian (Reading -> Writing -> Speaking -> Listening)
+    let tabsNavHTML = categories.map(c => {
+        let isSubmittedTab = examResult.submittedTabs && examResult.submittedTabs.includes(c);
+        let activeClass = (c === cat) 
+            ? 'bg-indigo-600 text-white shadow-sm' 
+            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200';
+        return `
+            <button onclick="switchAdminGradingTab('${c}')" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold capitalize transition flex items-center justify-center gap-2 ${activeClass}">
+                <span>${c}</span>
+                <span class="px-1.5 py-0.5 text-[10px] rounded ${c === cat ? 'bg-indigo-800 text-indigo-100' : 'bg-slate-100 text-slate-700'}">${examResult.sectionScores[c]}/100</span>
+                ${isSubmittedTab ? '<i class="fas fa-check-circle text-emerald-400 text-[10px]" title="Sudah disubmit murid"></i>' : ''}
+            </button>
+        `;
+    }).join('');
+
+    let questionsHTML = '';
+    if (questions.length === 0) {
+        questionsHTML = `<div class="p-8 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">Tidak ada soal pada bagian <strong class="uppercase">${cat}</strong>.</div>`;
+    } else {
+        questions.forEach((q, idx) => {
+            let ans = examResult.answers[`${cat}_${idx}`];
+            let isMCQ = q.type === 'mcq';
+            let hasAnswered = (ans !== undefined && ans !== '');
+            let displayAns = hasAnswered ? ans : '<span class="text-red-400 italic">Tidak dijawab oleh murid</span>';
+
+            if (isMCQ && hasAnswered) {
+                const optionLabels = ['A', 'B', 'C', 'D'];
+                displayAns = `${optionLabels[ans] || ''}. ${q.options[ans] || ans}`;
+            }
+
+            // Tampilkan Audio Player jika jawaban berupa rekaman suara Base64
+            if (!isMCQ && typeof ans === 'string' && ans.startsWith('data:audio')) {
+                displayAns = `
+                    <div class="mt-2">
+                        <p class="text-[10px] text-indigo-600 font-semibold mb-1"><i class="fas fa-volume-up mr-1"></i> Rekaman Suara Murid:</p>
+                        <audio controls class="h-10 w-full max-w-md rounded-lg bg-white border border-slate-200 shadow-sm" src="${ans}"></audio>
+                    </div>
+                `;
+            }
+
+            let isCorrectMCQ = isMCQ && hasAnswered && (ans == q.answer);
+            let savedManualScore = examResult.scores[`${cat}_${idx}`] !== undefined ? examResult.scores[`${cat}_${idx}`] : 0;
+
+            questionsHTML += `
+                <div class="mb-4 bg-white p-4 md:p-5 rounded-xl border ${isMCQ ? (isCorrectMCQ ? 'border-emerald-200' : 'border-red-200') : 'border-slate-200'} shadow-sm">
+                    <div class="flex justify-between items-start gap-2 mb-2">
+                        <span class="text-xs font-bold text-slate-800">Soal ${idx + 1}</span>
+                        <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded ${isMCQ ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}">${isMCQ ? 'Pilihan Ganda' : 'Essay / Audio'}</span>
+                    </div>
+                    <p class="text-xs text-slate-700 mb-3 leading-relaxed">${q.question.replace(/\n/g, '<br>')}</p>
+                    <p class="text-[11px] text-slate-500 mb-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100"><strong>Kunci Jawaban / Kriteria:</strong> ${isMCQ ? `${['A','B','C','D'][q.answer]}.${q.options[q.answer]}` : (q.answer || '-')}</p>
+                    
+                    <div class="bg-indigo-50/40 p-3 rounded-lg border border-indigo-100 text-xs text-slate-800 mb-3">
+                        <strong class="text-[10px] uppercase tracking-wider text-indigo-500 block mb-1">Jawaban Murid:</strong>
+                        ${displayAns}
+                    </div>
+                    
+                    ${!isMCQ ? `
+                        <div class="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <label class="text-[11px] font-bold text-emerald-700 uppercase tracking-wide"><i class="fas fa-pen mr-1"></i> Beri Nilai Soal Ini (0 - 100):</label>
+                            <input type="number" min="0" max="100" id="score_${cat}_${idx}" value="${savedManualScore}" oninput="updateManualScoreRealtime('${cat}',${idx}, this.value, '${studentEmail}', '${monthId}')" class="w-full sm:w-36 p-2 border border-emerald-300 bg-emerald-50/50 focus:bg-white rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400 transition text-center">
+                        </div>
+                    ` : `
+                        <div class="flex items-center justify-between mt-2">
+                            <span class="text-[11px] font-bold ${isCorrectMCQ ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-red-600 bg-red-50 border-red-200'} px-2.5 py-1 rounded-lg border">
+                                <i class="fas ${isCorrectMCQ ? 'fa-check-circle' : 'fa-times-circle'} mr-1"></i> ${isCorrectMCQ ? 'Benar (+Poin Otomatis)' : 'Salah (0 Poin)'}
+                            </span>
+                        </div>
+                    `}
+                </div>
+            `;
+        });
+    }
+
+    // Tombol Navigasi Sebelumnya / Selanjutnya antar bagian
+    const currentIndex = categories.indexOf(cat);
+    const prevCat = currentIndex > 0 ? categories[currentIndex - 1] : null;
+    const nextCat = currentIndex < categories.length - 1 ? categories[currentIndex + 1] : null;
+
+    workspace.innerHTML = `
+        <div class="space-y-5">
+            <!-- Header Rekap Nilai Per Bagian -->
+            <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div>
+                        <h4 class="font-bold text-indigo-950 text-sm">Lembar Penilaian: ${studentEmail}</h4>
+                        <p class="text-[11px] text-indigo-600">Pilih tab di bawah untuk menilai satu per satu bagian ujian.</p>
+                    </div>
+                    <button onclick="loadStudentExamForGrading()" class="self-start sm:self-auto bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-[11px] font-bold transition shadow-sm">
+                        <i class="fas fa-sync-alt mr-1"></i> Refresh Data
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2">${tabsNavHTML}</div>
+            </div>
+
+            <!-- Konten Bagian Aktif -->
+            <div class="bg-slate-50 p-4 md:p-5 rounded-xl border border-slate-200">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-3 mb-4 gap-2">
+                    <h4 class="font-bold text-sm md:text-base text-slate-800 capitalize flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs"><i class="fas fa-book-open"></i></span>
+                        Bagian ${cat}
+                    </h4>
+                    <div class="flex items-center gap-2">
+                        ${mcqTotal > 0 ? `<span class="text-xs font-semibold bg-white px-3 py-1 rounded-lg border border-slate-200 text-slate-600">PG Benar: <strong>${mcqCorrect}/${mcqTotal}</strong></span>` : ''}
+                        <span class="text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg border border-emerald-200">Nilai ${cat.toUpperCase()}: ${examResult.sectionScores[cat]}/100</span>
+                    </div>
+                </div>
+
+                ${questionsHTML}
+
+                <!-- Navigasi Pindah Bagian -->
+                <div class="flex justify-between items-center pt-3 border-t border-slate-200 mt-4">
+                    ${prevCat ? `<button onclick="switchAdminGradingTab('${prevCat}')" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-xs font-bold text-slate-700 capitalize transition"><i class="fas fa-arrow-left mr-1"></i> Ke ${prevCat}</button>` : `<div></div>`}
+                    ${nextCat ? `<button onclick="switchAdminGradingTab('${nextCat}')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs font-bold text-white capitalize transition">Lanjut ke ${nextCat} <i class="fas fa-arrow-right ml-1"></i></button>` : `<span class="text-xs font-bold text-emerald-600"><i class="fas fa-check-circle mr-1"></i> Bagian Terakhir</span>`}
+                </div>
+            </div>
+
+            <!-- Box Feedback & Simpan Final Report -->
+            <div class="bg-white p-5 rounded-xl border border-indigo-200 shadow-sm">
+                <label class="block text-xs font-bold text-indigo-900 mb-2"><i class="fas fa-comment-dots mr-1"></i> Catatan Evaluasi Keseluruhan (Feedback Admin):</label>
+                <textarea id="admin-exam-feedback" rows="3" placeholder="Ketik kesimpulan, apresiasi, atau area yang perlu ditingkatkan murid..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs mb-4 outline-none focus:bg-white focus:border-indigo-400">${examResult.adminFeedback || ''}</textarea>
+                
+                <button onclick="saveExamGrades('${studentEmail}', '${monthId}')" class="w-full bg-emerald-600 text-white py-3 rounded-xl text-xs font-bold shadow-sm hover:bg-emerald-700 transition">
+                    <i class="fas fa-paper-plane mr-1"></i> Simpan Nilai & Terbitkan Final Report ke Murid
+                </button>
+            </div>
+        </div>
+    `;
+};
+
+window.saveExamGrades = async function(studentEmail, monthId) {
+    // Pastikan nilai pada tab yang sedang terbuka ikut tersimpan
+    preserveCurrentDomScores(studentEmail, monthId);
+
+    const examKey = `exam-${studentEmail}-${monthId}`;
+    const resultKey = `exam_result-${studentEmail}-${monthId}`;
+    const examData = materials[examKey];
+    let examResult = materials[resultKey];
+    
+    if (!examResult.sectionScores) examResult.sectionScores = {};
+
+    // Hitung nilai akhir masing-masing bagian (0-100)
+    ['reading', 'writing', 'speaking', 'listening'].forEach(cat => {
+        examResult.sectionScores[cat] = calculateCategoryScore(cat, examData, examResult);
+    });
+
+    examResult.isGraded = true;
     materials[resultKey] = examResult;
     
     document.body.style.cursor = 'wait';
@@ -1195,10 +1377,11 @@ window.saveExamGrades = async function(studentEmail, monthId) {
     document.body.style.cursor = 'default';
 
     if (!error) {
-        alert("Penilaian berhasil disimpan! Final Report sudah bisa dilihat oleh murid.");
-        // Kirim notif Telegram ke Anda sebagai log bahwa report terbit
-        sendTelegramNotification(`🎓 *FINAL REPORT DITERBITKAN*\n\nMurid: ${studentEmail}\nBulan: ${monthId}\nSkor PG: ${examResult.mcqScore}\nSkor Manual/Essay: ${examResult.manualScore}\n\nLaporan sudah masuk ke dashboard murid.`);
+        renderAdminGradingView(studentEmail, monthId); // Refresh angka skor di tampilan admin
+        alert("Penilaian berhasil disimpan! Final Report per bagian sudah bisa dilihat oleh murid.");
+        const sc = examResult.sectionScores;
+        sendTelegramNotification(`🎓 *FINAL REPORT DITERBITKAN*\n\nMurid: ${studentEmail}\nBulan: ${monthId}\n\n📊 *Rincian Nilai:*\n• Reading: ${sc.reading}/100\n• Writing: ${sc.writing}/100\n• Speaking: ${sc.speaking}/100\n• Listening: ${sc.listening}/100`);
     } else {
         alert("Gagal menyimpan nilai: " + error.message);
     }
-}
+};
