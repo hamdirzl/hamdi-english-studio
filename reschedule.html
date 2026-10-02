@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reschedule | Hamdi English Studio</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { primary: '#4f46e5' }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+    <div class="h-screen flex overflow-hidden bg-[#F8FAFC]">
+        
+        <!-- Sidebar (Dirender oleh js/layout.js) -->
+        <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
+        <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
+
+        <!-- Area Konten Utama -->
+        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+            
+            <!-- Header (Dirender oleh js/layout.js) -->
+            <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
+
+            <!-- Konten Reschedule -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                <div class="max-w-5xl mx-auto fade-in pb-14">
+
+                    <!-- Judul Halaman -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight">Penjadwalan Ulang Kelas</h2>
+                            <p class="text-xs md:text-sm text-slate-500 font-medium mt-0.5">Sesuaikan jadwal kelas Anda dengan mudah apabila berhalangan hadir.</p>
+                        </div>
+                        <a href="dashboard.html" class="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition shadow-xs">
+                            <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
+                        </a>
+                    </div>
+
+                    <!-- Box Status / Alert jika Expired atau Belum Diatur -->
+                    <div id="reschedule-alert-box" class="hidden mb-6"></div>
+
+                    <!-- Panel Form Pemilihan Jadwal -->
+                    <section id="reschedule-controls" class="hidden bg-white border border-slate-200/90 p-5 md:p-6 rounded-2xl mb-6 shadow-sm">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-base shrink-0">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm md:text-base font-bold text-slate-800">Formulir Pindah Jadwal</h3>
+                                    <p class="text-xs text-slate-500">Pilih salah satu sesi terdekat Anda untuk melihat ketersediaan hari pengganti pada minggu yang sama.</p>
+                                </div>
+                            </div>
+                            <div id="reschedule-time-badge" class="px-4 py-2 bg-indigo-50 rounded-xl border border-indigo-100 text-xs font-bold text-indigo-700 text-center shrink-0">
+                                <i class="far fa-clock mr-1"></i> Jam: -
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="reschedule-old-day" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Pilih Sesi Kelas yang Ingin Dipindahkan:</label>
+                            <select id="reschedule-old-day" class="w-full md:w-[440px] border border-slate-200 py-3 px-4 rounded-xl text-xs md:text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 hover:bg-white transition cursor-pointer">
+                                <option value="">Memuat daftar jadwal...</option>
+                            </select>
+                        </div>
+
+                        <!-- Legenda Status Slot -->
+                        <div class="flex flex-wrap items-center gap-4 mt-5 pt-4 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Tersedia (Available)</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Jadwal Anda Saat Ini</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Menunggu Validasi Admin</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span> Terisi / Lewat Waktu</span>
+                        </div>
+                    </section>
+
+                    <!-- Grid Slot Hari (Senin - Minggu) -->
+                    <div id="reschedule-grid-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <!-- Diisi oleh js/reschedule.js -->
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Library Supabase & Script Halaman -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/layout.js"></script>
+    <script src="js/reschedule.js"></script>
+</body>
+</html>

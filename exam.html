@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Exam | Hamdi English Studio</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { primary: '#4f46e5' }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+    <div class="h-screen flex overflow-hidden bg-[#F8FAFC]">
+        
+        <!-- Sidebar (Dirender oleh js/layout.js) -->
+        <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
+        <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
+
+        <!-- Area Konten Utama -->
+        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+            
+            <!-- Header (Dirender oleh js/layout.js) -->
+            <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
+
+            <!-- Konten Ujian -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                <div class="max-w-4xl mx-auto fade-in pb-20">
+
+                    <!-- Header Sticky Ujian & Pilihan Bulan -->
+                    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm sticky top-2 z-20">
+                        <div class="flex items-center gap-3">
+                            <a href="dashboard.html" class="w-10 h-10 shrink-0 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 transition">
+                                <i class="fas fa-arrow-left text-sm"></i>
+                            </a>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-extrabold uppercase tracking-wider rounded">Final Evaluation</span>
+                                    <span id="exam-status-pill" class="text-[11px] font-bold text-slate-400">Kerjakan per bagian</span>
+                                </div>
+                                <h2 id="exam-header-title" class="text-base md:text-lg font-extrabold text-slate-800 mt-0.5">Ujian Akhir Bulan</h2>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <label for="exam-month-selector" class="text-xs font-bold text-slate-500">Pilih Modul:</label>
+                            <select id="exam-month-selector" class="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"></select>
+                        </div>
+                    </div>
+
+                    <!-- Rapor Hasil Evaluasi Akhir (Muncul jika sudah dinilai Admin) -->
+                    <div id="exam-final-report-box" class="hidden mb-8"></div>
+
+                    <!-- Navigasi 4 Tab Ujian (Reading, Writing, Speaking, Listening) -->
+                    <div id="exam-tabs-nav" class="hidden flex overflow-x-auto gap-1.5 mb-6 bg-slate-200/60 p-1.5 rounded-2xl border border-slate-200/80 custom-scrollbar">
+                        <button onclick="switchStudentExamTab('reading')" id="stu-tab-reading" class="flex-1 min-w-[110px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-book-open"></i> <span>Reading</span>
+                        </button>
+                        <button onclick="switchStudentExamTab('writing')" id="stu-tab-writing" class="flex-1 min-w-[110px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-pen-nib"></i> <span>Writing</span>
+                        </button>
+                        <button onclick="switchStudentExamTab('speaking')" id="stu-tab-speaking" class="flex-1 min-w-[110px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-microphone-lines"></i> <span>Speaking</span>
+                        </button>
+                        <button onclick="switchStudentExamTab('listening')" id="stu-tab-listening" class="flex-1 min-w-[110px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-headphones"></i> <span>Listening</span>
+                        </button>
+                    </div>
+
+                    <!-- Kontainer Soal / Pembahasan Ujian -->
+                    <div id="exam-content-area">
+                        <!-- Diisi oleh js/exam.js -->
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Library Supabase & Script Halaman -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/layout.js"></script>
+    <script src="js/exam.js"></script>
+</body>
+</html>
