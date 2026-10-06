@@ -51,7 +51,6 @@ function renderAppSidebar() {
     const activeWeekParam = urlParams.get('week');
     const activeDayParam = urlParams.get('day');
 
-    // Jika Admin sedang berada di halaman admin.html, gunakan murid yang sedang dipilih untuk pratinjau tanggal di sidebar
     let targetEmailForTimeline = user.email;
     let maxMonthNum = 99;
 
@@ -68,6 +67,7 @@ function renderAppSidebar() {
     }
 
     const timeline = getStudentCurriculumTimeline(targetEmailForTimeline);
+    const gamification = role === 'student' ? getStudentGamificationStats(user.email) : null;
 
     // Widget Mini Live Tracker di Sidebar
     let trackerSummaryHTML = '';
@@ -302,7 +302,7 @@ function renderAppSidebar() {
             </button>
         </div>
 
-        <!-- User Profile Box -->
+        <!-- User Profile Box + Mini Level XP Bar -->
         <div class="p-3 mx-4 mt-3 rounded-xl bg-slate-50 border border-slate-200/70">
             <div class="flex items-center gap-2.5">
                 <div class="w-9 h-9 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-extrabold text-xs shadow-2xs shrink-0">
@@ -310,9 +310,22 @@ function renderAppSidebar() {
                 </div>
                 <div class="flex-1 overflow-hidden">
                     <p class="text-xs font-extrabold text-slate-800 truncate">${user.name}</p>
-                    <p class="text-[10px] font-semibold text-indigo-600 truncate">${role === 'admin' ? 'Administrator' : 'Premium Member'}</p>
+                    <p class="text-[10px] font-semibold text-indigo-600 truncate">
+                        ${gamification ? `Lv. ${gamification.level} •${gamification.levelTitle}` : (role === 'admin' ? 'Administrator' : 'Premium Member')}
+                    </p>
                 </div>
             </div>
+            ${gamification ? `
+            <div class="mt-2 pt-2 border-t border-slate-200/60">
+                <div class="flex justify-between text-[9px] font-extrabold text-slate-500 mb-1">
+                    <span><i class="fas fa-bolt text-amber-500 mr-0.5"></i> ${gamification.xp} XP</span>
+                    <span>${gamification.activeMonthTitle}:${gamification.activeMonthPercent}%</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-indigo-600 rounded-full" style="width: ${gamification.xpProgressPercent}%"></div>
+                </div>
+            </div>
+            ` : ''}
         </div>
 
         ${trackerSummaryHTML}

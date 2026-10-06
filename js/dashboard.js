@@ -44,12 +44,13 @@ function renderDashboardContent() {
 
         const firstName = user.name ? user.name.split(' ')[0] : 'Member';
         const timeline = getStudentCurriculumTimeline(user.email);
+        const stats = getStudentGamificationStats(user.email);
         const cur = timeline && timeline.currentPointer ? timeline.currentPointer : null;
         const targetUrl = cur
             ? `materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}`
             : `materi.html?month=m1&week=1&day=1`;
 
-        heroBadge.innerHTML = `<i class="fas fa-crown mr-1 text-amber-300"></i> Exclusive Member`;
+        heroBadge.innerHTML = `<i class="fas ${stats.levelIcon} mr-1 text-amber-300"></i> Level ${stats.level} • ${stats.levelTitle}`;
         heroTitle.innerText = `Welcome back, ${firstName}!`;
         heroSubtitle.innerText = cur
             ? `Posisi belajarmu: ${cur.monthTitle} • Week ${cur.week} • Day ${cur.day} (${cur.shortDate}).`
@@ -65,6 +66,7 @@ function renderDashboardContent() {
 }
 
 function renderStudentDashboard(email) {
+    const gamificationBox = document.getElementById('student-gamification-box');
     const nextBox = document.getElementById('student-next-session-box');
     const maxMonthBadge = document.getElementById('student-max-month-badge');
 
@@ -74,7 +76,112 @@ function renderStudentDashboard(email) {
 
     const nextSesh = getStudentNextSessionInfo(email);
     const timeline = getStudentCurriculumTimeline(email);
+    const stats = getStudentGamificationStats(email);
 
+    // ====================================================
+    // RENDER FITUR #4: PROGRESS TRACKER & GAMIFIKASI MURID
+    // ====================================================
+    if (gamificationBox && stats) {
+        // Buat 12 titik indikator sesi untuk bulan yang sedang berjalan
+        let sessionDotsHTML = '';
+        for (let i = 1; i <= 12; i++) {
+            const isDone = i <= stats.activeMonthCompleted;
+            const isCurrent = i === stats.activeMonthCompleted + 1;
+            let dotClass = 'bg-slate-200';
+            if (isDone) dotClass = 'bg-emerald-500';
+            else if (isCurrent) dotClass = 'bg-amber-400 animate-pulse';
+
+            sessionDotsHTML += `<div class="h-1.5 flex-1 rounded-full ${dotClass}" title="Sesi ${i}"></div>`;
+        }
+
+        gamificationBox.innerHTML = `
+            <div class="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-sm">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-center">
+                    
+                    <!-- Kolom Kiri (5 Kolom): Kartu Level & XP -->
+                    <div class="lg:col-span-5 bg-gradient-to-br ${stats.levelGradient} p-4 sm:p-5 rounded-2xl text-white shadow-md relative overflow-hidden">
+                        <div class="absolute right-0 bottom-0 -mb-6 -mr-6 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+                        <div class="flex items-center justify-between gap-3 mb-3 relative z-10">
+                            <div class="flex items-center gap-3">
+                                <div class="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-xs border border-white/25 flex items-center justify-center text-lg shrink-0">
+                                    <i class="fas ${stats.levelIcon} text-amber-200"></i>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-white/80 block">English Mastery Rank</span>
+                                    <h4 class="text-sm sm:text-base font-extrabold leading-tight">Lv. ${stats.level} — ${stats.levelTitle}</h4>
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <span class="text-base sm:text-lg font-extrabold">${stats.xp}</span>
+                                <span class="text-[10px] font-bold uppercase block text-white/80">Total XP</span>
+                            </div>
+                        </div>
+
+                        <!-- Bar XP Menuju Level Berikutnya -->
+                        <div class="relative z-10">
+                            <div class="flex justify-between text-[10px] font-bold text-white/90 mb-1">
+                                <span>Progress Level ${stats.level + 1}</span>
+                                <span>${stats.xp} / ${stats.nextXP} XP</span>
+                            </div>
+                            <div class="w-full h-2 bg-black/20 rounded-full overflow-hidden p-0.5">
+                                <div class="h-full bg-white rounded-full transition-all duration-500" style="width: ${stats.xpProgressPercent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kolom Kanan (7 Kolom): Progress Bulan Aktif & 3 Mini Stat Cards -->
+                    <div class="lg:col-span-7 space-y-4">
+                        
+                        <!-- Progress Bar Kurikulum Bulan Berjalan -->
+                        <div class="bg-slate-50/80 p-3.5 sm:p-4 rounded-xl border border-slate-200/70">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                    <span class="text-xs font-extrabold text-slate-800">Progress ${stats.activeMonthTitle}</span>
+                                </div>
+                                <span class="text-xs font-extrabold text-emerald-600">${stats.activeMonthPercent}% <span class="text-slate-400 font-semibold text-[11px]">(${stats.activeMonthCompleted}/12 Sesi)</span></span>
+                            </div>
+                            <!-- Bar Persentase -->
+                            <div class="w-full h-2.5 bg-slate-200/80 rounded-full overflow-hidden mb-2">
+                                <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500" style="width: ${stats.activeMonthPercent}%"></div>
+                            </div>
+                            <!-- 12 Titik Sesi -->
+                            <div class="flex items-center gap-1">
+                                ${sessionDotsHTML}
+                            </div>
+                        </div>
+
+                        <!-- 3 Statistik Pencapaian (Grid 3 Kolom Rapi di HP) -->
+                        <div class="grid grid-cols-3 gap-2 sm:gap-3">
+                            <div class="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/70 text-center">
+                                <div class="text-emerald-600 text-xs sm:text-sm mb-0.5"><i class="fas fa-calendar-check"></i></div>
+                                <p class="text-sm sm:text-lg font-extrabold text-slate-800 leading-none">${stats.totalCompletedSessions}</p>
+                                <p class="text-[10px] font-bold text-slate-500 mt-1 truncate">Sesi Selesai</p>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200/70 text-center">
+                                <div class="text-indigo-600 text-xs sm:text-sm mb-0.5"><i class="fas fa-spell-check"></i></div>
+                                <p class="text-sm sm:text-lg font-extrabold text-slate-800 leading-none">${stats.masteredWordsCount}</p>
+                                <p class="text-[10px] font-bold text-slate-500 mt-1 truncate">Kata Dikuasai</p>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-amber-50/60 border border-amber-200/70 text-center">
+                                <div class="text-amber-500 text-xs sm:text-sm mb-0.5"><i class="fas fa-award"></i></div>
+                                <p class="text-sm sm:text-lg font-extrabold text-slate-800 leading-none">${stats.avgExamScore > 0 ? stats.avgExamScore : '-'}</p>
+                                <p class="text-[10px] font-bold text-slate-500 mt-1 truncate">Rata-Rata Ujian</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        `;
+    }
+
+    // ====================================================
+    // RENDER JADWAL KELAS TERDEKAT & PELACAK SESI
+    // ====================================================
     if (nextSesh.expired) {
         nextBox.innerHTML = `
             <div class="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-start gap-3.5">

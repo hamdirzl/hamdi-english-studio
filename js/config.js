@@ -220,7 +220,6 @@ function checkOverlap(time1, time2) {
     return (s1 < e2) && (s2 < e1);
 }
 
-// Ambil tepat 12 sesi (4 minggu x 3 hari) MUNDUR dari tanggal batas akhir suatu Month
 function get12SessionsEndingOn(email, endDateStr) {
     let endObj = parseDateStr(endDateStr);
     endObj.setHours(0, 0, 0, 0);
@@ -238,7 +237,6 @@ function get12SessionsEndingOn(email, endDateStr) {
     return result;
 }
 
-// Ambil tepat 12 sesi MAJU setelah tanggal tertentu
 function get12SessionsStartingAfter(email, afterDateObj) {
     let cursor = new Date(afterDateObj);
     cursor.setHours(0, 0, 0, 0);
@@ -256,12 +254,6 @@ function get12SessionsStartingAfter(email, afterDateObj) {
     return result;
 }
 
-/**
- * Menghasilkan peta tanggal kurikulum (Month -> Week -> Day) secara cerdas berdasarkan
- * Batas Tanggal Per-Bulan (monthEndDates).
- * - Jika Month 1 diberi batas 23 Sep, maka M1 berakhir di 23 Sep (dan otomatis Selesai jika hari ini > 23 Sep).
- * - Jika Month 2 diberi batas 21 Okt, maka M2 dihitung 12 sesi mundur dari 21 Okt (M2 W1 D1 = 28 Sep).
- */
 function getStudentCurriculumTimeline(email) {
     let p = window.HES.materials[`profile-${email}`];
     if (!p || !p.days || p.days.length === 0) return null;
@@ -269,7 +261,6 @@ function getStudentCurriculumTimeline(email) {
     let monthEndDates = Object.assign({}, p.monthEndDates || {});
     const maxM = String(p.maxMonth || '1');
 
-    // Kompatibilitas otomatis jika Admin baru mengisi validUntil untuk bulan aktif saat ini
     if (p.validUntil && p.validUntil !== 'Belum diatur' && !monthEndDates[`m${maxM}`]) {
         monthEndDates[`m${maxM}`] = p.validUntil;
     }
@@ -277,7 +268,6 @@ function getStudentCurriculumTimeline(email) {
     const totalMonths = window.HES.months.length;
     let monthSessions = new Array(totalMonths);
 
-    // 1. Hitung 12 sesi untuk setiap Month yang memiliki tanggal batas akhir
     for (let i = 0; i < totalMonths; i++) {
         let mId = window.HES.months[i].id;
         if (monthEndDates[mId]) {
@@ -285,8 +275,6 @@ function getStudentCurriculumTimeline(email) {
         }
     }
 
-    // 2. Jika ada Month sebelumnya (misal Month 1) yang belum sempat diisi batas tanggalnya,
-    // otomatis hitung mundur dari tanggal mulai Month berikutnya (misal Month 2) agar Month 1 otomatis Selesai!
     for (let i = totalMonths - 2; i >= 0; i--) {
         if (!monthSessions[i] && monthSessions[i + 1] && monthSessions[i + 1].length > 0) {
             let prevEnd = new Date(monthSessions[i + 1][0]);
@@ -295,7 +283,6 @@ function getStudentCurriculumTimeline(email) {
         }
     }
 
-    // 3. Jika belum ada satu pun tanggal batas yang diatur, buat fallback dari minggu ini untuk Month 1
     if (!monthSessions[0]) {
         let now = new Date();
         let day = now.getDay();
@@ -304,7 +291,6 @@ function getStudentCurriculumTimeline(email) {
         monthSessions[0] = get12SessionsStartingAfter(email, startBefore);
     }
 
-    // 4. Untuk Month masa depan yang belum diatur tanggal batasnya, hitung maju berurutan setelah Month sebelumnya
     for (let i = 1; i < totalMonths; i++) {
         if (!monthSessions[i] && monthSessions[i - 1] && monthSessions[i - 1].length > 0) {
             let lastDatePrevMonth = monthSessions[i - 1][monthSessions[i - 1].length - 1];
@@ -312,7 +298,6 @@ function getStudentCurriculumTimeline(email) {
         }
     }
 
-    // Gabungkan seluruh sesi menjadi satu deretan kurikulum utuh
     let sessionDates = [];
     for (let i = 0; i < totalMonths; i++) {
         let arr = monthSessions[i] || [];
@@ -325,7 +310,6 @@ function getStudentCurriculumTimeline(email) {
     today.setHours(0, 0, 0, 0);
     let todayStr = formatDateForID(today);
 
-    // Cari sesi pertama yang tanggalnya >= hari ini
     let firstUpcomingIdx = sessionDates.findIndex(d => d && d >= today);
     let currentIdx = -1;
     let nextIdx = -1;
@@ -337,20 +321,15 @@ function getStudentCurriculumTimeline(email) {
     } else {
         let firstDateStr = formatDateForID(sessionDates[firstUpcomingIdx]);
         if (firstDateStr === todayStr) {
-            // Hari ini adalah hari kelas!
             currentIdx = firstUpcomingIdx;
             nextIdx = (firstUpcomingIdx + 1 < sessionDates.length) ? firstUpcomingIdx + 1 : -1;
             isTodayClass = true;
         } else {
-            // Jika hari ini berada di sela-sela jadwal (misal Selasa 6 Okt, setelah Senin 5 Okt dan sebelum Rabu 7 Okt):
-            // Maka "Sedang Di Sini" adalah pertemuan yang sedang/baru berjalan di minggu ini (atau sesi pertama di bulan baru jika bulan sebelumnya baru selesai)
             if (firstUpcomingIdx > 0) {
                 const prevMonthIdx = Math.floor((firstUpcomingIdx - 1) / 12);
                 const upcomingMonthIdx = Math.floor(firstUpcomingIdx / 12);
 
                 if (prevMonthIdx < upcomingMonthIdx) {
-                    // Bulan sebelumnya (misal Month 1) sudah selesai seluruh 12 sesinya!
-                    // Maka posisi fokus aktif langsung masuk ke Day 1 di Bulan Baru (Month 2)
                     currentIdx = firstUpcomingIdx;
                     nextIdx = (firstUpcomingIdx + 1 < sessionDates.length) ? firstUpcomingIdx + 1 : -1;
                 } else {
@@ -452,7 +431,6 @@ function getStudentCurriculumTimeline(email) {
         });
 
         const lastIdxOfMonth = (mIdx * 12) + 11;
-        // Jika tanggal batas bulan ini sudah lewat dari hari ini, pastikan seluruh Month berstatus 'completed' (Selesai)!
         let explicitEndObj = monthEndDates[m.id] ? parseDateStr(monthEndDates[m.id]) : null;
         if (explicitEndObj) explicitEndObj.setHours(23, 59, 59, 999);
         const isMonthExpiredByEndDate = explicitEndObj ? (today > explicitEndObj) : (mDates.length > 0 && mDates[mDates.length - 1] < today);
@@ -467,6 +445,127 @@ function getStudentCurriculumTimeline(email) {
     });
 
     return timeline;
+}
+
+/**
+ * FITUR #4: Kalkulasi Progress Tracker & Gamifikasi Murid
+ * Menghitung XP, Level, Progress Bulan Berjalan, Kosakata Dikuasai, dan Rata-rata Nilai Ujian
+ */
+function getStudentGamificationStats(email) {
+    const p = window.HES.materials[`profile-${email}`] || {};
+    const maxMonthNum = parseInt(p.maxMonth || '1');
+    const timeline = getStudentCurriculumTimeline(email);
+
+    // 1. Hitung total sesi selesai & progress bulan aktif saat ini
+    let totalCompletedSessions = 0;
+    let activeMonthId = `m${maxMonthNum}`;
+    let activeMonthTitle = `Month ${maxMonthNum}`;
+    let activeMonthCompleted = 0;
+
+    if (timeline && timeline.currentPointer) {
+        activeMonthId = timeline.currentPointer.monthId;
+        activeMonthTitle = timeline.currentPointer.monthTitle;
+    }
+
+    if (timeline && timeline.days) {
+        Object.values(timeline.days).forEach(d => {
+            const mNum = parseInt(d.monthId.replace('m', ''));
+            if (mNum <= maxMonthNum) {
+                if (d.status === 'completed') {
+                    totalCompletedSessions++;
+                }
+                if (d.monthId === activeMonthId && d.status === 'completed') {
+                    activeMonthCompleted++;
+                }
+            }
+        });
+    }
+
+    const activeMonthPercent = Math.min(100, Math.round((activeMonthCompleted / 12) * 100));
+
+    // 2. Hitung Statistik Kosakata (Dikuasai & Disetorkan)
+    let masteredWordsCount = 0;
+    let approvedSetsCount = 0;
+    let submittedSetsCount = 0;
+
+    window.HES.months.forEach(m => {
+        m.weeks.forEach(w => {
+            [1, 2, 3].forEach(d => {
+                const statusObj = window.HES.materials[`vocab_status-${email}-${m.id}-w${w}-d${d}`];
+                if (statusObj && (statusObj.status === 'approved' || statusObj.status === 'submitted')) {
+                    const rawVocab = window.HES.materials[`vocab-${m.id}-w${w}-d${d}`] || '';
+                    const wordLines = rawVocab.split('\n').filter(l => l.includes('=')).length;
+                    const countToAdd = wordLines > 0 ? wordLines : 5;
+                    masteredWordsCount += countToAdd;
+
+                    if (statusObj.status === 'approved') approvedSetsCount++;
+                    else submittedSetsCount++;
+                }
+            });
+        });
+    });
+
+    // 3. Hitung Statistik Ujian Bulanan
+    let examsCompleted = 0;
+    let totalExamScoreSum = 0;
+
+    window.HES.months.forEach(m => {
+        const res = window.HES.materials[`exam_result-${email}-${m.id}`];
+        if (res && res.sectionScores) {
+            const sc = res.sectionScores;
+            const hasSubmittedAny = (res.submittedTabs && res.submittedTabs.length > 0) || res.isGraded;
+            if (hasSubmittedAny) {
+                examsCompleted++;
+                const avg = Math.round(((sc.reading || 0) + (sc.writing || 0) + (sc.speaking || 0) + (sc.listening || 0)) / 4);
+                totalExamScoreSum += avg;
+            }
+        }
+    });
+
+    const avgExamScore = examsCompleted > 0 ? Math.round(totalExamScoreSum / examsCompleted) : 0;
+
+    // 4. Kalkulasi XP & Level Bahasa Inggris
+    // +50 XP per sesi kelas selesai, +40 XP per setoran vocab approved (+20 XP jika submitted), +150 XP per ujian selesai
+    const xp = (totalCompletedSessions * 50) + (approvedSetsCount * 40) + (submittedSetsCount * 20) + (examsCompleted * 150);
+
+    const levels = [
+        { level: 1, title: 'Starter Explorer', minXP: 0, nextXP: 300, badgeColor: 'from-sky-500 to-blue-600', icon: 'fa-seedling' },
+        { level: 2, title: 'Rising Communicator', minXP: 300, nextXP: 700, badgeColor: 'from-emerald-500 to-teal-600', icon: 'fa-feather-pointed' },
+        { level: 3, title: 'Confident Speaker', minXP: 700, nextXP: 1200, badgeColor: 'from-indigo-500 to-violet-600', icon: 'fa-bolt' },
+        { level: 4, title: 'Fluent Achiever', minXP: 1200, nextXP: 1800, badgeColor: 'from-amber-500 to-orange-600', icon: 'fa-fire' },
+        { level: 5, title: 'Master Scholar', minXP: 1800, nextXP: 3000, badgeColor: 'from-rose-500 to-pink-600', icon: 'fa-crown' }
+    ];
+
+    let currentLvlObj = levels[0];
+    for (let i = 0; i < levels.length; i++) {
+        if (xp >= levels[i].minXP) {
+            currentLvlObj = levels[i];
+        }
+    }
+
+    const xpInCurrentTier = xp - currentLvlObj.minXP;
+    const xpNeededForTier = currentLvlObj.nextXP - currentLvlObj.minXP;
+    const xpProgressPercent = Math.min(100, Math.max(5, Math.round((xpInCurrentTier / xpNeededForTier) * 100)));
+
+    return {
+        xp,
+        level: currentLvlObj.level,
+        levelTitle: currentLvlObj.title,
+        levelIcon: currentLvlObj.icon,
+        levelGradient: currentLvlObj.badgeColor,
+        nextXP: currentLvlObj.nextXP,
+        xpProgressPercent,
+        totalCompletedSessions,
+        activeMonthId,
+        activeMonthTitle,
+        activeMonthCompleted,
+        activeMonthPercent,
+        masteredWordsCount,
+        approvedSetsCount,
+        submittedSetsCount,
+        examsCompleted,
+        avgExamScore
+    };
 }
 
 function getStudentNextSessionInfo(email) {
