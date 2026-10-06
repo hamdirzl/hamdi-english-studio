@@ -202,7 +202,7 @@ function renderMateriContent() {
     // ====================================================
     // 1. RENDER INTERACTIVE 3D VOCABULARY FLASHCARDS
     // ====================================================
-    const vocabData = window.HES.materials[`vocab-${monthId}-w${week}-d${day}`] || '';
+    const vocabData = getSessionVocabText(monthId, week, day);
     const vocabStatus = window.HES.materials[`vocab_status-${email}-${monthId}-w${week}-d${day}`] || { status: 'none', feedback: '' };
     const vocabSection = document.getElementById('vocab-section');
     const vocabCountBadge = document.getElementById('vocab-count-badge');

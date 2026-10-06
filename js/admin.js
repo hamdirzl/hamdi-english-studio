@@ -457,26 +457,76 @@ window.saveStudentSchedule = async function(e) {
 // ==========================================
 // TAB 3: MATERI PDF & KOSAKATA
 // ==========================================
-window.saveMaterialData = async function(e) {
-    const ts = document.getElementById('admin-target-student').value;
-    const m = document.getElementById('admin-month').value;
-    const w = document.getElementById('admin-week').value;
-    const d = document.getElementById('admin-day').value;
-    const link = document.getElementById('admin-link').value.trim();
-    const recap = document.getElementById('admin-recap-pdf').value.trim();
+// ==========================================
+// TAB 3: MATERI PDF, MASTER WORDBANK & KOSAKATA
+// ==========================================
+window.loadMasterWordbankIntoForm = function() {
+    const wbTextarea = document.getElementById('admin-master-wordbank');
+    const perDaySelect = document.getElementById('admin-words-per-day');
+    if (!wbTextarea || !perDaySelect) return;
 
-    if (!link && !recap) {
-        showToast('Masukkan minimal satu tautan Google Drive.', 'error');
-        return;
-    }
+    const savedCloud = window.HES.materials['master_wordbank'] || '';
+    const fallback = window.DEFAULT_WORDBANK_RAW || '';
+    wbTextarea.value = savedCloud.trim() !== '' ? savedCloud : fallback;
+    perDaySelect.value = String(getWordsPerDaySetting());
+    updateMasterWordbankCounter();
+};
 
-    const keyPref = `${ts}-${m}-w${w}-d${d}`;
-    if (link) window.HES.materials[`${keyPref}-link`] = link;
-    if (recap) window.HES.materials[`${keyPref}-recap`] = recap;
+window.updateMasterWordbankCounter = function() {
+    const wbTextarea = document.getElementById('admin-master-wordbank');
+    const perDaySelect = document.getElementById('admin-words-per-day');
+    const statsBadge = document.getElementById('master-wordbank-stats-badge');
+    const capText = document.getElementById('master-wordbank-capacity-text');
+    if (!wbTextarea) return;
+
+    const seen = new Set();
+    let uniqueCount = 0;
+    wbTextarea.value.split('\n').forEach(line => {
+        if (!line.includes('=')) return;
+        const eng = line.split('=')[0].trim().toLowerCase();
+        if (eng && !seen.has(eng)) {
+            seen.add(eng);
+            uniqueCount++;
+        }
+    });
+
+    const perDay = parseInt(perDaySelect ? perDaySelect.value : 5) || 5;
+    const totalSessions = Math.floor(uniqueCount / perDay);
+    const totalMonths = (totalSessions / 12).toFixed(1);
+
+    if (statsBadge) statsBadge.innerText = `${uniqueCount} Kata Unik`;
+    if (capText) capText.innerText = `Cukup untuk ${totalSessions} Pertemuan (~${totalMonths} Bulan)`;
+};
+
+window.saveMasterWordbank = async function(e) {
+    const wbTextarea = document.getElementById('admin-master-wordbank');
+    const perDaySelect = document.getElementById('admin-words-per-day');
+    if (!wbTextarea) return;
+
+    // Bersihkan duplikat sebelum disimpan ke Cloud
+    const seen = new Set();
+    const cleanedLines = [];
+    wbTextarea.value.split('\n').forEach(line => {
+        if (!line.includes('=')) return;
+        const parts = line.split('=');
+        const eng = parts[0].trim();
+        const ind = parts.slice(1).join('=').trim();
+        if (!eng || !ind) return;
+        const key = eng.toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            cleanedLines.push(`${eng} = ${ind}`);
+        }
+    });
+
+    const cleanedText = cleanedLines.join('\n');
+    wbTextarea.value = cleanedText;
+    window.HES.materials['master_wordbank'] = cleanedText;
+    window.HES.materials['master_wordbank_per_day'] = parseInt(perDaySelect ? perDaySelect.value : 5) || 5;
 
     const btn = e.currentTarget;
     const origText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan Database...';
     btn.disabled = true;
 
     const { error } = await saveToCloud('hes_materials', window.HES.materials);
@@ -484,103 +534,54 @@ window.saveMaterialData = async function(e) {
     btn.disabled = false;
 
     if (!error) {
-        showToast('Tautan modul berhasil disimpan!', 'success');
-        document.getElementById('admin-link').value = '';
-        document.getElementById('admin-recap-pdf').value = '';
+        updateMasterWordbankCounter();
+        loadAdminVocabPreview();
+        showToast(`${cleanedLines.length} kosakata unik berhasil disimpan ke Master Wordbank!`, 'success');
     } else {
-        showToast('Gagal menyimpan modul: ' + error.message, 'error');
+        showToast('Gagal menyimpan Master Wordbank: ' + error.message, 'error');
     }
 };
 
 window.loadAdminVocabPreview = function() {
+    loadMasterWordbankIntoForm();
+
     const mEl = document.getElementById('admin-vocab-month');
     const wEl = document.getElementById('admin-vocab-week');
     const dEl = document.getElementById('admin-vocab-day');
     const listEl = document.getElementById('admin-vocab-list');
+    const badgeEl = document.getElementById('admin-vocab-source-badge');
     if (!mEl || !wEl || !dEl || !listEl) return;
 
-    const existing = window.HES.materials[`vocab-${mEl.value}-w${wEl.value}-d${dEl.value}`] || '';
-    listEl.value = existing;
+    const manualKey = `vocab-${mEl.value}-w${wEl.value}-d${dEl.value}`;
+    const manualExisting = window.HES.materials[manualKey] || '';
+
+    if (manualExisting.trim() !== '') {
+        listEl.value = manualExisting;
+        if (badgeEl) {
+            badgeEl.className = "text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200";
+            badgeEl.innerText = "Override Manual";
+        }
+    } else {
+        listEl.value = getSessionVocabText(mEl.value, wEl.value, dEl.value);
+        if (badgeEl) {
+            badgeEl.className = "text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200";
+            badgeEl.innerText = "Otomatis Wordbank";
+        }
+    }
 };
 
-window.saveVocabList = async function(e) {
+window.clearManualVocabOverride = async function(e) {
     const m = document.getElementById('admin-vocab-month').value;
     const w = document.getElementById('admin-vocab-week').value;
     const d = document.getElementById('admin-vocab-day').value;
-    const val = document.getElementById('admin-vocab-list').value;
-
-    window.HES.materials[`vocab-${m}-w${w}-d${d}`] = val;
-
-    const btn = e.currentTarget;
-    const origText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Mempublikasikan...';
-    btn.disabled = true;
+    delete window.HES.materials[`vocab-${m}-w${w}-d${d}`];
 
     const { error } = await saveToCloud('hes_materials', window.HES.materials);
-    btn.innerHTML = origText;
-    btn.disabled = false;
-
-    if (!error) showToast(`Kosakata ${m.toUpperCase()} W${w} D${d} berhasil dipublikasikan!`, 'success');
-    else showToast('Gagal menyimpan kosakata: ' + error.message, 'error');
-};
-
-window.checkVocabStatus = async function(btnElement) {
-    const resDiv = document.getElementById('vocab-review-result');
-    let origText = '';
-    if (btnElement) {
-        origText = btnElement.innerHTML;
-        btnElement.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memeriksa Server...';
-        btnElement.disabled = true;
-    }
-
-    await syncFromCloud();
-
-    if (btnElement) {
-        btnElement.innerHTML = origText;
-        btnElement.disabled = false;
-    }
-
-    const email = document.getElementById('admin-review-student').value;
-    const m = document.getElementById('admin-review-month').value;
-    const w = document.getElementById('admin-review-week').value;
-    const d = document.getElementById('admin-review-day').value;
-
-    let statusObj = window.HES.materials[`vocab_status-${email}-${m}-w${w}-d${d}`];
-    if (!statusObj || statusObj.status === 'none') {
-        resDiv.innerHTML = `<div class="bg-slate-50 p-3.5 rounded-xl text-xs text-center text-slate-500 font-semibold border border-slate-200">Murid belum menyetorkan hafalan untuk sesi ini.</div>`;
-    } else if (statusObj.status === 'submitted') {
-        resDiv.innerHTML = `
-            <div class="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-3">
-                <p class="text-xs font-extrabold text-amber-900 mb-2"><i class="fas fa-clock mr-1"></i> Menunggu Verifikasi Anda</p>
-                <input type="text" id="admin-feedback" placeholder="Beri catatan apresiasi (opsional)..." class="w-full p-2.5 bg-white border border-amber-200 rounded-lg text-xs mb-2.5 outline-none">
-                <button onclick="approveVocab('${email}', '${m}', '${w}', '${d}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-xs font-bold w-full transition">
-                    <i class="fas fa-check mr-1"></i> Setujui Setoran Hafalan
-                </button>
-            </div>
-        `;
-    } else if (statusObj.status === 'approved') {
-        resDiv.innerHTML = `
-            <div class="bg-emerald-50 p-3.5 rounded-xl text-xs font-bold text-emerald-700 text-center mt-3 border border-emerald-200">
-                <i class="fas fa-check-circle mr-1"></i> Hafalan telah diverifikasi ("${statusObj.feedback || 'Good Job!'}")
-            </div>
-        `;
-    }
-};
-
-window.approveVocab = async function(email, m, w, d) {
-    let feedback = document.getElementById('admin-feedback').value || 'Good Job!';
-    window.HES.materials[`vocab_status-${email}-${m}-w${w}-d${d}`] = { status: 'approved', feedback };
-
-    document.body.style.cursor = 'wait';
-    const { error } = await saveToCloud('hes_materials', window.HES.materials);
-    document.body.style.cursor = 'default';
-
     if (!error) {
-        showToast('Hafalan kosakata murid telah disetujui!', 'success');
-        checkVocabStatus();
+        loadAdminVocabPreview();
+        showToast(`Sesi ${m.toUpperCase()} W${w} D${d} dikembalikan ke jatah otomatis Master Wordbank.`, 'info');
     }
 };
-
 // ==========================================
 // TAB 4: EXAM BUILDER & GRADING
 // ==========================================

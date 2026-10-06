@@ -160,7 +160,76 @@ function updateCloudStatusUI(status) {
 }
 
 // ==========================================
-// 5. HELPER TANGGAL, JADWAL & TIMELINE TRACKER
+// 5. MASTER WORDBANK ENGINE (ANTI-DUPLIKAT)
+// ==========================================
+function getCleanMasterWordbankArray() {
+    // Prioritaskan Master Wordbank yang disimpan Admin di Supabase, jika kosong gunakan dari js/wordbank.js
+    const cloudRaw = window.HES.materials['master_wordbank'] || '';
+    const fallbackRaw = window.DEFAULT_WORDBANK_RAW || '';
+    const combinedRaw = cloudRaw.trim() !== '' ? cloudRaw : fallbackRaw;
+
+    if (!combinedRaw) return [];
+
+    const seenWords = new Set();
+    const uniqueLines = [];
+
+    combinedRaw.split('\n').forEach(line => {
+        if (!line.includes('=')) return;
+        const parts = line.split('=');
+        const eng = parts[0].trim();
+        const ind = parts.slice(1).join('=').trim();
+        if (!eng || !ind) return;
+
+        const key = eng.toLowerCase();
+        // Saring otomatis agar kata bahasa Inggris yang sama tidak pernah muncul 2 kali!
+        if (!seenWords.has(key)) {
+            seenWords.add(key);
+            uniqueLines.push(`${eng} = ${ind}`);
+        }
+    });
+
+    return uniqueLines;
+}
+
+function getWordsPerDaySetting() {
+    const saved = parseInt(window.HES.materials['master_wordbank_per_day']);
+    return (!isNaN(saved) && saved > 0) ? saved : 5;
+}
+
+/**
+ * Mengambil daftar kosakata untuk sesi tertentu (Month, Week, Day).
+ * - Jika Admin mengisi manual di vocab-mX-wY-dZ, gunakan input manual tersebut.
+ * - Jika kosong, ambil otomatis dari Master Wordbank berdasarkan urutan sesi global
+ *   sehingga kata yang sudah muncul di hari sebelumnya TIDAK AKAN PERNAH muncul lagi!
+ */
+function getSessionVocabText(monthId, week, day) {
+    const manualKey = `vocab-${monthId}-w${week}-d${day}`;
+    const manualVal = window.HES.materials[manualKey];
+    if (manualVal && manualVal.trim() !== '') {
+        return manualVal;
+    }
+
+    const bank = getCleanMasterWordbankArray();
+    if (bank.length === 0) return '';
+
+    const wordsPerDay = getWordsPerDaySetting();
+    let mIdx = window.HES.months.findIndex(m => m.id === monthId);
+    if (mIdx === -1) {
+        mIdx = (parseInt(String(monthId).replace('m', '')) || 1) - 1;
+    }
+    const wIdx = (parseInt(week) || 1) - 1;
+    const dIdx = (parseInt(day) || 1) - 1;
+
+    // Setiap pertemuan memiliki indeks unik berurutan (0, 1, 2, 3, ... dst)
+    const sessionGlobalIndex = (mIdx * 12) + (wIdx * 3) + dIdx;
+    const startIndex = sessionGlobalIndex * wordsPerDay;
+
+    if (startIndex >= bank.length) return '';
+    return bank.slice(startIndex, startIndex + wordsPerDay).join('\n');
+}
+
+// ==========================================
+// 6. HELPER TANGGAL, JADWAL & TIMELINE TRACKER
 // ==========================================
 const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const shortDayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
@@ -448,14 +517,13 @@ function getStudentCurriculumTimeline(email) {
 }
 
 /**
- * FITUR #4: Kalkulasi Progress Tracker & Gamifikasi Murid (10 Level & Progres Lebih Terukur)
+ * FITUR #4: Kalkulasi Progress Tracker & Gamifikasi Murid (10 Level)
  */
 function getStudentGamificationStats(email) {
     const p = window.HES.materials[`profile-${email}`] || {};
     const maxMonthNum = parseInt(p.maxMonth || '1');
     const timeline = getStudentCurriculumTimeline(email);
 
-    // 1. Hitung total sesi selesai & progress bulan aktif saat ini
     let totalCompletedSessions = 0;
     let activeMonthId = `m${maxMonthNum}`;
     let activeMonthTitle = `Month ${maxMonthNum}`;
@@ -482,7 +550,6 @@ function getStudentGamificationStats(email) {
 
     const activeMonthPercent = Math.min(100, Math.round((activeMonthCompleted / 12) * 100));
 
-    // 2. Hitung Statistik Kosakata (Dikuasai & Disetorkan)
     let masteredWordsCount = 0;
     let approvedSetsCount = 0;
     let submittedSetsCount = 0;
@@ -492,9 +559,9 @@ function getStudentGamificationStats(email) {
             [1, 2, 3].forEach(d => {
                 const statusObj = window.HES.materials[`vocab_status-${email}-${m.id}-w${w}-d${d}`];
                 if (statusObj && (statusObj.status === 'approved' || statusObj.status === 'submitted')) {
-                    const rawVocab = window.HES.materials[`vocab-${m.id}-w${w}-d${d}`] || '';
+                    const rawVocab = getSessionVocabText(m.id, w, d);
                     const wordLines = rawVocab.split('\n').filter(l => l.includes('=')).length;
-                    const countToAdd = wordLines > 0 ? wordLines : 5;
+                    const countToAdd = wordLines > 0 ? wordLines : getWordsPerDaySetting();
                     masteredWordsCount += countToAdd;
 
                     if (statusObj.status === 'approved') approvedSetsCount++;
@@ -504,7 +571,6 @@ function getStudentGamificationStats(email) {
         });
     });
 
-    // 3. Hitung Statistik Ujian Bulanan & Bonus Skor
     let examsCompleted = 0;
     let totalExamScoreSum = 0;
     let examBonusXP = 0;
@@ -518,32 +584,25 @@ function getStudentGamificationStats(email) {
                 examsCompleted++;
                 const avg = Math.round(((sc.reading || 0) + (sc.writing || 0) + (sc.speaking || 0) + (sc.listening || 0)) / 4);
                 totalExamScoreSum += avg;
-                // Poin dasar 100 XP per ujian + bonus nilai rata-rata jika sudah dinilai Admin
                 examBonusXP += 100 + (res.isGraded ? avg : 0);
             }
         }
     });
 
     const avgExamScore = examsCompleted > 0 ? Math.round(totalExamScoreSum / examsCompleted) : 0;
-
-    // 4. Kalkulasi XP Baru (Lebih Lambat & Proporsional):
-    // +25 XP per sesi kelas selesai (300 XP/bulan)
-    // +25 XP per setoran vocab approved, +10 XP jika baru submitted (300 XP/bulan)
-    // +100 s/d 200 XP per ujian bulanan
     const xp = (totalCompletedSessions * 25) + (approvedSetsCount * 25) + (submittedSetsCount * 10) + examBonusXP;
 
-    // 10 Tingkatan Level (Dari Starter Explorer hingga Grandmaster Legend)
     const levels = [
-        { level: 1,  title: 'Starter Explorer',        minXP: 0,    nextXP: 250,  badgeColor: 'from-slate-600 to-slate-800',     icon: 'fa-seedling' },
-        { level: 2,  title: 'Novice Learner',          minXP: 250,  nextXP: 600,  badgeColor: 'from-sky-500 to-blue-600',        icon: 'fa-book-open-reader' },
-        { level: 3,  title: 'Rising Communicator',     minXP: 600,  nextXP: 1100, badgeColor: 'from-teal-500 to-emerald-600',    icon: 'fa-feather-pointed' },
-        { level: 4,  title: 'Active Conversationalist',minXP: 1100, nextXP: 1700, badgeColor: 'from-emerald-600 to-green-700',   icon: 'fa-comments' },
-        { level: 5,  title: 'Confident Speaker',       minXP: 1700, nextXP: 2400, badgeColor: 'from-indigo-500 to-blue-700',     icon: 'fa-microphone-lines' },
-        { level: 6,  title: 'Skilled Articulator',     minXP: 2400, nextXP: 3200, badgeColor: 'from-violet-600 to-indigo-700',   icon: 'fa-bolt' },
-        { level: 7,  title: 'Fluent Achiever',         minXP: 3200, nextXP: 4100, badgeColor: 'from-purple-600 to-fuchsia-700',  icon: 'fa-award' },
-        { level: 8,  title: 'Advanced Orator',         minXP: 4100, nextXP: 5100, badgeColor: 'from-amber-500 to-orange-600',    icon: 'fa-fire' },
-        { level: 9,  title: 'Master Scholar',          minXP: 5100, nextXP: 6500, badgeColor: 'from-rose-500 to-red-700',        icon: 'fa-medal' },
-        { level: 10, title: 'Grandmaster Legend',      minXP: 6500, nextXP: 8500, badgeColor: 'from-amber-500 via-rose-500 to-indigo-700', icon: 'fa-crown' }
+        { level: 1,  title: 'Starter Explorer',         minXP: 0,    nextXP: 250,  badgeColor: 'from-slate-600 to-slate-800',     icon: 'fa-seedling' },
+        { level: 2,  title: 'Novice Learner',           minXP: 250,  nextXP: 600,  badgeColor: 'from-sky-500 to-blue-600',        icon: 'fa-book-open-reader' },
+        { level: 3,  title: 'Rising Communicator',      minXP: 600,  nextXP: 1100, badgeColor: 'from-teal-500 to-emerald-600',    icon: 'fa-feather-pointed' },
+        { level: 4,  title: 'Active Conversationalist', minXP: 1100, nextXP: 1700, badgeColor: 'from-emerald-600 to-green-700',   icon: 'fa-comments' },
+        { level: 5,  title: 'Confident Speaker',        minXP: 1700, nextXP: 2400, badgeColor: 'from-indigo-500 to-blue-700',     icon: 'fa-microphone-lines' },
+        { level: 6,  title: 'Skilled Articulator',      minXP: 2400, nextXP: 3200, badgeColor: 'from-violet-600 to-indigo-700',   icon: 'fa-bolt' },
+        { level: 7,  title: 'Fluent Achiever',          minXP: 3200, nextXP: 4100, badgeColor: 'from-purple-600 to-fuchsia-700',  icon: 'fa-award' },
+        { level: 8,  title: 'Advanced Orator',          minXP: 4100, nextXP: 5100, badgeColor: 'from-amber-500 to-orange-600',    icon: 'fa-fire' },
+        { level: 9,  title: 'Master Scholar',           minXP: 5100, nextXP: 6500, badgeColor: 'from-rose-500 to-red-700',        icon: 'fa-medal' },
+        { level: 10, title: 'Grandmaster Legend',       minXP: 6500, nextXP: 8500, badgeColor: 'from-amber-500 via-rose-500 to-indigo-700', icon: 'fa-crown' }
     ];
 
     let currentLvlObj = levels[0];
@@ -666,7 +725,7 @@ function calculateCategoryScore(cat, examData, examResult) {
 }
 
 // ==========================================
-// 6. TOAST NOTIFICATION MODERN
+// 7. TOAST NOTIFICATION MODERN
 // ==========================================
 function showToast(message, type = 'success') {
     let container = document.getElementById('toast-container');
