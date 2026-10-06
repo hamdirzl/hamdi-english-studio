@@ -38,38 +38,38 @@
             <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
 
             <!-- Konten Materi -->
-            <div class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+            <div class="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-8 custom-scrollbar">
                 <div class="max-w-5xl mx-auto fade-in pb-16">
 
-                    <!-- Banner Pelacak Pertemuan (Live Session Tracker) -->
-                    <div id="materi-session-tracker-banner" class="hidden mb-5"></div>
+                    <!-- Bilah Pelacak Kompak (Compact Session Tracker) -->
+                    <div id="materi-session-tracker-banner" class="hidden mb-4"></div>
 
                     <!-- Bar Navigasi & Quick Selector Modul -->
-                    <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200/90 shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div class="flex items-center gap-3">
-                            <a href="dashboard.html" class="w-10 h-10 shrink-0 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl flex items-center justify-center text-slate-600 transition" title="Kembali ke Dashboard">
-                                <i class="fas fa-arrow-left text-sm"></i>
+                    <div class="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+                        <div class="flex items-start sm:items-center gap-3">
+                            <a href="dashboard.html" class="w-9 h-9 sm:w-10 sm:h-10 shrink-0 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl flex items-center justify-center text-slate-600 transition" title="Kembali ke Dashboard">
+                                <i class="fas fa-arrow-left text-xs sm:text-sm"></i>
                             </a>
-                            <div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span id="materi-badge" class="px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-extrabold uppercase tracking-wider rounded-md border border-indigo-100">Month 1</span>
-                                    <span id="materi-subbadge" class="text-xs font-bold text-slate-400">Week 1 • Day 1</span>
-                                    <span id="materi-date-pill" class="hidden text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border"></span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <span id="materi-badge" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-extrabold uppercase tracking-wider rounded border border-indigo-100">Month 1</span>
+                                    <span id="materi-subbadge" class="text-[11px] font-bold text-slate-400">Week 1 • Day 1</span>
+                                    <span id="materi-date-pill" class="hidden text-[10px] font-extrabold px-2 py-0.5 rounded border"></span>
                                 </div>
-                                <h2 id="materi-title" class="text-base md:text-lg font-extrabold text-slate-800 mt-0.5">Modul Pembelajaran Harian</h2>
+                                <h2 id="materi-title" class="text-sm sm:text-base md:text-lg font-extrabold text-slate-800 mt-1 truncate">Modul Pembelajaran Harian</h2>
                             </div>
                         </div>
 
-                        <!-- Selector Cepat Pindah Sesi -->
-                        <div class="flex flex-wrap items-center gap-2">
-                            <select id="quick-month" class="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"></select>
-                            <select id="quick-week" class="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer">
+                        <!-- Selector Cepat Pindah Sesi (3 Kolom Rata di HP) -->
+                        <div class="grid grid-cols-3 sm:flex items-center gap-2 w-full md:w-auto pt-2.5 md:pt-0 border-t md:border-t-0 border-slate-100">
+                            <select id="quick-month" class="w-full sm:w-auto bg-slate-50 border border-slate-200 px-2.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer truncate"></select>
+                            <select id="quick-week" class="w-full sm:w-auto bg-slate-50 border border-slate-200 px-2.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer truncate">
                                 <option value="1">Week 1</option>
                                 <option value="2">Week 2</option>
                                 <option value="3">Week 3</option>
                                 <option value="4">Week 4</option>
                             </select>
-                            <select id="quick-day" class="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer">
+                            <select id="quick-day" class="w-full sm:w-auto bg-slate-50 border border-slate-200 px-2.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer truncate">
                                 <option value="1">Day 1</option>
                                 <option value="2">Day 2</option>
                                 <option value="3">Day 3</option>
@@ -78,41 +78,41 @@
                     </div>
 
                     <!-- Section Daily Vocabulary (Flashcards) -->
-                    <section id="vocab-section" class="hidden mb-6 bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                    <section id="vocab-section" class="hidden mb-5 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
+                        <div class="flex items-center justify-between gap-2 mb-3.5">
                             <div>
-                                <h3 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
+                                <h3 class="text-xs sm:text-base font-bold text-slate-800 flex items-center gap-2">
                                     <i class="fas fa-spell-check text-indigo-600"></i>
                                     Daily Vocabulary Flashcards
                                 </h3>
-                                <p class="text-xs text-slate-500">Hafalkan kosakata berikut sebelum atau sesudah sesi kelas berlangsung.</p>
+                                <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5">Geser kartu untuk menghafal kosakata sesi ini.</p>
                             </div>
-                            <span id="vocab-count-badge" class="self-start sm:self-auto text-[11px] font-bold bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg border border-indigo-100">0 Kata</span>
+                            <span id="vocab-count-badge" class="shrink-0 text-[10px] sm:text-[11px] font-bold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg border border-indigo-100">0 Kata</span>
                         </div>
 
                         <!-- Deretan Kartu Kosakata -->
-                        <div id="vocab-cards-container" class="flex overflow-x-auto gap-3 pb-4 pt-1 snap-x bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 custom-scrollbar">
+                        <div id="vocab-cards-container" class="flex overflow-x-auto gap-2.5 sm:gap-3 pb-3 pt-1 snap-x bg-slate-50/80 p-3 rounded-xl border border-slate-100 custom-scrollbar">
                             <!-- Diisi oleh js/materi.js -->
                         </div>
 
                         <!-- Area Tombol Submit / Status Verifikasi Hafalan -->
-                        <div id="vocab-action-area" class="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div id="vocab-action-area" class="mt-3.5 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2.5">
                             <!-- Diisi oleh js/materi.js -->
                         </div>
                     </section>
 
                     <!-- Grid Dokumen PDF (Modul Presentasi & Catatan Rangkuman) -->
-                    <div class="grid grid-cols-1 gap-6">
+                    <div class="grid grid-cols-1 gap-5">
                         
                         <!-- Modul Presentasi -->
-                        <section class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
-                                    <span class="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center"><i class="fas fa-file-pdf"></i></span>
-                                    Modul Presentasi Utama
+                        <section class="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
+                            <div class="flex items-center justify-between mb-3.5">
+                                <h3 class="text-xs sm:text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0"><i class="fas fa-file-pdf text-xs sm:text-sm"></i></span>
+                                    <span>Modul Presentasi Utama</span>
                                 </h3>
-                                <a id="presentation-external-link" href="#" target="_blank" class="hidden text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition">
-                                    <i class="fas fa-external-link-alt mr-1"></i> Buka Layar Penuh
+                                <a id="presentation-external-link" href="#" target="_blank" class="hidden shrink-0 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-100 transition">
+                                    <i class="fas fa-external-link-alt mr-1"></i> Layar Penuh
                                 </a>
                             </div>
                             <div id="presentation-viewer-box">
@@ -121,14 +121,14 @@
                         </section>
 
                         <!-- Catatan Rangkuman (Recap) -->
-                        <section class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
-                                    <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fas fa-clipboard-check"></i></span>
-                                    Catatan Rangkuman Kelas (Recap)
+                        <section class="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
+                            <div class="flex items-center justify-between mb-3.5">
+                                <h3 class="text-xs sm:text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><i class="fas fa-clipboard-check text-xs sm:text-sm"></i></span>
+                                    <span>Catatan Rangkuman (Recap)</span>
                                 </h3>
-                                <a id="recap-external-link" href="#" target="_blank" class="hidden text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 transition">
-                                    <i class="fas fa-external-link-alt mr-1"></i> Buka Layar Penuh
+                                <a id="recap-external-link" href="#" target="_blank" class="hidden shrink-0 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-100 transition">
+                                    <i class="fas fa-external-link-alt mr-1"></i> Layar Penuh
                                 </a>
                             </div>
                             <div id="recap-viewer-box">

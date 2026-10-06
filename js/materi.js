@@ -27,7 +27,7 @@ function parseMateriQueryParams() {
     let w = parseInt(params.get('week'));
     let d = parseInt(params.get('day'));
 
-    // Jika murid membuka materi.html tanpa parameter URL, langsung arahkan ke pertemuan tempat ia berada saat ini!
+    // Jika murid membuka materi.html tanpa parameter URL, langsung arahkan ke pertemuan tempat ia berada saat ini
     if (!m && window.HES.userRole === 'student' && window.HES.currentUser) {
         const timeline = getStudentCurriculumTimeline(window.HES.currentUser.email);
         if (timeline && timeline.currentPointer) {
@@ -61,41 +61,33 @@ function setupQuickSelectors() {
         timeline = getStudentCurriculumTimeline(user.email);
     }
 
-    // Jika murid mencoba mengakses bulan yang terkunci lewat URL, kembalikan ke m1
     const requestedMonthNum = parseInt(activeMateriState.monthId.replace('m', ''));
     if (role === 'student' && requestedMonthNum > maxMonthNum) {
         activeMateriState.monthId = 'm1';
         showToast('Modul bulan tersebut masih terkunci.', 'info');
     }
 
-    // Populate dropdown Month lengkap dengan rentang tanggal & penanda posisi
+    // Label singkat dan rapi agar muat di layar HP
     qMonth.innerHTML = window.HES.months.map(m => {
         const mNum = parseInt(m.id.replace('m', ''));
         const locked = role === 'student' && mNum > maxMonthNum;
         const mInfo = (timeline && timeline.months[m.id]) ? timeline.months[m.id] : null;
-        const rangeStr = (mInfo && mInfo.rangeText) ? ` (${mInfo.rangeText})` : '';
-        const flagStr = mInfo && mInfo.status === 'current' ? ' 📍' : (mInfo && mInfo.status === 'next' ? ' ⏭️' : '');
-        return `<option value="${m.id}" ${locked ? 'disabled' : ''}>${m.title}${rangeStr}${flagStr} ${locked ? '(Terkunci)' : ''}</option>`;
+        const flagStr = mInfo && mInfo.status === 'current' ? ' • Aktif' : '';
+        return `<option value="${m.id}" ${locked ? 'disabled' : ''}>${m.title}${flagStr}${locked ? ' 🔒' : ''}</option>`;
     }).join('');
 
-    // Populate dropdown Week lengkap dengan rentang tanggal
     qWeek.innerHTML = [1, 2, 3, 4].map(w => {
         const wKey = `${activeMateriState.monthId}-w${w}`;
         const wInfo = (timeline && timeline.weeks[wKey]) ? timeline.weeks[wKey] : null;
         const rangeStr = (wInfo && wInfo.rangeText) ? ` (${wInfo.rangeText})` : '';
-        const flagStr = wInfo && wInfo.status === 'current' ? ' 📍' : (wInfo && wInfo.status === 'next' ? ' ⏭️' : '');
-        return `<option value="${w}">Week ${w}${rangeStr}${flagStr}</option>`;
+        return `<option value="${w}">W${w}${rangeStr}</option>`;
     }).join('');
 
-    // Populate dropdown Day lengkap dengan hari & tanggal spesifik
     qDay.innerHTML = [1, 2, 3].map(d => {
         const dKey = `${activeMateriState.monthId}-w${activeMateriState.week}-d${d}`;
         const dInfo = (timeline && timeline.days[dKey]) ? timeline.days[dKey] : null;
-        const dateStr = (dInfo && dInfo.shortDate) ? ` — ${dInfo.shortDate}` : '';
-        const flagStr = dInfo && dInfo.status === 'current'
-            ? ' (Sedang Di Sini 📍)'
-            : (dInfo && dInfo.status === 'next' ? ' (Selanjutnya ⏭️)' : '');
-        return `<option value="${d}">Day ${d}${dateStr}${flagStr}</option>`;
+        const dateStr = (dInfo && dInfo.shortDate) ? ` (${dInfo.shortDate})` : '';
+        return `<option value="${d}">D${d}${dateStr}</option>`;
     }).join('');
 
     qMonth.value = activeMateriState.monthId;
@@ -127,30 +119,30 @@ function renderMateriContent() {
 
     document.getElementById('materi-badge').innerText = monthObj.title;
     document.getElementById('materi-subbadge').innerText = `Week ${week}${wInfo && wInfo.rangeText ? ` (${wInfo.rangeText})` : ''} • Day ${day}`;
-    document.getElementById('materi-title').innerText = `${monthObj.title} — Pertemuan Minggu ${week} Hari ${day}`;
+    document.getElementById('materi-title').innerText = `${monthObj.title} — Minggu ${week} Hari ${day}`;
 
     // Pill Tanggal & Status pada Header Materi
     const datePill = document.getElementById('materi-date-pill');
-    if (datePill && dInfo && dInfo.fullDate) {
+    if (datePill && dInfo && dInfo.shortDate) {
         datePill.classList.remove('hidden');
         if (dInfo.status === 'current') {
-            datePill.className = "text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-300";
-            datePill.innerHTML = `<i class="fas fa-location-dot mr-1"></i> ${dInfo.fullDate} • Pertemuan Saat Ini`;
+            datePill.className = "text-[10px] font-extrabold px-2 py-0.5 rounded border bg-emerald-500 text-white border-emerald-600";
+            datePill.innerHTML = `<i class="fas fa-location-dot mr-1"></i>${dInfo.shortDate} • Di Sini`;
         } else if (dInfo.status === 'next') {
-            datePill.className = "text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-300";
-            datePill.innerHTML = `<i class="fas fa-forward mr-1"></i> ${dInfo.fullDate} • Pertemuan Selanjutnya`;
+            datePill.className = "text-[10px] font-extrabold px-2 py-0.5 rounded border bg-amber-500 text-white border-amber-600";
+            datePill.innerHTML = `<i class="fas fa-forward mr-1"></i>${dInfo.shortDate} • Selanjutnya`;
         } else if (dInfo.status === 'completed') {
-            datePill.className = "text-[11px] font-bold px-2.5 py-0.5 rounded-md border bg-slate-100 text-slate-600 border-slate-200";
-            datePill.innerHTML = `<i class="fas fa-check-circle text-emerald-500 mr-1"></i> ${dInfo.fullDate} • Selesai`;
+            datePill.className = "text-[10px] font-bold px-2 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-200";
+            datePill.innerHTML = `<i class="fas fa-check text-emerald-500 mr-1"></i>${dInfo.shortDate}`;
         } else {
-            datePill.className = "text-[11px] font-bold px-2.5 py-0.5 rounded-md border bg-indigo-50 text-indigo-600 border-indigo-200";
-            datePill.innerHTML = `<i class="far fa-calendar mr-1"></i> ${dInfo.fullDate}`;
+            datePill.className = "text-[10px] font-bold px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100";
+            datePill.innerHTML = `<i class="far fa-calendar mr-1"></i>${dInfo.shortDate}`;
         }
     } else if (datePill) {
         datePill.classList.add('hidden');
     }
 
-    // Render Banner Pelacak Pertemuan (Live Session Tracker)
+    // Render Bilah Pelacak Kompak (Compact Dual-Pill Tracker)
     const trackerBanner = document.getElementById('materi-session-tracker-banner');
     if (trackerBanner && timeline && timeline.currentPointer) {
         const cur = timeline.currentPointer;
@@ -160,63 +152,47 @@ function renderMateriContent() {
 
         trackerBanner.classList.remove('hidden');
         trackerBanner.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                <!-- Kartu Posisi Saat Ini (Hijau Emerald) -->
-                <div class="p-4 rounded-2xl border-2 transition-all ${isViewingCurrent ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-600 shadow-md shadow-emerald-500/15' : 'bg-emerald-50/90 border-emerald-200 text-slate-800'} flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-3.5">
-                        <div class="w-11 h-11 rounded-xl ${isViewingCurrent ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'} flex items-center justify-center text-lg shrink-0 shadow-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <!-- Pill 1: Pertemuan Saat Ini (Hijau Emerald) -->
+                <a href="materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isViewingCurrent ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-emerald-50/90 hover:bg-emerald-100/70 text-emerald-950 border-emerald-200'}">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="w-7 h-7 rounded-lg ${isViewingCurrent ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'} flex items-center justify-center text-xs shrink-0">
                             <i class="fas fa-location-dot"></i>
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${isViewingCurrent ? 'bg-white/20 text-white' : 'bg-emerald-200/80 text-emerald-900'}">
-                                    ${cur.isTodayClass ? '🔥 Kelas Hari Ini' : '📍 Kamu Sedang Di Pertemuan Ini'}
-                                </span>
-                            </div>
-                            <p class="font-extrabold text-xs sm:text-sm mt-1 ${isViewingCurrent ? 'text-white' : 'text-emerald-950'}">
-                                ${cur.monthTitle} • Week ${cur.week} • Day ${cur.day}
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider ${isViewingCurrent ? 'text-emerald-100' : 'text-emerald-700'} leading-none">
+                                ${cur.isTodayClass ? 'Kelas Hari Ini' : 'Posisi Saat Ini'}
                             </p>
-                            <p class="text-[11px] font-semibold ${isViewingCurrent ? 'text-emerald-100' : 'text-emerald-700'}">
-                                <i class="far fa-calendar-check mr-1"></i> ${cur.displayDate}
+                            <p class="text-xs font-extrabold truncate mt-0.5">
+                                ${cur.monthTitle} • W${cur.week} D${cur.day} <span class="font-semibold opacity-80">(${cur.shortDate})</span>
                             </p>
                         </div>
                     </div>
-                    ${!isViewingCurrent ? `
-                        <a href="materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-xs transition">
-                            Buka Sesi Ini
-                        </a>
-                    ` : `
-                        <span class="shrink-0 text-[10px] font-extrabold uppercase bg-white text-emerald-700 px-2.5 py-1 rounded-lg shadow-2xs">Sedang Dibuka</span>
-                    `}
-                </div>
+                    <span class="shrink-0 text-[10px] font-extrabold px-2 py-1 rounded-lg ml-2 ${isViewingCurrent ? 'bg-white text-emerald-700' : 'bg-emerald-600 text-white'}">
+                        ${isViewingCurrent ? 'Aktif' : 'Buka'}
+                    </span>
+                </a>
 
-                <!-- Kartu Pertemuan Selanjutnya (Kuning Amber) -->
+                <!-- Pill 2: Pertemuan Berikutnya (Kuning Amber) -->
                 ${nxt ? `
-                <div class="p-4 rounded-2xl border-2 transition-all ${isViewingNext ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-amber-500 shadow-md shadow-amber-500/15' : 'bg-amber-50/90 border-amber-200 text-slate-800'} flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-3.5">
-                        <div class="w-11 h-11 rounded-xl ${isViewingNext ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'} flex items-center justify-center text-lg shrink-0 shadow-xs">
+                <a href="materi.html?month=${nxt.monthId}&week=${nxt.week}&day=${nxt.day}" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isViewingNext ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-amber-50/90 hover:bg-amber-100/70 text-amber-950 border-amber-200'}">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="w-7 h-7 rounded-lg ${isViewingNext ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'} flex items-center justify-center text-xs shrink-0">
                             <i class="fas fa-forward"></i>
-                        </div>
-                        <div>
-                            <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${isViewingNext ? 'bg-white/20 text-white' : 'bg-amber-200/80 text-amber-900'}">
-                                ⏭️️ Pengingat Pertemuan Berikutnya
-                            </span>
-                            <p class="font-extrabold text-xs sm:text-sm mt-1 ${isViewingNext ? 'text-white' : 'text-amber-950'}">
-                                ${nxt.monthTitle} • Week ${nxt.week} • Day ${nxt.day}
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider ${isViewingNext ? 'text-amber-100' : 'text-amber-700'} leading-none">
+                                Pertemuan Berikutnya
                             </p>
-                            <p class="text-[11px] font-semibold ${isViewingNext ? 'text-amber-100' : 'text-amber-700'}">
-                                <i class="far fa-clock mr-1"></i> ${nxt.displayDate}
+                            <p class="text-xs font-extrabold truncate mt-0.5">
+                                ${nxt.monthTitle} • W${nxt.week} D${nxt.day} <span class="font-semibold opacity-80">(${nxt.shortDate})</span>
                             </p>
                         </div>
                     </div>
-                    ${!isViewingNext ? `
-                        <a href="materi.html?month=${nxt.monthId}&week=${nxt.week}&day=${nxt.day}" class="shrink-0 bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-xs transition">
-                            Intip Materi
-                        </a>
-                    ` : `
-                        <span class="shrink-0 text-[10px] font-extrabold uppercase bg-white text-amber-700 px-2.5 py-1 rounded-lg shadow-2xs">Sedang Dibuka</span>
-                    `}
-                </div>
+                    <span class="shrink-0 text-[10px] font-extrabold px-2 py-1 rounded-lg ml-2 ${isViewingNext ? 'bg-white text-amber-700' : 'bg-amber-500 text-white'}">
+                        ${isViewingNext ? 'Dibuka' : 'Intip'}
+                    </span>
+                </a>
                 ` : ''}
             </div>
         `;
@@ -236,17 +212,17 @@ function renderMateriContent() {
         const lines = vocabData.split('\n').filter(l => l.includes('='));
         if (lines.length > 0) {
             vocabSection.classList.remove('hidden');
-            vocabCountBadge.innerText = `${lines.length} Kosakata`;
+            vocabCountBadge.innerText = `${lines.length} Kata`;
 
             vocabCardsContainer.innerHTML = lines.map((w, index) => {
                 const parts = w.split('=');
                 const eng = parts[0].trim();
                 const ind = parts.slice(1).join('=').trim();
                 return `
-                    <div class="snap-center shrink-0 w-44 sm:w-48 bg-white p-4 rounded-xl border border-slate-200/90 text-center shadow-2xs hover:border-indigo-300 transition flex flex-col justify-between">
+                    <div class="snap-center shrink-0 w-36 sm:w-44 bg-white p-3.5 rounded-xl border border-slate-200/90 text-center shadow-2xs hover:border-indigo-300 transition flex flex-col justify-between">
                         <span class="text-[10px] font-bold text-slate-300">#${index + 1}</span>
-                        <p class="font-extrabold text-slate-800 text-sm sm:text-base my-2">${eng}</p>
-                        <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 py-1 px-2.5 rounded-lg inline-block">${ind}</span>
+                        <p class="font-extrabold text-slate-800 text-xs sm:text-sm my-1.5 break-words">${eng}</p>
+                        <span class="text-[10px] sm:text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 py-1 px-2 rounded-lg inline-block truncate">${ind}</span>
                     </div>
                 `;
             }).join('');
@@ -254,15 +230,15 @@ function renderMateriContent() {
             if (role === 'student') {
                 if (!vocabStatus.status || vocabStatus.status === 'none') {
                     vocabActionArea.innerHTML = `
-                        <p class="text-xs text-slate-500 font-medium">Sudah menghafal seluruh kosakata di atas?</p>
-                        <button onclick="submitVocab(this, '${monthId}', ${week}, ${day})" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-xs transition">
+                        <p class="text-xs text-slate-500 font-medium text-center sm:text-left">Sudah menghafal seluruh kosakata di atas?</p>
+                        <button onclick="submitVocab(this, '${monthId}', ${week}, ${day})" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition">
                             <i class="fas fa-check mr-1.5"></i> Tandai Selesai Dihafal
                         </button>
                     `;
                 } else if (vocabStatus.status === 'submitted') {
                     vocabActionArea.innerHTML = `
-                        <p class="text-xs text-slate-500 font-medium">Setoran hafalan Anda telah tercatat di sistem.</p>
-                        <div class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl inline-flex items-center gap-2">
+                        <p class="text-xs text-slate-500 font-medium">Setoran hafalan Anda telah tercatat.</p>
+                        <div class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5">
                             <i class="fas fa-clock"></i> Menunggu Verifikasi Admin
                         </div>
                     `;
@@ -271,13 +247,13 @@ function renderMateriContent() {
                         <div class="text-xs text-emerald-700 font-semibold">
                             <i class="fas fa-comment-dots mr-1"></i> Catatan Admin: <strong>"${vocabStatus.feedback || 'Good Job!'}"</strong>
                         </div>
-                        <div class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl inline-flex items-center gap-1.5">
+                        <div class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5">
                             <i class="fas fa-check-circle"></i> Hafalan Terverifikasi
                         </div>
                     `;
                 }
             } else {
-                vocabActionArea.innerHTML = `<p class="text-xs text-slate-400 italic">Anda melihat daftar kosakata ini dalam mode Administrator.</p>`;
+                vocabActionArea.innerHTML = `<p class="text-xs text-slate-400 italic">Mode Pratinjau Administrator.</p>`;
             }
         } else {
             vocabSection.classList.add('hidden');
@@ -298,13 +274,13 @@ function renderMateriContent() {
     if (linkDrive) {
         presExt.href = rawLink;
         presExt.classList.remove('hidden');
-        presBox.innerHTML = `<iframe src="${linkDrive}" class="w-full h-[55vh] md:h-[72vh] rounded-xl border border-slate-200 bg-slate-50" allow="autoplay"></iframe>`;
+        presBox.innerHTML = `<iframe src="${linkDrive}" class="w-full h-[50vh] md:h-[72vh] rounded-xl border border-slate-200 bg-slate-50" allow="autoplay"></iframe>`;
     } else {
         presExt.classList.add('hidden');
         presBox.innerHTML = `
-            <div class="py-14 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
-                <i class="far fa-file-pdf text-slate-300 text-3xl mb-2"></i>
-                <p class="text-slate-400 text-xs sm:text-sm font-medium">Modul presentasi belum diunggah untuk sesi ini.</p>
+            <div class="py-12 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
+                <i class="far fa-file-pdf text-slate-300 text-2xl mb-2"></i>
+                <p class="text-slate-400 text-xs font-medium">Modul presentasi belum diunggah untuk sesi ini.</p>
             </div>
         `;
     }
@@ -314,13 +290,13 @@ function renderMateriContent() {
     if (recapDrive) {
         recapExt.href = rawRecap;
         recapExt.classList.remove('hidden');
-        recapBox.innerHTML = `<iframe src="${recapDrive}" class="w-full h-[55vh] md:h-[72vh] rounded-xl border border-slate-200 bg-slate-50" allow="autoplay"></iframe>`;
+        recapBox.innerHTML = `<iframe src="${recapDrive}" class="w-full h-[50vh] md:h-[72vh] rounded-xl border border-slate-200 bg-slate-50" allow="autoplay"></iframe>`;
     } else {
         recapExt.classList.add('hidden');
         recapBox.innerHTML = `
-            <div class="py-14 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
-                <i class="fas fa-clipboard-list text-slate-300 text-3xl mb-2"></i>
-                <p class="text-slate-400 text-xs sm:text-sm font-medium">Catatan rangkuman belum tersedia untuk sesi ini.</p>
+            <div class="py-12 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
+                <i class="fas fa-clipboard-list text-slate-300 text-2xl mb-2"></i>
+                <p class="text-slate-400 text-xs font-medium">Catatan rangkuman belum tersedia untuk sesi ini.</p>
             </div>
         `;
     }
