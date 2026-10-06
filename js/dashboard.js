@@ -44,12 +44,20 @@ function renderDashboardContent() {
         studentView.classList.remove('hidden');
 
         const firstName = user.name ? user.name.split(' ')[0] : 'Member';
+        const timeline = getStudentCurriculumTimeline(user.email);
+        const cur = timeline && timeline.currentPointer ? timeline.currentPointer : null;
+        const targetUrl = cur
+            ? `materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}`
+            : `materi.html?month=m1&week=1&day=1`;
+
         heroBadge.innerHTML = `<i class="fas fa-crown mr-1 text-amber-300"></i> Exclusive Member`;
         heroTitle.innerText = `Welcome back, ${firstName}!`;
-        heroSubtitle.innerText = `Lanjutkan perjalanan belajar bahasa Inggrismu hari ini.`;
+        heroSubtitle.innerText = cur
+            ? `Posisi belajarmu saat ini berada di ${cur.monthTitle} • Week ${cur.week} • Day ${cur.day} (${cur.shortDate}).`
+            : `Lanjutkan perjalanan belajar bahasa Inggrismu hari ini.`;
         heroAction.innerHTML = `
-            <a href="materi.html?month=m1&week=1&day=1" class="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 px-5 py-3 rounded-2xl text-xs font-extrabold shadow-sm transition">
-                <i class="fas fa-play text-[10px]"></i> Mulai Belajar
+            <a href="${targetUrl}" class="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 px-5 py-3 rounded-2xl text-xs font-extrabold shadow-sm transition">
+                <i class="fas fa-location-dot text-emerald-600"></i> Lanjut ke Pertemuan Saat Ini
             </a>
         `;
 
@@ -66,6 +74,7 @@ function renderStudentDashboard(email) {
     if (maxMonthBadge) maxMonthBadge.innerText = `Month ${maxMonth}`;
 
     const nextSesh = getStudentNextSessionInfo(email);
+    const timeline = getStudentCurriculumTimeline(email);
 
     if (nextSesh.expired) {
         nextBox.innerHTML = `
@@ -88,21 +97,55 @@ function renderStudentDashboard(email) {
         `;
     } else {
         const defaultDays = (profile.days && profile.days.length > 0) ? profile.days.join(', ') : '-';
+        const cur = timeline ? timeline.currentPointer : null;
+        const nxt = timeline ? timeline.nextPointer : null;
+
         nextBox.innerHTML = `
-            <div class="bg-gradient-to-br from-slate-50 to-indigo-50/40 p-5 rounded-2xl border border-indigo-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center gap-4">
-                    <div class="w-14 h-14 bg-indigo-600 rounded-2xl shadow-md shadow-indigo-200 flex items-center justify-center text-white text-2xl shrink-0">
-                        <i class="far fa-calendar-check"></i>
-                    </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <!-- Kartu 1: Pertemuan Saat Ini (Hijau Emerald) -->
+                ${cur ? `
+                <div class="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-white p-4 rounded-2xl border-2 border-emerald-200 flex flex-col justify-between">
                     <div>
-                        <span class="inline-block text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 bg-indigo-100/80 px-2 py-0.5 rounded mb-1">Sesi Berikutnya</span>
-                        <p class="font-extrabold text-base sm:text-lg text-slate-800 leading-tight">${nextSesh.displayDate}</p>
-                        <p class="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
-                            <i class="far fa-clock text-indigo-500 mr-1"></i> Pukul ${nextSesh.time} WIB
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span class="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-white bg-emerald-600 px-2.5 py-0.5 rounded-full">
+                                <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                                ${cur.isTodayClass ? 'Kelas Hari Ini' : 'Sedang Di Sini'}
+                            </span>
+                            <span class="text-[11px] font-extrabold text-emerald-700">${cur.monthTitle} • W${cur.week} • D${cur.day}</span>
+                        </div>
+                        <p class="font-extrabold text-sm sm:text-base text-slate-800 leading-snug">${cur.displayDate}</p>
+                        <p class="text-xs font-semibold text-slate-500 mt-1">
+                            <i class="far fa-clock text-emerald-600 mr-1"></i> Pukul ${nextSesh.time} WIB
                         </p>
                     </div>
+                    <a href="materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}" class="mt-3.5 inline-flex items-center justify-center gap-1.5 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-xl text-xs font-extrabold transition shadow-2xs">
+                        <i class="fas fa-book-open"></i> Buka Materi Pertemuan Ini
+                    </a>
                 </div>
+                ` : ''}
+
+                <!-- Kartu 2: Pengingat Pertemuan Berikutnya (Kuning Amber) -->
+                ${nxt ? `
+                <div class="bg-gradient-to-br from-amber-50 via-orange-50/50 to-white p-4 rounded-2xl border-2 border-amber-200 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span class="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-white bg-amber-500 px-2.5 py-0.5 rounded-full">
+                                <i class="fas fa-bell text-[9px]"></i> Pertemuan Berikutnya
+                            </span>
+                            <span class="text-[11px] font-extrabold text-amber-700">${nxt.monthTitle} • W${nxt.week} • D${nxt.day}</span>
+                        </div>
+                        <p class="font-extrabold text-sm sm:text-base text-slate-800 leading-snug">${nxt.displayDate}</p>
+                        <p class="text-xs font-semibold text-slate-500 mt-1">
+                            <i class="far fa-clock text-amber-500 mr-1"></i> Pukul ${nextSesh.time} WIB
+                        </p>
+                    </div>
+                    <a href="materi.html?month=${nxt.monthId}&week=${nxt.week}&day=${nxt.day}" class="mt-3.5 inline-flex items-center justify-center gap-1.5 w-full bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-xl text-xs font-extrabold transition shadow-2xs">
+                        <i class="fas fa-eye"></i> Pratinjau Materi Selanjutnya
+                    </a>
+                </div>
+                ` : ''}
             </div>
+
             <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                 <span><i class="fas fa-repeat text-slate-400 mr-1"></i> Hari Rutin: <strong class="text-slate-700">${defaultDays}</strong></span>
                 <span><i class="fas fa-hourglass-half text-slate-400 mr-1"></i> Aktif s/d: <strong class="text-emerald-600">${nextSesh.validDateStr}</strong></span>

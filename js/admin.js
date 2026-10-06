@@ -199,11 +199,13 @@ window.loadStudentScheduleForm = function() {
     const p = window.HES.materials[`profile-${email}`] || {};
 
     const maxMonthEl = document.getElementById('admin-sched-max-month');
+    const startDateEl = document.getElementById('admin-sched-start-date');
     const dateEl = document.getElementById('admin-sched-date');
     const startEl = document.getElementById('admin-sched-start');
     const endEl = document.getElementById('admin-sched-end');
 
     if (maxMonthEl) maxMonthEl.value = p.maxMonth || '1';
+    if (startDateEl) startDateEl.value = (p.startDate && p.startDate !== 'Belum diatur') ? p.startDate : '';
     if (dateEl) dateEl.value = (p.validUntil && p.validUntil !== 'Belum diatur') ? p.validUntil : '';
 
     if (p.time && p.time.includes('-')) {
@@ -230,8 +232,9 @@ function renderAdminUsersTab() {
         const schedSummary = (p.days && p.days.length > 0)
             ? `${p.days.join(', ')} (${p.time || '-'})`
             : '<span class="text-slate-400 italic">Belum diatur</span>';
+        const startSummary = (p.startDate && p.startDate !== 'Belum diatur') ? `Mulai: ${p.startDate} • ` : '';
         const validSummary = (p.validUntil && p.validUntil !== 'Belum diatur')
-            ? `Aktif s/d: ${p.validUntil} • Max M${p.maxMonth || 1}`
+            ? `${startSummary}Aktif s/d: ${p.validUntil} • Max M${p.maxMonth || 1}`
             : 'Masa aktif belum diatur';
 
         return `
@@ -322,6 +325,9 @@ window.saveStudentSchedule = async function(e) {
     if (!email) return;
 
     let profile = window.HES.materials[`profile-${email}`] || {};
+    const startDateVal = document.getElementById('admin-sched-start-date').value;
+    if (startDateVal) profile.startDate = startDateVal;
+
     profile.validUntil = document.getElementById('admin-sched-date').value || profile.validUntil || 'Belum diatur';
 
     const sT = document.getElementById('admin-sched-start').value;
@@ -344,7 +350,7 @@ window.saveStudentSchedule = async function(e) {
     btn.disabled = false;
 
     if (!error) {
-        showToast('Konfigurasi jadwal murid berhasil disimpan!', 'success');
+        showToast('Konfigurasi jadwal & tanggal mulai berhasil disimpan!', 'success');
         renderAdminUsersTab();
     } else {
         showToast('Gagal menyimpan jadwal: ' + error.message, 'error');

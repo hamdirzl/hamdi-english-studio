@@ -51,19 +51,59 @@ function renderAppSidebar() {
     const activeWeekParam = urlParams.get('week');
     const activeDayParam = urlParams.get('day');
 
-    // Cek batas maksimal bulan untuk murid
+    // Cek batas maksimal bulan & timeline kurikulum untuk murid
     let maxMonthNum = 1;
+    let timeline = null;
     if (role === 'student') {
         let p = window.HES.materials[`profile-${user.email}`];
         if (p && p.maxMonth) maxMonthNum = parseInt(p.maxMonth);
+        timeline = getStudentCurriculumTimeline(user.email);
     }
 
-    // Susun daftar modul bulan
+    // Widget Mini Live Tracker di Sidebar (Khusus Murid)
+    let trackerSummaryHTML = '';
+    if (role === 'student' && timeline && timeline.currentPointer) {
+        const cur = timeline.currentPointer;
+        const nxt = timeline.nextPointer;
+        trackerSummaryHTML = `
+            <div class="mx-4 mt-3 p-3 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50/70 to-amber-50/50 border border-emerald-200/80 shadow-2xs">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="inline-flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-emerald-700 bg-white/90 px-2 py-0.5 rounded-full border border-emerald-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        ${cur.isTodayClass ? 'Kelas Hari Ini' : 'Posisi Belajar'}
+                    </span>
+                    <span class="text-[10px] font-bold text-emerald-700">${cur.shortDate}</span>
+                </div>
+                <a href="materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}" class="block group">
+                    <p class="text-xs font-extrabold text-slate-800 group-hover:text-emerald-700 transition">
+                        ${cur.monthTitle} • Week ${cur.week} • Day ${cur.day}
+                    </p>
+                </a>
+                ${nxt ? `
+                <div class="mt-2 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[10px]">
+                    <span class="font-bold text-amber-700 flex items-center gap-1">
+                        <i class="fas fa-forward text-[9px] text-amber-500"></i> Selanjutnya:
+                    </span>
+                    <a href="materi.html?month=${nxt.monthId}&week=${nxt.week}&day=${nxt.day}" class="font-extrabold text-amber-800 hover:underline">
+                        W${nxt.week} D${nxt.day} (${nxt.shortDate})
+                    </a>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // Susun daftar modul bulan beserta tanggal dan warna pelacak
     let modulesHTML = '';
     window.HES.months.forEach((month) => {
         const currentMonthNum = parseInt(month.id.replace('m', ''));
         const isLocked = role === 'student' && currentMonthNum > maxMonthNum;
-        const isMonthOpen = activeMonthParam === month.id;
+
+        const mInfo = (timeline && timeline.months[month.id]) ? timeline.months[month.id] : null;
+        const mStatus = mInfo ? mInfo.status : 'upcoming';
+        const isMonthOpen = activeMonthParam
+            ? (activeMonthParam === month.id)
+            : (mStatus === 'current' || mStatus === 'next');
 
         if (isLocked) {
             modulesHTML += `
@@ -76,47 +116,143 @@ function renderAppSidebar() {
                 </div>
             `;
         } else {
+            // Styling Month berdasarkan status (Sedang Di Sini vs Selanjutnya)
+            let monthBoxClass = 'hover:bg-slate-50 text-slate-700 border border-transparent';
+            let monthIconClass = 'far fa-folder-open text-indigo-500';
+            let monthPillHTML = '';
+
+            if (mStatus === 'current') {
+                monthBoxClass = 'bg-emerald-50/70 hover:bg-emerald-50 text-emerald-950 border border-emerald-200/80 shadow-2xs';
+                monthIconClass = 'fas fa-folder-open text-emerald-600';
+                monthPillHTML = `<span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-500 text-white shrink-0">Aktif</span>`;
+            } else if (mStatus === 'next') {
+                monthBoxClass = 'bg-amber-50/70 hover:bg-amber-50 text-amber-950 border border-amber-200/80';
+                monthIconClass = 'fas fa-folder text-amber-500';
+                monthPillHTML = `<span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300 shrink-0">Berikutnya</span>`;
+            } else if (isMonthOpen) {
+                monthBoxClass = 'bg-slate-50/90 text-indigo-600 border border-slate-200/70';
+            }
+
             let weeksHTML = '';
             month.weeks.forEach(week => {
-                const isWeekOpen = isMonthOpen && String(activeWeekParam) === String(week);
+                const wKey = `${month.id}-w${week}`;
+                const wInfo = (timeline && timeline.weeks[wKey]) ? timeline.weeks[wKey] : null;
+                const wStatus = wInfo ? wInfo.status : 'upcoming';
+
+                const isWeekOpen = (activeMonthParam === month.id && String(activeWeekParam) === String(week))
+                    || (!activeWeekParam && (wStatus === 'current' || wStatus === 'next'));
+
+                let weekBtnClass = 'text-slate-600 hover:text-indigo-600 hover:bg-slate-50 border border-transparent';
+                let weekBadgeHTML = '';
+
+                if (wStatus === 'current') {
+                    weekBtnClass = 'bg-emerald-50/90 text-emerald-900 border border-emerald-200 font-extrabold';
+                    weekBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-300">Minggu Ini</span>`;
+                } else if (wStatus === 'next') {
+                    weekBtnClass = 'bg-amber-50/80 text-amber-900 border border-amber-200 font-extrabold';
+                    weekBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300">Selanjutnya</span>`;
+                }
+
                 let daysHTML = [1, 2, 3].map(day => {
-                    const isDayActive = currentPath === 'materi.html' && isWeekOpen && String(activeDayParam) === String(day);
+                    const dKey = `${month.id}-w${week}-d${day}`;
+                    const dInfo = (timeline && timeline.days[dKey]) ? timeline.days[dKey] : null;
+                    const dStatus = dInfo ? dInfo.status : 'upcoming';
+                    const isDayActive = currentPath === 'materi.html'
+                        && activeMonthParam === month.id
+                        && String(activeWeekParam) === String(week)
+                        && String(activeDayParam) === String(day);
+
+                    let dayItemClass = 'text-slate-600 hover:text-indigo-600 hover:bg-slate-50 border border-transparent';
+                    let dotHtml = `<span class="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2 shrink-0"></span>`;
+                    let statusTagHtml = '';
+                    let dateTextClass = 'text-slate-400';
+
+                    if (dStatus === 'current') {
+                        // Warna HIJAU EMERALD untuk pertemuan tempat kita berada sekarang
+                        dayItemClass = isDayActive
+                            ? 'bg-emerald-600 text-white border border-emerald-700 shadow-sm shadow-emerald-200'
+                            : 'bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100/80';
+                        dotHtml = `<span class="w-2 h-2 rounded-full ${isDayActive ? 'bg-white' : 'bg-emerald-500'} animate-pulse mr-2 shrink-0"></span>`;
+                        statusTagHtml = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${isDayActive ? 'bg-white/20 text-white' : 'bg-emerald-500 text-white'}">Sedang Di Sini</span>`;
+                        dateTextClass = isDayActive ? 'text-emerald-100' : 'text-emerald-700';
+                    } else if (dStatus === 'next') {
+                        // Warna KUNING AMBER untuk pertemuan selanjutnya
+                        dayItemClass = isDayActive
+                            ? 'bg-amber-500 text-white border border-amber-600 shadow-sm shadow-amber-200'
+                            : 'bg-amber-50/90 text-amber-900 border border-amber-300 hover:bg-amber-100/80';
+                        dotHtml = `<span class="w-2 h-2 rounded-full ${isDayActive ? 'bg-white' : 'bg-amber-500'} mr-2 shrink-0"></span>`;
+                        statusTagHtml = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${isDayActive ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}">Selanjutnya</span>`;
+                        dateTextClass = isDayActive ? 'text-amber-100' : 'text-amber-700';
+                    } else if (dStatus === 'completed') {
+                        // Selesai
+                        dayItemClass = isDayActive
+                            ? 'bg-indigo-600 text-white border border-indigo-700 shadow-xs'
+                            : 'bg-slate-50/70 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200/60';
+                        dotHtml = `<i class="fas fa-check-circle ${isDayActive ? 'text-white' : 'text-emerald-500'} text-[10px] mr-2 shrink-0"></i>`;
+                        dateTextClass = isDayActive ? 'text-indigo-100' : 'text-slate-400';
+                    } else if (isDayActive) {
+                        dayItemClass = 'bg-indigo-600 text-white border border-indigo-700 shadow-xs';
+                        dotHtml = `<span class="w-1.5 h-1.5 rounded-full bg-white mr-2 shrink-0"></span>`;
+                        dateTextClass = 'text-indigo-100';
+                    }
+
                     return `
-                        <a href="materi.html?month=${month.id}&week=${week}&day=${day}" class="px-3 py-2 text-xs font-semibold rounded-lg flex items-center transition-colors ${isDayActive ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-50'}">
-                            <span class="w-1.5 h-1.5 rounded-full ${isDayActive ? 'bg-indigo-600' : 'bg-slate-300'} mr-2.5"></span>
-                            Day ${day}
+                        <a href="materi.html?month=${month.id}&week=${week}&day=${day}" class="px-2.5 py-2 text-xs font-bold rounded-xl flex items-center justify-between transition-all ${dayItemClass}">
+                            <div class="flex items-center min-w-0">
+                                ${dotHtml}
+                                <div class="truncate">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>Day ${day}</span>
+                                        ${statusTagHtml}
+                                    </div>
+                                    ${dInfo && dInfo.shortDate ? `<p class="text-[10px] font-semibold ${dateTextClass} leading-tight mt-0.5">${dInfo.shortDate}</p>` : ''}
+                                </div>
+                            </div>
+                            <i class="fas fa-chevron-right text-[9px] opacity-50 ml-1 shrink-0"></i>
                         </a>
                     `;
                 }).join('');
 
                 weeksHTML += `
-                    <div>
-                        <button type="button" onclick="toggleSidebarSubmenu('w-${month.id}-${week}', this)" class="w-full px-3 py-2 text-xs font-bold text-slate-600 hover:text-indigo-600 flex justify-between items-center rounded-lg hover:bg-slate-50 transition">
-                            <span>Week ${week}</span>
+                    <div class="space-y-1">
+                        <button type="button" onclick="toggleSidebarSubmenu('w-${month.id}-${week}', this)" class="w-full px-2.5 py-2 text-xs font-bold flex justify-between items-center rounded-xl transition ${weekBtnClass}">
+                            <div class="text-left">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Week ${week}</span>
+                                    ${weekBadgeHTML}
+                                </div>
+                                ${wInfo && wInfo.rangeText ? `<p class="text-[10px] font-semibold text-slate-400 mt-0.5"><i class="far fa-calendar-alt mr-1"></i>${wInfo.rangeText}</p>` : ''}
+                            </div>
                             <i class="fas fa-angle-down text-[10px] transition-transform ${isWeekOpen ? 'rotate-180' : ''}"></i>
                         </button>
-                        <div id="w-${month.id}-${week}" class="${isWeekOpen ? '' : 'hidden'} pl-2 py-1 space-y-0.5">
+                        <div id="w-${month.id}-${week}" class="${isWeekOpen ? '' : 'hidden'} pl-2 py-1 space-y-1.5">
                             ${daysHTML}
                         </div>
                     </div>
                 `;
             });
 
-            const isExamActive = currentPath === 'exam.html' && isMonthOpen;
+            const isExamActive = currentPath === 'exam.html' && activeMonthParam === month.id;
 
             modulesHTML += `
-                <div>
-                    <button type="button" onclick="toggleSidebarSubmenu('m-${month.id}', this)" class="w-full px-3 py-2.5 flex justify-between items-center rounded-xl hover:bg-slate-50 transition text-slate-700 font-bold text-xs ${isMonthOpen ? 'bg-slate-50/80 text-indigo-600' : ''}">
-                        <div class="flex items-center gap-2.5">
-                            <i class="far fa-folder-open w-4 text-center text-indigo-500"></i>
-                            <span>${month.title}</span>
+                <div class="space-y-1">
+                    <button type="button" onclick="toggleSidebarSubmenu('m-${month.id}', this)" class="w-full px-3 py-2.5 flex justify-between items-center rounded-xl transition font-bold text-xs ${monthBoxClass}">
+                        <div class="flex items-center gap-2.5 text-left min-w-0">
+                            <i class="${monthIconClass} w-4 text-center shrink-0"></i>
+                            <div class="truncate">
+                                <div class="flex items-center gap-1.5">
+                                    <span>${month.title}</span>
+                                    ${monthPillHTML}
+                                </div>
+                                ${mInfo && mInfo.rangeText ? `<p class="text-[10px] font-semibold text-slate-400 mt-0.5">${mInfo.rangeText}</p>` : ''}
+                            </div>
                         </div>
-                        <i class="fas fa-chevron-down text-[10px] text-slate-400 transition-transform ${isMonthOpen ? 'rotate-180' : ''}"></i>
+                        <i class="fas fa-chevron-down text-[10px] text-slate-400 transition-transform shrink-0 ml-1 ${isMonthOpen ? 'rotate-180' : ''}"></i>
                     </button>
-                    <div id="m-${month.id}" class="${isMonthOpen ? '' : 'hidden'} pl-4 py-1 space-y-1 border-l-2 border-slate-100 ml-4 my-1">
+                    <div id="m-${month.id}" class="${isMonthOpen ? '' : 'hidden'} pl-3 py-1 space-y-1.5 border-l-2 border-slate-200/70 ml-3.5 my-1">
                         ${weeksHTML}
-                        <a href="exam.html?month=${month.id}" class="px-3 py-2 mx-1 mt-1.5 text-xs font-bold rounded-lg flex items-center transition-colors border ${isExamActive ? 'bg-amber-100 text-amber-800 border-amber-300' : 'text-amber-700 bg-amber-50/80 hover:bg-amber-100 border-amber-100'}">
-                            <i class="fas fa-star mr-2 text-amber-500"></i> Final Exam
+                        <a href="exam.html?month=${month.id}" class="px-3 py-2 mt-1.5 text-xs font-bold rounded-xl flex items-center transition-colors border ${isExamActive ? 'bg-purple-600 text-white border-purple-700 shadow-xs' : 'text-purple-700 bg-purple-50/80 hover:bg-purple-100 border-purple-200'}">
+                            <i class="fas fa-star mr-2 ${isExamActive ? 'text-amber-300' : 'text-purple-500'}"></i> Final Exam
                         </a>
                     </div>
                 </div>
@@ -168,6 +304,8 @@ function renderAppSidebar() {
             </div>
         </div>
 
+        ${trackerSummaryHTML}
+
         <!-- Menu Navigasi -->
         <div class="overflow-y-auto flex-1 p-4 custom-scrollbar">
             <div class="space-y-1">
@@ -192,8 +330,10 @@ function renderAppSidebar() {
             </div>
 
             <div class="mt-6 mb-4">
-                <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 pl-3">Kurikulum & Modul</p>
-                <div class="space-y-1">
+                <div class="flex items-center justify-between mb-2 px-3">
+                    <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Kurikulum & Jadwal</p>
+                </div>
+                <div class="space-y-1.5">
                     ${modulesHTML}
                 </div>
             </div>

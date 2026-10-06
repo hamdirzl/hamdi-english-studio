@@ -23,11 +23,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function parseMateriQueryParams() {
     const params = new URLSearchParams(window.location.search);
-    const m = params.get('month') || 'm1';
-    const w = parseInt(params.get('week')) || 1;
-    const d = parseInt(params.get('day')) || 1;
+    let m = params.get('month');
+    let w = parseInt(params.get('week'));
+    let d = parseInt(params.get('day'));
 
-    activeMateriState = { monthId: m, week: w, day: d };
+    // Jika murid membuka materi.html tanpa parameter URL, langsung arahkan ke pertemuan tempat ia berada saat ini!
+    if (!m && window.HES.userRole === 'student' && window.HES.currentUser) {
+        const timeline = getStudentCurriculumTimeline(window.HES.currentUser.email);
+        if (timeline && timeline.currentPointer) {
+            m = timeline.currentPointer.monthId;
+            w = timeline.currentPointer.week;
+            d = timeline.currentPointer.day;
+        }
+    }
+
+    activeMateriState = {
+        monthId: m || 'm1',
+        week: w || 1,
+        day: d || 1
+    };
 }
 
 function setupQuickSelectors() {
@@ -39,9 +53,12 @@ function setupQuickSelectors() {
     const role = window.HES.userRole;
     const user = window.HES.currentUser;
     let maxMonthNum = 99;
+    let timeline = null;
+
     if (role === 'student') {
         let p = window.HES.materials[`profile-${user.email}`];
         maxMonthNum = (p && p.maxMonth) ? parseInt(p.maxMonth) : 1;
+        timeline = getStudentCurriculumTimeline(user.email);
     }
 
     // Jika murid mencoba mengakses bulan yang terkunci lewat URL, kembalikan ke m1
@@ -51,10 +68,34 @@ function setupQuickSelectors() {
         showToast('Modul bulan tersebut masih terkunci.', 'info');
     }
 
+    // Populate dropdown Month lengkap dengan rentang tanggal & penanda posisi
     qMonth.innerHTML = window.HES.months.map(m => {
         const mNum = parseInt(m.id.replace('m', ''));
         const locked = role === 'student' && mNum > maxMonthNum;
-        return `<option value="${m.id}" ${locked ? 'disabled' : ''}>${m.title} ${locked ? '(Terkunci)' : ''}</option>`;
+        const mInfo = (timeline && timeline.months[m.id]) ? timeline.months[m.id] : null;
+        const rangeStr = (mInfo && mInfo.rangeText) ? ` (${mInfo.rangeText})` : '';
+        const flagStr = mInfo && mInfo.status === 'current' ? ' 📍' : (mInfo && mInfo.status === 'next' ? ' ⏭️' : '');
+        return `<option value="${m.id}" ${locked ? 'disabled' : ''}>${m.title}${rangeStr}${flagStr} ${locked ? '(Terkunci)' : ''}</option>`;
+    }).join('');
+
+    // Populate dropdown Week lengkap dengan rentang tanggal
+    qWeek.innerHTML = [1, 2, 3, 4].map(w => {
+        const wKey = `${activeMateriState.monthId}-w${w}`;
+        const wInfo = (timeline && timeline.weeks[wKey]) ? timeline.weeks[wKey] : null;
+        const rangeStr = (wInfo && wInfo.rangeText) ? ` (${wInfo.rangeText})` : '';
+        const flagStr = wInfo && wInfo.status === 'current' ? ' 📍' : (wInfo && wInfo.status === 'next' ? ' ⏭️' : '');
+        return `<option value="${w}">Week ${w}${rangeStr}${flagStr}</option>`;
+    }).join('');
+
+    // Populate dropdown Day lengkap dengan hari & tanggal spesifik
+    qDay.innerHTML = [1, 2, 3].map(d => {
+        const dKey = `${activeMateriState.monthId}-w${activeMateriState.week}-d${d}`;
+        const dInfo = (timeline && timeline.days[dKey]) ? timeline.days[dKey] : null;
+        const dateStr = (dInfo && dInfo.shortDate) ? ` — ${dInfo.shortDate}` : '';
+        const flagStr = dInfo && dInfo.status === 'current'
+            ? ' (Sedang Di Sini 📍)'
+            : (dInfo && dInfo.status === 'next' ? ' (Selanjutnya ⏭️)' : '');
+        return `<option value="${d}">Day ${d}${dateStr}${flagStr}</option>`;
     }).join('');
 
     qMonth.value = activeMateriState.monthId;
@@ -79,10 +120,109 @@ function renderMateriContent() {
     const role = window.HES.userRole;
 
     const monthObj = window.HES.months.find(m => m.id === monthId) || { title: 'Month 1' };
+    const timeline = role === 'student' ? getStudentCurriculumTimeline(email) : null;
+    const dKey = `${monthId}-w${week}-d${day}`;
+    const dInfo = timeline && timeline.days[dKey] ? timeline.days[dKey] : null;
+    const wInfo = timeline && timeline.weeks[`${monthId}-w${week}`] ? timeline.weeks[`${monthId}-w${week}`] : null;
 
     document.getElementById('materi-badge').innerText = monthObj.title;
-    document.getElementById('materi-subbadge').innerText = `Week ${week} • Day ${day}`;
+    document.getElementById('materi-subbadge').innerText = `Week ${week}${wInfo && wInfo.rangeText ? ` (${wInfo.rangeText})` : ''} • Day ${day}`;
     document.getElementById('materi-title').innerText = `${monthObj.title} — Pertemuan Minggu ${week} Hari ${day}`;
+
+    // Pill Tanggal & Status pada Header Materi
+    const datePill = document.getElementById('materi-date-pill');
+    if (datePill && dInfo && dInfo.fullDate) {
+        datePill.classList.remove('hidden');
+        if (dInfo.status === 'current') {
+            datePill.className = "text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-300";
+            datePill.innerHTML = `<i class="fas fa-location-dot mr-1"></i> ${dInfo.fullDate} • Pertemuan Saat Ini`;
+        } else if (dInfo.status === 'next') {
+            datePill.className = "text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-300";
+            datePill.innerHTML = `<i class="fas fa-forward mr-1"></i> ${dInfo.fullDate} • Pertemuan Selanjutnya`;
+        } else if (dInfo.status === 'completed') {
+            datePill.className = "text-[11px] font-bold px-2.5 py-0.5 rounded-md border bg-slate-100 text-slate-600 border-slate-200";
+            datePill.innerHTML = `<i class="fas fa-check-circle text-emerald-500 mr-1"></i> ${dInfo.fullDate} • Selesai`;
+        } else {
+            datePill.className = "text-[11px] font-bold px-2.5 py-0.5 rounded-md border bg-indigo-50 text-indigo-600 border-indigo-200";
+            datePill.innerHTML = `<i class="far fa-calendar mr-1"></i> ${dInfo.fullDate}`;
+        }
+    } else if (datePill) {
+        datePill.classList.add('hidden');
+    }
+
+    // Render Banner Pelacak Pertemuan (Live Session Tracker)
+    const trackerBanner = document.getElementById('materi-session-tracker-banner');
+    if (trackerBanner && timeline && timeline.currentPointer) {
+        const cur = timeline.currentPointer;
+        const nxt = timeline.nextPointer;
+        const isViewingCurrent = (cur.monthId === monthId && cur.week === week && cur.day === day);
+        const isViewingNext = (nxt && nxt.monthId === monthId && nxt.week === week && nxt.day === day);
+
+        trackerBanner.classList.remove('hidden');
+        trackerBanner.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <!-- Kartu Posisi Saat Ini (Hijau Emerald) -->
+                <div class="p-4 rounded-2xl border-2 transition-all ${isViewingCurrent ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-600 shadow-md shadow-emerald-500/15' : 'bg-emerald-50/90 border-emerald-200 text-slate-800'} flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3.5">
+                        <div class="w-11 h-11 rounded-xl ${isViewingCurrent ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'} flex items-center justify-center text-lg shrink-0 shadow-xs">
+                            <i class="fas fa-location-dot"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${isViewingCurrent ? 'bg-white/20 text-white' : 'bg-emerald-200/80 text-emerald-900'}">
+                                    ${cur.isTodayClass ? '🔥 Kelas Hari Ini' : '📍 Kamu Sedang Di Pertemuan Ini'}
+                                </span>
+                            </div>
+                            <p class="font-extrabold text-xs sm:text-sm mt-1 ${isViewingCurrent ? 'text-white' : 'text-emerald-950'}">
+                                ${cur.monthTitle} • Week ${cur.week} • Day ${cur.day}
+                            </p>
+                            <p class="text-[11px] font-semibold ${isViewingCurrent ? 'text-emerald-100' : 'text-emerald-700'}">
+                                <i class="far fa-calendar-check mr-1"></i> ${cur.displayDate}
+                            </p>
+                        </div>
+                    </div>
+                    ${!isViewingCurrent ? `
+                        <a href="materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-xs transition">
+                            Buka Sesi Ini
+                        </a>
+                    ` : `
+                        <span class="shrink-0 text-[10px] font-extrabold uppercase bg-white text-emerald-700 px-2.5 py-1 rounded-lg shadow-2xs">Sedang Dibuka</span>
+                    `}
+                </div>
+
+                <!-- Kartu Pertemuan Selanjutnya (Kuning Amber) -->
+                ${nxt ? `
+                <div class="p-4 rounded-2xl border-2 transition-all ${isViewingNext ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-amber-500 shadow-md shadow-amber-500/15' : 'bg-amber-50/90 border-amber-200 text-slate-800'} flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3.5">
+                        <div class="w-11 h-11 rounded-xl ${isViewingNext ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'} flex items-center justify-center text-lg shrink-0 shadow-xs">
+                            <i class="fas fa-forward"></i>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${isViewingNext ? 'bg-white/20 text-white' : 'bg-amber-200/80 text-amber-900'}">
+                                ⏭️️ Pengingat Pertemuan Berikutnya
+                            </span>
+                            <p class="font-extrabold text-xs sm:text-sm mt-1 ${isViewingNext ? 'text-white' : 'text-amber-950'}">
+                                ${nxt.monthTitle} • Week ${nxt.week} • Day ${nxt.day}
+                            </p>
+                            <p class="text-[11px] font-semibold ${isViewingNext ? 'text-amber-100' : 'text-amber-700'}">
+                                <i class="far fa-clock mr-1"></i> ${nxt.displayDate}
+                            </p>
+                        </div>
+                    </div>
+                    ${!isViewingNext ? `
+                        <a href="materi.html?month=${nxt.monthId}&week=${nxt.week}&day=${nxt.day}" class="shrink-0 bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-xs transition">
+                            Intip Materi
+                        </a>
+                    ` : `
+                        <span class="shrink-0 text-[10px] font-extrabold uppercase bg-white text-amber-700 px-2.5 py-1 rounded-lg shadow-2xs">Sedang Dibuka</span>
+                    `}
+                </div>
+                ` : ''}
+            </div>
+        `;
+    } else if (trackerBanner) {
+        trackerBanner.classList.add('hidden');
+    }
 
     // 1. Render Kosakata Harian (Flashcards)
     const vocabData = window.HES.materials[`vocab-${monthId}-w${week}-d${day}`] || '';

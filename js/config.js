@@ -161,10 +161,12 @@ function updateCloudStatusUI(status) {
 }
 
 // ==========================================
-// 5. HELPER TANGGAL, JADWAL & GOOGLE DRIVE
+// 5. HELPER TANGGAL, JADWAL & TIMELINE TRACKER
 // ==========================================
 const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const shortDayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const shortMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 function formatDateForID(dateObj) {
     return dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
@@ -179,15 +181,29 @@ function getDisplayDate(dateObj) {
     return `${dayNames[dateObj.getDay()]}, ${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 }
 
-function isOccupied(email, targetDateStr) {
+function getShortDayDate(dateObj) {
+    return `${shortDayNames[dateObj.getDay()]}, ${dateObj.getDate()} ${shortMonthNames[dateObj.getMonth()]}`;
+}
+
+function formatDateRangeShort(startObj, endObj) {
+    if (!startObj || !endObj) return '';
+    if (startObj.getMonth() === endObj.getMonth()) {
+        return `${startObj.getDate()}–${endObj.getDate()} ${shortMonthNames[startObj.getMonth()]}`;
+    }
+    return `${startObj.getDate()} ${shortMonthNames[startObj.getMonth()]} – ${endObj.getDate()} ${shortMonthNames[endObj.getMonth()]}`;
+}
+
+function isOccupied(email, targetDateStr, ignoreValidUntil = false) {
     let p = window.HES.materials[`profile-${email}`];
     if (!p || !p.time || !p.days) return false;
     let targetDate = parseDateStr(targetDateStr);
     let dayName = dayNames[targetDate.getDay()];
-    let validDate = new Date(p.validUntil);
-    if (!isNaN(validDate)) {
-        validDate.setHours(23, 59, 59, 999);
-        if (targetDate > validDate) return false;
+    if (!ignoreValidUntil && p.validUntil && p.validUntil !== 'Belum diatur') {
+        let validDate = new Date(p.validUntil);
+        if (!isNaN(validDate)) {
+            validDate.setHours(23, 59, 59, 999);
+            if (targetDate > validDate) return false;
+        }
     }
     let isDefault = p.days.includes(dayName);
     let reschedules = p.reschedules || {};
@@ -203,6 +219,171 @@ function checkOverlap(time1, time2) {
     let [s1, e1] = time1.split('-').map(t => parseInt(t.trim().replace(':', '')));
     let [s2, e2] = time2.split('-').map(t => parseInt(t.trim().replace(':', '')));
     return (s1 < e2) && (s2 < e1);
+}
+
+/**
+ * Menghasilkan peta tanggal kurikulum (Month -> Week -> Day) beserta pelacak sesi:
+ * - status 'current': Sesi tempat murid berada saat ini (Sedang Di Sini / Hari Ini)
+ * - status 'next': Sesi pertemuan berikutnya (Selanjutnya)
+ * - status 'completed': Sesi yang sudah lewat
+ * - status 'upcoming': Sesi masa depan lainnya
+ */
+function getStudentCurriculumTimeline(email) {
+    let p = window.HES.materials[`profile-${email}`];
+    if (!p || !p.days || p.days.length === 0) return null;
+
+    let startBase;
+    if (p.startDate && p.startDate !== 'Belum diatur') {
+        startBase = parseDateStr(p.startDate);
+    } else {
+        // Fallback otomatis ke Senin minggu ini jika Admin belum mengisi Tanggal Mulai
+        let now = new Date();
+        let day = now.getDay();
+        let diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        startBase = new Date(now.getFullYear(), now.getMonth(), diff);
+    }
+    startBase.setHours(0, 0, 0, 0);
+
+    const totalMonths = window.HES.months.length;
+    const totalSessionsNeeded = totalMonths * 12; // 4 week * 3 day per month
+    let sessionDates = [];
+    let cursor = new Date(startBase);
+    let safety = 0;
+
+    while (sessionDates.length < totalSessionsNeeded && safety < 900) {
+        let dStr = formatDateForID(cursor);
+        if (isOccupied(email, dStr, true)) {
+            sessionDates.push(new Date(cursor));
+        }
+        cursor.setDate(cursor.getDate() + 1);
+        safety++;
+    }
+
+    if (sessionDates.length === 0) return null;
+
+    let today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let todayStr = formatDateForID(today);
+
+    // Cari sesi yang jatuh tepat hari ini atau sesi pertama setelah hari ini
+    let firstUpcomingIdx = sessionDates.findIndex(d => d >= today);
+    let currentIdx = -1;
+    let nextIdx = -1;
+    let isTodayClass = false;
+
+    if (firstUpcomingIdx === -1) {
+        currentIdx = sessionDates.length - 1;
+        nextIdx = -1;
+    } else {
+        let firstDateStr = formatDateForID(sessionDates[firstUpcomingIdx]);
+        if (firstDateStr === todayStr) {
+            // Hari ini ada jadwal kelas!
+            currentIdx = firstUpcomingIdx;
+            nextIdx = (firstUpcomingIdx + 1 < sessionDates.length) ? firstUpcomingIdx + 1 : -1;
+            isTodayClass = true;
+        } else {
+            // Hari ini tidak ada kelas: Current adalah sesi terakhir yang sedang/baru dipelajari (atau Day 1 jika belum mulai), Next adalah jadwal kelas terdekat berikutnya
+            if (firstUpcomingIdx > 0) {
+                currentIdx = firstUpcomingIdx - 1;
+                nextIdx = firstUpcomingIdx;
+            } else {
+                currentIdx = 0;
+                nextIdx = (sessionDates.length > 1) ? 1 : -1;
+            }
+        }
+    }
+
+    const timeline = {
+        days: {},
+        weeks: {},
+        months: {},
+        currentPointer: null,
+        nextPointer: null,
+        isTodayClass: isTodayClass
+    };
+
+    let globalIdx = 0;
+    window.HES.months.forEach((m) => {
+        let mDates = [];
+        let mHasCurrent = false;
+        let mHasNext = false;
+
+        m.weeks.forEach(w => {
+            let wDates = [];
+            let wHasCurrent = false;
+            let wHasNext = false;
+
+            [1, 2, 3].forEach(d => {
+                let dateObj = sessionDates[globalIdx];
+                let status = 'upcoming';
+
+                if (globalIdx === currentIdx) {
+                    status = 'current';
+                    wHasCurrent = true;
+                    mHasCurrent = true;
+                    timeline.currentPointer = {
+                        monthId: m.id,
+                        monthTitle: m.title,
+                        week: w,
+                        day: d,
+                        dateObj: dateObj,
+                        dateStr: dateObj ? formatDateForID(dateObj) : '',
+                        displayDate: dateObj ? getDisplayDate(dateObj) : '',
+                        shortDate: dateObj ? getShortDayDate(dateObj) : '',
+                        isTodayClass: isTodayClass
+                    };
+                } else if (globalIdx === nextIdx) {
+                    status = 'next';
+                    wHasNext = true;
+                    mHasNext = true;
+                    timeline.nextPointer = {
+                        monthId: m.id,
+                        monthTitle: m.title,
+                        week: w,
+                        day: d,
+                        dateObj: dateObj,
+                        dateStr: dateObj ? formatDateForID(dateObj) : '',
+                        displayDate: dateObj ? getDisplayDate(dateObj) : '',
+                        shortDate: dateObj ? getShortDayDate(dateObj) : ''
+                    };
+                } else if (globalIdx < currentIdx) {
+                    status = 'completed';
+                }
+
+                if (dateObj) {
+                    wDates.push(dateObj);
+                    mDates.push(dateObj);
+                }
+
+                timeline.days[`${m.id}-w${w}-d${d}`] = {
+                    monthId: m.id,
+                    week: w,
+                    day: d,
+                    dateObj: dateObj,
+                    dateStr: dateObj ? formatDateForID(dateObj) : '',
+                    shortDate: dateObj ? getShortDayDate(dateObj) : '',
+                    fullDate: dateObj ? getDisplayDate(dateObj) : '',
+                    status: status
+                };
+
+                globalIdx++;
+            });
+
+            let wStatus = wHasCurrent ? 'current' : (wHasNext ? 'next' : (wDates.length && wDates[wDates.length - 1] < today ? 'completed' : 'upcoming'));
+            timeline.weeks[`${m.id}-w${w}`] = {
+                rangeText: wDates.length ? formatDateRangeShort(wDates[0], wDates[wDates.length - 1]) : '',
+                status: wStatus
+            };
+        });
+
+        let mStatus = mHasCurrent ? 'current' : (mHasNext ? 'next' : (mDates.length && mDates[mDates.length - 1] < today ? 'completed' : 'upcoming'));
+        timeline.months[m.id] = {
+            rangeText: mDates.length ? formatDateRangeShort(mDates[0], mDates[mDates.length - 1]) : '',
+            status: mStatus
+        };
+    });
+
+    return timeline;
 }
 
 function getStudentNextSessionInfo(email) {

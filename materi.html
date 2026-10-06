@@ -41,6 +41,9 @@
             <div class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
                 <div class="max-w-5xl mx-auto fade-in pb-16">
 
+                    <!-- Banner Pelacak Pertemuan (Live Session Tracker) -->
+                    <div id="materi-session-tracker-banner" class="hidden mb-5"></div>
+
                     <!-- Bar Navigasi & Quick Selector Modul -->
                     <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200/90 shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div class="flex items-center gap-3">
@@ -48,9 +51,10 @@
                                 <i class="fas fa-arrow-left text-sm"></i>
                             </a>
                             <div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex flex-wrap items-center gap-2">
                                     <span id="materi-badge" class="px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-extrabold uppercase tracking-wider rounded-md border border-indigo-100">Month 1</span>
                                     <span id="materi-subbadge" class="text-xs font-bold text-slate-400">Week 1 • Day 1</span>
+                                    <span id="materi-date-pill" class="hidden text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border"></span>
                                 </div>
                                 <h2 id="materi-title" class="text-base md:text-lg font-extrabold text-slate-800 mt-0.5">Modul Pembelajaran Harian</h2>
                             </div>
