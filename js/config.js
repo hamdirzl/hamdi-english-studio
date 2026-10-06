@@ -448,8 +448,7 @@ function getStudentCurriculumTimeline(email) {
 }
 
 /**
- * FITUR #4: Kalkulasi Progress Tracker & Gamifikasi Murid
- * Menghitung XP, Level, Progress Bulan Berjalan, Kosakata Dikuasai, dan Rata-rata Nilai Ujian
+ * FITUR #4: Kalkulasi Progress Tracker & Gamifikasi Murid (10 Level & Progres Lebih Terukur)
  */
 function getStudentGamificationStats(email) {
     const p = window.HES.materials[`profile-${email}`] || {};
@@ -505,9 +504,10 @@ function getStudentGamificationStats(email) {
         });
     });
 
-    // 3. Hitung Statistik Ujian Bulanan
+    // 3. Hitung Statistik Ujian Bulanan & Bonus Skor
     let examsCompleted = 0;
     let totalExamScoreSum = 0;
+    let examBonusXP = 0;
 
     window.HES.months.forEach(m => {
         const res = window.HES.materials[`exam_result-${email}-${m.id}`];
@@ -518,22 +518,32 @@ function getStudentGamificationStats(email) {
                 examsCompleted++;
                 const avg = Math.round(((sc.reading || 0) + (sc.writing || 0) + (sc.speaking || 0) + (sc.listening || 0)) / 4);
                 totalExamScoreSum += avg;
+                // Poin dasar 100 XP per ujian + bonus nilai rata-rata jika sudah dinilai Admin
+                examBonusXP += 100 + (res.isGraded ? avg : 0);
             }
         }
     });
 
     const avgExamScore = examsCompleted > 0 ? Math.round(totalExamScoreSum / examsCompleted) : 0;
 
-    // 4. Kalkulasi XP & Level Bahasa Inggris
-    // +50 XP per sesi kelas selesai, +40 XP per setoran vocab approved (+20 XP jika submitted), +150 XP per ujian selesai
-    const xp = (totalCompletedSessions * 50) + (approvedSetsCount * 40) + (submittedSetsCount * 20) + (examsCompleted * 150);
+    // 4. Kalkulasi XP Baru (Lebih Lambat & Proporsional):
+    // +25 XP per sesi kelas selesai (300 XP/bulan)
+    // +25 XP per setoran vocab approved, +10 XP jika baru submitted (300 XP/bulan)
+    // +100 s/d 200 XP per ujian bulanan
+    const xp = (totalCompletedSessions * 25) + (approvedSetsCount * 25) + (submittedSetsCount * 10) + examBonusXP;
 
+    // 10 Tingkatan Level (Dari Starter Explorer hingga Grandmaster Legend)
     const levels = [
-        { level: 1, title: 'Starter Explorer', minXP: 0, nextXP: 300, badgeColor: 'from-sky-500 to-blue-600', icon: 'fa-seedling' },
-        { level: 2, title: 'Rising Communicator', minXP: 300, nextXP: 700, badgeColor: 'from-emerald-500 to-teal-600', icon: 'fa-feather-pointed' },
-        { level: 3, title: 'Confident Speaker', minXP: 700, nextXP: 1200, badgeColor: 'from-indigo-500 to-violet-600', icon: 'fa-bolt' },
-        { level: 4, title: 'Fluent Achiever', minXP: 1200, nextXP: 1800, badgeColor: 'from-amber-500 to-orange-600', icon: 'fa-fire' },
-        { level: 5, title: 'Master Scholar', minXP: 1800, nextXP: 3000, badgeColor: 'from-rose-500 to-pink-600', icon: 'fa-crown' }
+        { level: 1,  title: 'Starter Explorer',        minXP: 0,    nextXP: 250,  badgeColor: 'from-slate-600 to-slate-800',     icon: 'fa-seedling' },
+        { level: 2,  title: 'Novice Learner',          minXP: 250,  nextXP: 600,  badgeColor: 'from-sky-500 to-blue-600',        icon: 'fa-book-open-reader' },
+        { level: 3,  title: 'Rising Communicator',     minXP: 600,  nextXP: 1100, badgeColor: 'from-teal-500 to-emerald-600',    icon: 'fa-feather-pointed' },
+        { level: 4,  title: 'Active Conversationalist',minXP: 1100, nextXP: 1700, badgeColor: 'from-emerald-600 to-green-700',   icon: 'fa-comments' },
+        { level: 5,  title: 'Confident Speaker',       minXP: 1700, nextXP: 2400, badgeColor: 'from-indigo-500 to-blue-700',     icon: 'fa-microphone-lines' },
+        { level: 6,  title: 'Skilled Articulator',     minXP: 2400, nextXP: 3200, badgeColor: 'from-violet-600 to-indigo-700',   icon: 'fa-bolt' },
+        { level: 7,  title: 'Fluent Achiever',         minXP: 3200, nextXP: 4100, badgeColor: 'from-purple-600 to-fuchsia-700',  icon: 'fa-award' },
+        { level: 8,  title: 'Advanced Orator',         minXP: 4100, nextXP: 5100, badgeColor: 'from-amber-500 to-orange-600',    icon: 'fa-fire' },
+        { level: 9,  title: 'Master Scholar',          minXP: 5100, nextXP: 6500, badgeColor: 'from-rose-500 to-red-700',        icon: 'fa-medal' },
+        { level: 10, title: 'Grandmaster Legend',      minXP: 6500, nextXP: 8500, badgeColor: 'from-amber-500 via-rose-500 to-indigo-700', icon: 'fa-crown' }
     ];
 
     let currentLvlObj = levels[0];
@@ -543,13 +553,18 @@ function getStudentGamificationStats(email) {
         }
     }
 
+    const isMaxLevel = currentLvlObj.level === 10;
     const xpInCurrentTier = xp - currentLvlObj.minXP;
     const xpNeededForTier = currentLvlObj.nextXP - currentLvlObj.minXP;
-    const xpProgressPercent = Math.min(100, Math.max(5, Math.round((xpInCurrentTier / xpNeededForTier) * 100)));
+    const xpProgressPercent = isMaxLevel
+        ? 100
+        : Math.min(100, Math.max(4, Math.round((xpInCurrentTier / xpNeededForTier) * 100)));
 
     return {
         xp,
         level: currentLvlObj.level,
+        maxLevel: 10,
+        isMaxLevel,
         levelTitle: currentLvlObj.title,
         levelIcon: currentLvlObj.icon,
         levelGradient: currentLvlObj.badgeColor,

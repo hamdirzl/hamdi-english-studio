@@ -50,7 +50,7 @@ function renderDashboardContent() {
             ? `materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}`
             : `materi.html?month=m1&week=1&day=1`;
 
-        heroBadge.innerHTML = `<i class="fas ${stats.levelIcon} mr-1 text-amber-300"></i> Level ${stats.level} • ${stats.levelTitle}`;
+        heroBadge.innerHTML = `<i class="fas ${stats.levelIcon} mr-1 text-amber-300"></i> Level ${stats.level}/${stats.maxLevel} • ${stats.levelTitle}`;
         heroTitle.innerText = `Welcome back, ${firstName}!`;
         heroSubtitle.innerText = cur
             ? `Posisi belajarmu: ${cur.monthTitle} • Week ${cur.week} • Day ${cur.day} (${cur.shortDate}).`
@@ -82,7 +82,6 @@ function renderStudentDashboard(email) {
     // RENDER FITUR #4: PROGRESS TRACKER & GAMIFIKASI MURID
     // ====================================================
     if (gamificationBox && stats) {
-        // Buat 12 titik indikator sesi untuk bulan yang sedang berjalan
         let sessionDotsHTML = '';
         for (let i = 1; i <= 12; i++) {
             const isDone = i <= stats.activeMonthCompleted;
@@ -98,17 +97,17 @@ function renderStudentDashboard(email) {
             <div class="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-sm">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-center">
                     
-                    <!-- Kolom Kiri (5 Kolom): Kartu Level & XP -->
+                    <!-- Kolom Kiri (5 Kolom): Kartu Level & XP (10 Level) -->
                     <div class="lg:col-span-5 bg-gradient-to-br ${stats.levelGradient} p-4 sm:p-5 rounded-2xl text-white shadow-md relative overflow-hidden">
                         <div class="absolute right-0 bottom-0 -mb-6 -mr-6 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
                         <div class="flex items-center justify-between gap-3 mb-3 relative z-10">
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
                                 <div class="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-xs border border-white/25 flex items-center justify-center text-lg shrink-0">
                                     <i class="fas ${stats.levelIcon} text-amber-200"></i>
                                 </div>
-                                <div>
-                                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-white/80 block">English Mastery Rank</span>
-                                    <h4 class="text-sm sm:text-base font-extrabold leading-tight">Lv. ${stats.level} — ${stats.levelTitle}</h4>
+                                <div class="min-w-0">
+                                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-white/80 block">English Mastery • Lv. ${stats.level}/${stats.maxLevel}</span>
+                                    <h4 class="text-sm sm:text-base font-extrabold leading-tight truncate">${stats.levelTitle}</h4>
                                 </div>
                             </div>
                             <div class="text-right shrink-0">
@@ -120,8 +119,8 @@ function renderStudentDashboard(email) {
                         <!-- Bar XP Menuju Level Berikutnya -->
                         <div class="relative z-10">
                             <div class="flex justify-between text-[10px] font-bold text-white/90 mb-1">
-                                <span>Progress Level ${stats.level + 1}</span>
-                                <span>${stats.xp} / ${stats.nextXP} XP</span>
+                                <span>${stats.isMaxLevel ? 'Level Maksimal Tercapai!' : `Menuju Level ${stats.level + 1}`}</span>
+                                <span>${stats.isMaxLevel ? 'MAX' : `${stats.xp} /${stats.nextXP} XP`}</span>
                             </div>
                             <div class="w-full h-2 bg-black/20 rounded-full overflow-hidden p-0.5">
                                 <div class="h-full bg-white rounded-full transition-all duration-500" style="width: ${stats.xpProgressPercent}%"></div>
@@ -141,11 +140,9 @@ function renderStudentDashboard(email) {
                                 </div>
                                 <span class="text-xs font-extrabold text-emerald-600">${stats.activeMonthPercent}% <span class="text-slate-400 font-semibold text-[11px]">(${stats.activeMonthCompleted}/12 Sesi)</span></span>
                             </div>
-                            <!-- Bar Persentase -->
                             <div class="w-full h-2.5 bg-slate-200/80 rounded-full overflow-hidden mb-2">
                                 <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500" style="width: ${stats.activeMonthPercent}%"></div>
                             </div>
-                            <!-- 12 Titik Sesi -->
                             <div class="flex items-center gap-1">
                                 ${sessionDotsHTML}
                             </div>
