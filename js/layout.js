@@ -51,18 +51,27 @@ function renderAppSidebar() {
     const activeWeekParam = urlParams.get('week');
     const activeDayParam = urlParams.get('day');
 
-    // Cek batas maksimal bulan & timeline kurikulum untuk murid
-    let maxMonthNum = 1;
-    let timeline = null;
+    // Jika Admin sedang berada di halaman admin.html, gunakan murid yang sedang dipilih untuk pratinjau tanggal di sidebar
+    let targetEmailForTimeline = user.email;
+    let maxMonthNum = 99;
+
     if (role === 'student') {
         let p = window.HES.materials[`profile-${user.email}`];
         if (p && p.maxMonth) maxMonthNum = parseInt(p.maxMonth);
-        timeline = getStudentCurriculumTimeline(user.email);
+    } else if (role === 'admin') {
+        const adminStuSelect = document.getElementById('admin-sched-student');
+        if (adminStuSelect && adminStuSelect.value) {
+            targetEmailForTimeline = adminStuSelect.value;
+        } else if (window.HES.students.length > 0) {
+            targetEmailForTimeline = window.HES.students[0].email;
+        }
     }
 
-    // Widget Mini Live Tracker di Sidebar (Ringkas & Bersih untuk HP)
+    const timeline = getStudentCurriculumTimeline(targetEmailForTimeline);
+
+    // Widget Mini Live Tracker di Sidebar
     let trackerSummaryHTML = '';
-    if (role === 'student' && timeline && timeline.currentPointer) {
+    if (timeline && timeline.currentPointer) {
         const cur = timeline.currentPointer;
         const nxt = timeline.nextPointer;
         trackerSummaryHTML = `
@@ -112,16 +121,20 @@ function renderAppSidebar() {
         } else {
             let monthBoxClass = 'hover:bg-slate-50 text-slate-700';
             let monthIconClass = 'far fa-folder-open text-indigo-500';
-            let monthDotHTML = '';
+            let monthBadgeHTML = '';
 
             if (mStatus === 'current') {
                 monthBoxClass = 'bg-emerald-50/80 text-emerald-900 border border-emerald-200/80';
                 monthIconClass = 'fas fa-folder-open text-emerald-600';
-                monthDotHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Bulan Aktif Saat Ini"></span>`;
+                monthBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white shrink-0">Aktif</span>`;
+            } else if (mStatus === 'completed') {
+                monthBoxClass = 'bg-slate-50/90 text-slate-500 border border-slate-200/60 hover:bg-slate-100';
+                monthIconClass = 'fas fa-check-circle text-emerald-500';
+                monthBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Selesai</span>`;
             } else if (mStatus === 'next') {
                 monthBoxClass = 'bg-amber-50/60 text-amber-900 border border-amber-200/60';
                 monthIconClass = 'fas fa-folder text-amber-500';
-                monthDotHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Bulan Selanjutnya"></span>`;
+                monthBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white shrink-0">Esok</span>`;
             } else if (isMonthOpen) {
                 monthBoxClass = 'bg-slate-50 text-indigo-600';
             }
@@ -140,7 +153,10 @@ function renderAppSidebar() {
 
                 if (wStatus === 'current') {
                     weekBtnClass = 'bg-emerald-50/90 text-emerald-800 font-extrabold border border-emerald-200/70';
-                    weekStatusPill = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>`;
+                    weekStatusPill = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>`;
+                } else if (wStatus === 'completed') {
+                    weekBtnClass = 'text-slate-500 hover:bg-slate-50';
+                    weekStatusPill = `<i class="fas fa-check text-emerald-500 text-[9px] shrink-0"></i>`;
                 } else if (wStatus === 'next') {
                     weekBtnClass = 'bg-amber-50/70 text-amber-800 font-bold border border-amber-200/60';
                     weekStatusPill = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>`;
@@ -162,7 +178,6 @@ function renderAppSidebar() {
                         : '';
 
                     if (dStatus === 'current') {
-                        // HIJAU EMERALD: Pertemuan Saat Ini
                         dayItemClass = isDayActive
                             ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
                             : 'bg-emerald-50 text-emerald-900 border border-emerald-200/90 hover:bg-emerald-100/70 font-extrabold';
@@ -174,7 +189,6 @@ function renderAppSidebar() {
                             </div>
                         `;
                     } else if (dStatus === 'next') {
-                        // KUNING AMBER: Pertemuan Selanjutnya
                         dayItemClass = isDayActive
                             ? 'bg-amber-500 text-white shadow-xs font-extrabold'
                             : 'bg-amber-50/80 text-amber-900 border border-amber-200/90 hover:bg-amber-100/70 font-bold';
@@ -186,7 +200,6 @@ function renderAppSidebar() {
                             </div>
                         `;
                     } else if (dStatus === 'completed') {
-                        // SELESAI
                         dayItemClass = isDayActive
                             ? 'bg-indigo-600 text-white font-bold shadow-2xs'
                             : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-50';
@@ -240,10 +253,10 @@ function renderAppSidebar() {
                         <div class="flex items-center gap-2 min-w-0">
                             <i class="${monthIconClass} w-4 text-center shrink-0"></i>
                             <span class="truncate">${month.title}</span>
-                            ${monthDotHTML}
+                            ${monthBadgeHTML}
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0">
-                            ${mInfo && mInfo.rangeText ? `<span class="text-[10px] font-semibold opacity-70">${mInfo.rangeText}</span>` : ''}
+                            ${mInfo && mInfo.rangeText ? `<span class="text-[10px] font-semibold opacity-75">${mInfo.rangeText}</span>` : ''}
                             <i class="fas fa-chevron-down text-[10px] opacity-60 transition-transform ${isMonthOpen ? 'rotate-180' : ''}"></i>
                         </div>
                     </button>
@@ -330,12 +343,10 @@ function renderAppSidebar() {
             <div class="mt-5 mb-3">
                 <div class="flex items-center justify-between mb-1.5 px-2">
                     <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Kurikulum & Jadwal</p>
-                    ${role === 'student' ? `
                     <div class="flex items-center gap-2 text-[9px] font-bold text-slate-400">
                         <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Di Sini</span>
                         <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Esok</span>
                     </div>
-                    ` : ''}
                 </div>
                 <div class="space-y-1">
                     ${modulesHTML}

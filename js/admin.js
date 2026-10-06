@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 window.refreshAdminCloudData = async function() {
     await syncFromCloud();
+    renderAppSidebar();
     populateAllAdminDropdowns();
     switchAdminTab(currentAdminTab);
     showToast('Data terbaru berhasil disinkronkan dari server.', 'info');
@@ -79,7 +80,6 @@ function populateAllAdminDropdowns() {
 
     setHTML('admin-sched-student', studentOptions);
     setHTML('admin-sched-max-month', maxMonthOptions);
-    setHTML('admin-anchor-month', monthOptions);
     setHTML('admin-target-student', `<option value="all">Global (Semua Murid)</option>${studentOptions}`);
     setHTML('admin-month', monthOptions);
     setHTML('admin-vocab-month', monthOptions);
@@ -200,20 +200,10 @@ window.loadStudentScheduleForm = function() {
     const p = window.HES.materials[`profile-${email}`] || {};
 
     const maxMonthEl = document.getElementById('admin-sched-max-month');
-    const anchorMonthEl = document.getElementById('admin-anchor-month');
-    const anchorWeekEl = document.getElementById('admin-anchor-week');
-    const anchorDayEl = document.getElementById('admin-anchor-day');
-    const startDateEl = document.getElementById('admin-sched-start-date');
-    const dateEl = document.getElementById('admin-sched-date');
     const startEl = document.getElementById('admin-sched-start');
     const endEl = document.getElementById('admin-sched-end');
 
-    if (maxMonthEl) maxMonthEl.value = p.maxMonth || '1';
-    if (anchorMonthEl) anchorMonthEl.value = p.anchorMonth || 'm1';
-    if (anchorWeekEl) anchorWeekEl.value = String(p.anchorWeek || '1');
-    if (anchorDayEl) anchorDayEl.value = String(p.anchorDay || '1');
-    if (startDateEl) startDateEl.value = (p.startDate && p.startDate !== 'Belum diatur') ? p.startDate : '';
-    if (dateEl) dateEl.value = (p.validUntil && p.validUntil !== 'Belum diatur') ? p.validUntil : '';
+    if (maxMonthEl) maxMonthEl.value = String(p.maxMonth || '1');
 
     if (p.time && p.time.includes('-')) {
         const [s, e] = p.time.split('-').map(t => t.trim());
@@ -228,11 +218,80 @@ window.loadStudentScheduleForm = function() {
     document.querySelectorAll('.admin-day-cb').forEach(cb => {
         cb.checked = days.includes(cb.value);
     });
+
+    onAdminMonthSelectChange();
+    renderSavedMonthDatesSummary(email);
 };
+
+// Saat Admin mengganti dropdown "Batas: Month X", tampilkan tanggal batas khusus untuk Month X tersebut
+window.onAdminMonthSelectChange = function() {
+    const emailEl = document.getElementById('admin-sched-student');
+    const maxMonthEl = document.getElementById('admin-sched-max-month');
+    const dateEl = document.getElementById('admin-sched-date');
+    const labelEl = document.getElementById('admin-sched-date-label');
+    if (!emailEl || !maxMonthEl || !dateEl) return;
+
+    const email = emailEl.value;
+    const mNum = maxMonthEl.value || '1';
+    const mKey = `m${mNum}`;
+    const p = window.HES.materials[`profile-${email}`] || {};
+    const monthEndDates = p.monthEndDates || {};
+
+    if (labelEl) {
+        labelEl.innerHTML = `<i class="far fa-calendar-check mr-1"></i> Batas Akhir Month ${mNum} (Day 12)`;
+    }
+
+    if (monthEndDates[mKey]) {
+        dateEl.value = monthEndDates[mKey];
+    } else if (String(p.maxMonth || '1') === String(mNum) && p.validUntil && p.validUntil !== 'Belum diatur') {
+        dateEl.value = p.validUntil;
+    } else {
+        dateEl.value = '';
+    }
+};
+
+function renderSavedMonthDatesSummary(email) {
+    const box = document.getElementById('admin-saved-month-dates-box');
+    if (!box) return;
+
+    const p = window.HES.materials[`profile-${email}`] || {};
+    const monthEndDates = Object.assign({}, p.monthEndDates || {});
+    const maxM = String(p.maxMonth || '1');
+    if (p.validUntil && p.validUntil !== 'Belum diatur' && !monthEndDates[`m${maxM}`]) {
+        monthEndDates[`m${maxM}`] = p.validUntil;
+    }
+
+    let today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let badges = window.HES.months.map(m => {
+        const endStr = monthEndDates[m.id];
+        if (!endStr) {
+            return `<span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-400 font-semibold">${m.title}: Belum diatur</span>`;
+        }
+        let endObj = parseDateStr(endStr);
+        endObj.setHours(23, 59, 59, 999);
+        const isDone = today > endObj;
+        return `
+            <span class="px-2.5 py-1 rounded-lg border font-bold inline-flex items-center gap-1.5 ${isDone ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}">
+                <i class="fas ${isDone ? 'fa-check-circle text-emerald-500' : 'fa-clock text-emerald-600'}"></i>
+                ${m.title}: s/d ${endStr} ${isDone ? '(Selesai)' : '(Berjalan)'}
+            </span>
+        `;
+    }).join('');
+
+    box.innerHTML = `
+        <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">Rekam Tanggal Batas Per-Bulan Murid Ini:</p>
+        <div class="flex flex-wrap gap-1.5">${badges}</div>
+    `;
+}
 
 function renderAdminUsersTab() {
     const tbody = document.getElementById('admin-students-table-body');
     if (!tbody) return;
+
+    let today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     tbody.innerHTML = window.HES.students.map((s, idx) => {
         const p = window.HES.materials[`profile-${s.email}`] || {};
@@ -240,21 +299,28 @@ function renderAdminUsersTab() {
             ? `${p.days.join(', ')} (${p.time || '-'})`
             : '<span class="text-slate-400 italic">Belum diatur</span>';
 
-        const anchorLabel = (p.startDate && p.startDate !== 'Belum diatur')
-            ? `Patokan: ${(p.anchorMonth || 'm1').toUpperCase()}•W${p.anchorWeek || 1}•D${p.anchorDay || 1} (${p.startDate}) • `
-            : '';
+        const monthEndDates = Object.assign({}, p.monthEndDates || {});
+        const maxM = String(p.maxMonth || '1');
+        if (p.validUntil && p.validUntil !== 'Belum diatur' && !monthEndDates[`m${maxM}`]) {
+            monthEndDates[`m${maxM}`] = p.validUntil;
+        }
 
-        const validSummary = (p.validUntil && p.validUntil !== 'Belum diatur')
-            ? `${anchorLabel}Aktif s/d: ${p.validUntil} • Max M${p.maxMonth || 1}`
-            : 'Masa aktif belum diatur';
+        const monthPills = Object.entries(monthEndDates)
+            .sort((a, b) => parseInt(a[0].replace('m', '')) - parseInt(b[0].replace('m', '')))
+            .map(([mKey, dStr]) => {
+                let dObj = parseDateStr(dStr);
+                dObj.setHours(23, 59, 59, 999);
+                let done = today > dObj;
+                return `<span class="inline-block mr-1.5 px-1.5 py-0.5 rounded border text-[9px] font-bold ${done ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}">${mKey.toUpperCase()}: ${dStr} ${done ? '✓' : ''}</span>`;
+            }).join('');
 
         return `
             <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition">
                 <td class="p-3.5 text-slate-800 text-xs font-extrabold">${s.name}</td>
                 <td class="p-3.5 text-slate-500 text-xs font-medium">${s.email}</td>
                 <td class="p-3.5">
-                    <p class="text-xs font-bold text-slate-700">${schedSummary}</p>
-                    <p class="text-[10px] font-semibold text-indigo-600 mt-0.5">${validSummary}</p>
+                    <p class="text-xs font-bold text-slate-700">${schedSummary} • <span class="text-indigo-600">Batas: Month ${maxM}</span></p>
+                    <div class="mt-1">${monthPills || '<span class="text-[10px] text-slate-400">Tanggal bulan belum diatur</span>'}</div>
                 </td>
                 <td class="p-3.5">
                     <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg w-max">
@@ -336,21 +402,34 @@ window.saveStudentSchedule = async function(e) {
     if (!email) return;
 
     let profile = window.HES.materials[`profile-${email}`] || {};
+    if (!profile.monthEndDates) profile.monthEndDates = {};
 
-    profile.anchorMonth = document.getElementById('admin-anchor-month').value || 'm1';
-    profile.anchorWeek = parseInt(document.getElementById('admin-anchor-week').value) || 1;
-    profile.anchorDay = parseInt(document.getElementById('admin-anchor-day').value) || 1;
+    const selectedMonthNum = document.getElementById('admin-sched-max-month').value || '1';
+    const selectedDateVal = document.getElementById('admin-sched-date').value;
 
-    const startDateVal = document.getElementById('admin-sched-start-date').value;
-    if (startDateVal) profile.startDate = startDateVal;
+    // Simpan tanggal batas khusus untuk Month yang sedang dipilih tanpa menghapus Month sebelumnya
+    if (selectedDateVal) {
+        profile.monthEndDates[`m${selectedMonthNum}`] = selectedDateVal;
+        profile.validUntil = selectedDateVal;
+    }
 
-    profile.validUntil = document.getElementById('admin-sched-date').value || profile.validUntil || 'Belum diatur';
+    // Pastikan maxMonth selalu mengambil bulan tertinggi yang pernah dibuka atau yang sedang dipilih
+    const highestConfiguredMonth = Object.keys(profile.monthEndDates).reduce((max, key) => {
+        const num = parseInt(key.replace('m', '')) || 1;
+        return num > max ? num : max;
+    }, parseInt(selectedMonthNum));
+
+    profile.maxMonth = Math.max(parseInt(selectedMonthNum), highestConfiguredMonth);
+
+    // Pastikan validUntil global mengacu pada batas bulan tertinggi yang aktif
+    if (profile.monthEndDates[`m${profile.maxMonth}`]) {
+        profile.validUntil = profile.monthEndDates[`m${profile.maxMonth}`];
+    }
 
     const sT = document.getElementById('admin-sched-start').value;
     const eT = document.getElementById('admin-sched-end').value;
     if (sT && eT) profile.time = `${sT} - ${eT}`;
 
-    profile.maxMonth = document.getElementById('admin-sched-max-month').value || profile.maxMonth || 1;
     const selDays = Array.from(document.querySelectorAll('.admin-day-cb:checked')).map(cb => cb.value);
     if (selDays.length > 0) profile.days = selDays;
 
@@ -366,8 +445,10 @@ window.saveStudentSchedule = async function(e) {
     btn.disabled = false;
 
     if (!error) {
-        showToast('Konfigurasi jadwal & kalibrasi posisi murid berhasil disimpan!', 'success');
+        showToast(`Jadwal & batas Month ${selectedMonthNum} berhasil disimpan!`, 'success');
+        renderSavedMonthDatesSummary(email);
         renderAdminUsersTab();
+        renderAppSidebar();
     } else {
         showToast('Gagal menyimpan jadwal: ' + error.message, 'error');
     }

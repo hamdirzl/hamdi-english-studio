@@ -41,7 +41,6 @@ window.HES = {
     ]
 };
 
-// Muat cache lokal terlebih dahulu agar halaman terasa instan
 (function loadLocalCache() {
     try {
         const cachedMonths = localStorage.getItem('hes_cache_months');
@@ -199,7 +198,7 @@ function isOccupied(email, targetDateStr, ignoreValidUntil = false) {
     let targetDate = parseDateStr(targetDateStr);
     let dayName = dayNames[targetDate.getDay()];
     if (!ignoreValidUntil && p.validUntil && p.validUntil !== 'Belum diatur') {
-        let validDate = new Date(p.validUntil);
+        let validDate = parseDateStr(p.validUntil);
         if (!isNaN(validDate)) {
             validDate.setHours(23, 59, 59, 999);
             if (targetDate > validDate) return false;
@@ -221,77 +220,113 @@ function checkOverlap(time1, time2) {
     return (s1 < e2) && (s2 < e1);
 }
 
+// Ambil tepat 12 sesi (4 minggu x 3 hari) MUNDUR dari tanggal batas akhir suatu Month
+function get12SessionsEndingOn(email, endDateStr) {
+    let endObj = parseDateStr(endDateStr);
+    endObj.setHours(0, 0, 0, 0);
+    let result = [];
+    let cursor = new Date(endObj);
+    let safety = 0;
+    while (result.length < 12 && safety < 400) {
+        let dStr = formatDateForID(cursor);
+        if (isOccupied(email, dStr, true)) {
+            result.unshift(new Date(cursor));
+        }
+        cursor.setDate(cursor.getDate() - 1);
+        safety++;
+    }
+    return result;
+}
+
+// Ambil tepat 12 sesi MAJU setelah tanggal tertentu
+function get12SessionsStartingAfter(email, afterDateObj) {
+    let cursor = new Date(afterDateObj);
+    cursor.setHours(0, 0, 0, 0);
+    cursor.setDate(cursor.getDate() + 1);
+    let result = [];
+    let safety = 0;
+    while (result.length < 12 && safety < 400) {
+        let dStr = formatDateForID(cursor);
+        if (isOccupied(email, dStr, true)) {
+            result.push(new Date(cursor));
+        }
+        cursor.setDate(cursor.getDate() + 1);
+        safety++;
+    }
+    return result;
+}
+
 /**
- * Menghasilkan peta tanggal kurikulum (Month -> Week -> Day) dengan dukungan
- * Kalibrasi Sesi Patokan (Anchor Session) untuk murid lama maupun murid baru.
+ * Menghasilkan peta tanggal kurikulum (Month -> Week -> Day) secara cerdas berdasarkan
+ * Batas Tanggal Per-Bulan (monthEndDates).
+ * - Jika Month 1 diberi batas 23 Sep, maka M1 berakhir di 23 Sep (dan otomatis Selesai jika hari ini > 23 Sep).
+ * - Jika Month 2 diberi batas 21 Okt, maka M2 dihitung 12 sesi mundur dari 21 Okt (M2 W1 D1 = 28 Sep).
  */
 function getStudentCurriculumTimeline(email) {
     let p = window.HES.materials[`profile-${email}`];
     if (!p || !p.days || p.days.length === 0) return null;
 
-    // 1. Tentukan tanggal patokan (Anchor Date)
-    let anchorBase;
-    if (p.startDate && p.startDate !== 'Belum diatur') {
-        anchorBase = parseDateStr(p.startDate);
-    } else {
+    let monthEndDates = Object.assign({}, p.monthEndDates || {});
+    const maxM = String(p.maxMonth || '1');
+
+    // Kompatibilitas otomatis jika Admin baru mengisi validUntil untuk bulan aktif saat ini
+    if (p.validUntil && p.validUntil !== 'Belum diatur' && !monthEndDates[`m${maxM}`]) {
+        monthEndDates[`m${maxM}`] = p.validUntil;
+    }
+
+    const totalMonths = window.HES.months.length;
+    let monthSessions = new Array(totalMonths);
+
+    // 1. Hitung 12 sesi untuk setiap Month yang memiliki tanggal batas akhir
+    for (let i = 0; i < totalMonths; i++) {
+        let mId = window.HES.months[i].id;
+        if (monthEndDates[mId]) {
+            monthSessions[i] = get12SessionsEndingOn(email, monthEndDates[mId]);
+        }
+    }
+
+    // 2. Jika ada Month sebelumnya (misal Month 1) yang belum sempat diisi batas tanggalnya,
+    // otomatis hitung mundur dari tanggal mulai Month berikutnya (misal Month 2) agar Month 1 otomatis Selesai!
+    for (let i = totalMonths - 2; i >= 0; i--) {
+        if (!monthSessions[i] && monthSessions[i + 1] && monthSessions[i + 1].length > 0) {
+            let prevEnd = new Date(monthSessions[i + 1][0]);
+            prevEnd.setDate(prevEnd.getDate() - 1);
+            monthSessions[i] = get12SessionsEndingOn(email, formatDateForID(prevEnd));
+        }
+    }
+
+    // 3. Jika belum ada satu pun tanggal batas yang diatur, buat fallback dari minggu ini untuk Month 1
+    if (!monthSessions[0]) {
         let now = new Date();
         let day = now.getDay();
-        let diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        anchorBase = new Date(now.getFullYear(), now.getMonth(), diff);
-    }
-    anchorBase.setHours(0, 0, 0, 0);
-
-    // 2. Tentukan index sesi patokan (Anchor Session Index)
-    // Contoh: Month 2 (idx 1) * 12 + Week 2 (idx 1) * 3 + Day 1 (idx 0) = Sesi ke-15
-    const anchorMonthId = p.anchorMonth || 'm1';
-    const anchorWeekNum = parseInt(p.anchorWeek) || 1;
-    const anchorDayNum = parseInt(p.anchorDay) || 1;
-
-    let mIndex = window.HES.months.findIndex(m => m.id === anchorMonthId);
-    if (mIndex === -1) mIndex = 0;
-
-    const anchorGlobalIdx = (mIndex * 12) + ((anchorWeekNum - 1) * 3) + (anchorDayNum - 1);
-    const totalMonths = window.HES.months.length;
-    const totalSessionsNeeded = totalMonths * 12;
-
-    let sessionDates = new Array(totalSessionsNeeded);
-
-    // 3. Hitung MAJU dari sesi patokan (untuk sesi patokan hingga sesi terakhir)
-    let forwardCursor = new Date(anchorBase);
-    let fIdx = anchorGlobalIdx;
-    let safetyF = 0;
-    while (fIdx < totalSessionsNeeded && safetyF < 1200) {
-        let dStr = formatDateForID(forwardCursor);
-        if (isOccupied(email, dStr, true)) {
-            sessionDates[fIdx] = new Date(forwardCursor);
-            fIdx++;
-        }
-        forwardCursor.setDate(forwardCursor.getDate() + 1);
-        safetyF++;
+        let diff = now.getDate() - day + (day === 0 ? -6 : 1) - 1;
+        let startBefore = new Date(now.getFullYear(), now.getMonth(), diff);
+        monthSessions[0] = get12SessionsStartingAfter(email, startBefore);
     }
 
-    // 4. Hitung MUNDUR dari sesi patokan (untuk sesi-sesi yang sudah lewat sebelum sesi patokan)
-    let backwardCursor = new Date(anchorBase);
-    backwardCursor.setDate(backwardCursor.getDate() - 1);
-    let bIdx = anchorGlobalIdx - 1;
-    let safetyB = 0;
-    while (bIdx >= 0 && safetyB < 1200) {
-        let dStr = formatDateForID(backwardCursor);
-        if (isOccupied(email, dStr, true)) {
-            sessionDates[bIdx] = new Date(backwardCursor);
-            bIdx--;
+    // 4. Untuk Month masa depan yang belum diatur tanggal batasnya, hitung maju berurutan setelah Month sebelumnya
+    for (let i = 1; i < totalMonths; i++) {
+        if (!monthSessions[i] && monthSessions[i - 1] && monthSessions[i - 1].length > 0) {
+            let lastDatePrevMonth = monthSessions[i - 1][monthSessions[i - 1].length - 1];
+            monthSessions[i] = get12SessionsStartingAfter(email, lastDatePrevMonth);
         }
-        backwardCursor.setDate(backwardCursor.getDate() - 1);
-        safetyB++;
+    }
+
+    // Gabungkan seluruh sesi menjadi satu deretan kurikulum utuh
+    let sessionDates = [];
+    for (let i = 0; i < totalMonths; i++) {
+        let arr = monthSessions[i] || [];
+        for (let k = 0; k < 12; k++) {
+            sessionDates.push(arr[k] || null);
+        }
     }
 
     let today = new Date();
     today.setHours(0, 0, 0, 0);
     let todayStr = formatDateForID(today);
 
-    // Cari sesi yang jatuh tepat hari ini atau sesi pertama setelah hari ini
-    // Namun pastikan tidak mundur ke belakang anchorGlobalIdx jika tanggal anchor diset untuk minggu ini
-    let firstUpcomingIdx = sessionDates.findIndex((d, idx) => d && d >= today);
+    // Cari sesi pertama yang tanggalnya >= hari ini
+    let firstUpcomingIdx = sessionDates.findIndex(d => d && d >= today);
     let currentIdx = -1;
     let nextIdx = -1;
     let isTodayClass = false;
@@ -302,17 +337,29 @@ function getStudentCurriculumTimeline(email) {
     } else {
         let firstDateStr = formatDateForID(sessionDates[firstUpcomingIdx]);
         if (firstDateStr === todayStr) {
+            // Hari ini adalah hari kelas!
             currentIdx = firstUpcomingIdx;
             nextIdx = (firstUpcomingIdx + 1 < sessionDates.length) ? firstUpcomingIdx + 1 : -1;
             isTodayClass = true;
         } else {
-            if (firstUpcomingIdx > anchorGlobalIdx) {
-                currentIdx = firstUpcomingIdx - 1;
-                nextIdx = firstUpcomingIdx;
+            // Jika hari ini berada di sela-sela jadwal (misal Selasa 6 Okt, setelah Senin 5 Okt dan sebelum Rabu 7 Okt):
+            // Maka "Sedang Di Sini" adalah pertemuan yang sedang/baru berjalan di minggu ini (atau sesi pertama di bulan baru jika bulan sebelumnya baru selesai)
+            if (firstUpcomingIdx > 0) {
+                const prevMonthIdx = Math.floor((firstUpcomingIdx - 1) / 12);
+                const upcomingMonthIdx = Math.floor(firstUpcomingIdx / 12);
+
+                if (prevMonthIdx < upcomingMonthIdx) {
+                    // Bulan sebelumnya (misal Month 1) sudah selesai seluruh 12 sesinya!
+                    // Maka posisi fokus aktif langsung masuk ke Day 1 di Bulan Baru (Month 2)
+                    currentIdx = firstUpcomingIdx;
+                    nextIdx = (firstUpcomingIdx + 1 < sessionDates.length) ? firstUpcomingIdx + 1 : -1;
+                } else {
+                    currentIdx = firstUpcomingIdx - 1;
+                    nextIdx = firstUpcomingIdx;
+                }
             } else {
-                // Jika hari ini masih sebelum tanggal patokan yang diset Admin, fokuskan ke sesi patokan tersebut
-                currentIdx = anchorGlobalIdx;
-                nextIdx = (anchorGlobalIdx + 1 < sessionDates.length) ? anchorGlobalIdx + 1 : -1;
+                currentIdx = 0;
+                nextIdx = (sessionDates.length > 1) ? 1 : -1;
             }
         }
     }
@@ -327,7 +374,7 @@ function getStudentCurriculumTimeline(email) {
     };
 
     let globalIdx = 0;
-    window.HES.months.forEach((m) => {
+    window.HES.months.forEach((m, mIdx) => {
         let mDates = [];
         let mHasCurrent = false;
         let mHasNext = false;
@@ -393,7 +440,10 @@ function getStudentCurriculumTimeline(email) {
                 globalIdx++;
             });
 
-            const allWeekDone = ( ((window.HES.months.findIndex(x => x.id === m.id) * 12) + ((w - 1) * 3) + 2) < currentIdx );
+            const lastIdxOfWeek = (mIdx * 12) + ((w - 1) * 3) + 2;
+            const isWeekPastByDate = wDates.length > 0 && wDates[wDates.length - 1] < today;
+            const allWeekDone = (lastIdxOfWeek < currentIdx) || isWeekPastByDate;
+
             let wStatus = wHasCurrent ? 'current' : (wHasNext ? 'next' : (allWeekDone ? 'completed' : 'upcoming'));
             timeline.weeks[`${m.id}-w${w}`] = {
                 rangeText: wDates.length ? formatDateRangeShort(wDates[0], wDates[wDates.length - 1]) : '',
@@ -401,10 +451,17 @@ function getStudentCurriculumTimeline(email) {
             };
         });
 
-        const allMonthDone = ( ((window.HES.months.findIndex(x => x.id === m.id) * 12) + 11) < currentIdx );
-        let mStatus = mHasCurrent ? 'current' : (mHasNext ? 'next' : (allMonthDone ? 'completed' : 'upcoming'));
+        const lastIdxOfMonth = (mIdx * 12) + 11;
+        // Jika tanggal batas bulan ini sudah lewat dari hari ini, pastikan seluruh Month berstatus 'completed' (Selesai)!
+        let explicitEndObj = monthEndDates[m.id] ? parseDateStr(monthEndDates[m.id]) : null;
+        if (explicitEndObj) explicitEndObj.setHours(23, 59, 59, 999);
+        const isMonthExpiredByEndDate = explicitEndObj ? (today > explicitEndObj) : (mDates.length > 0 && mDates[mDates.length - 1] < today);
+        const allMonthDone = (lastIdxOfMonth < currentIdx) || isMonthExpiredByEndDate;
+
+        let mStatus = allMonthDone ? 'completed' : (mHasCurrent ? 'current' : (mHasNext ? 'next' : 'upcoming'));
         timeline.months[m.id] = {
             rangeText: mDates.length ? formatDateRangeShort(mDates[0], mDates[mDates.length - 1]) : '',
+            endDateStr: monthEndDates[m.id] || '',
             status: mStatus
         };
     });
@@ -415,11 +472,19 @@ function getStudentCurriculumTimeline(email) {
 function getStudentNextSessionInfo(email) {
     let p = window.HES.materials[`profile-${email}`];
     if (!p || !p.days || p.days.length === 0) return { error: 'Jadwal belum dikonfigurasi oleh admin.' };
-    if (!p.validUntil || p.validUntil === 'Belum diatur') return { error: 'Masa aktif keanggotaan belum diatur.' };
+
+    const maxM = String(p.maxMonth || '1');
+    const activeValidUntil = (p.monthEndDates && p.monthEndDates[`m${maxM}`])
+        ? p.monthEndDates[`m${maxM}`]
+        : p.validUntil;
+
+    if (!activeValidUntil || activeValidUntil === 'Belum diatur') {
+        return { error: 'Masa aktif keanggotaan belum diatur.' };
+    }
 
     let today = new Date();
     today.setHours(0, 0, 0, 0);
-    let validDate = new Date(p.validUntil);
+    let validDate = parseDateStr(activeValidUntil);
     let isValid = !isNaN(validDate);
     if (isValid) validDate.setHours(23, 59, 59, 999);
     if (isValid && today > validDate) return { expired: true, validDateStr: getDisplayDate(validDate) };

@@ -131,23 +131,23 @@
                                 </div>
                             </div>
 
-                            <!-- Form Pengaturan Jadwal Master & Kalibrasi Sesi -->
+                            <!-- Form Pengaturan Jadwal Master & Batas Modul -->
                             <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
                                 <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                    <i class="fas fa-user-clock text-purple-600"></i> Konfigurasi Jadwal Master & Kalibrasi Posisi
+                                    <i class="fas fa-user-clock text-purple-600"></i> Konfigurasi Jadwal Master & Batas Bulan
                                 </h3>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3">
                                     <div>
                                         <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Pilih Murid</label>
                                         <select id="admin-sched-student" onchange="loadStudentScheduleForm()" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500"></select>
                                     </div>
                                     <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Batas Akses Modul</label>
-                                        <select id="admin-sched-max-month" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500"></select>
+                                        <label class="block text-[11px] font-bold text-indigo-600 uppercase mb-1">Pilih Modul Bulan (Batas Akses)</label>
+                                        <select id="admin-sched-max-month" onchange="onAdminMonthSelectChange()" class="w-full bg-indigo-50/60 border border-indigo-200 p-2.5 rounded-xl text-xs font-extrabold text-indigo-900 outline-none focus:border-indigo-500"></select>
                                     </div>
                                     <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Masa Aktif s/d Tanggal</label>
-                                        <input type="date" id="admin-sched-date" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500 text-slate-700">
+                                        <label id="admin-sched-date-label" class="block text-[11px] font-bold text-emerald-700 uppercase mb-1">Batas Akhir Month 1 (Day 12)</label>
+                                        <input type="date" id="admin-sched-date" class="w-full bg-emerald-50/50 border border-emerald-200 p-2.5 rounded-xl text-xs font-bold outline-none focus:border-emerald-500 text-slate-700">
                                     </div>
                                     <div>
                                         <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Jam Kelas Default</label>
@@ -159,36 +159,8 @@
                                     </div>
                                 </div>
 
-                                <!-- Box Kalibrasi Posisi Sesi (Solusi Murid Lama / Pindahan) -->
-                                <div class="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/90 mb-4">
-                                    <div class="flex items-center justify-between mb-1.5">
-                                        <label class="block text-[11px] font-extrabold text-emerald-800 uppercase tracking-wide">
-                                            <i class="fas fa-location-crosshairs mr-1 text-emerald-600"></i> Kalibrasi Posisi & Tanggal Sesi
-                                        </label>
-                                        <span class="text-[9px] font-bold bg-white text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">Penentu Tanggal</span>
-                                    </div>
-                                    <p class="text-[11px] text-emerald-700 mb-2.5 leading-relaxed">
-                                        Pilih sesi patokan (misal: <strong>Month 2 • Week 2 • Day 1</strong>) lalu isi tanggalnya. Semua sesi sebelum itu otomatis ditandai <strong>Selesai</strong>, dan sesi setelahnya dihitung maju secara berurutan.
-                                    </p>
-                                    <div class="grid grid-cols-3 gap-2 mb-2">
-                                        <select id="admin-anchor-month" class="bg-white border border-emerald-200 p-2 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-500"></select>
-                                        <select id="admin-anchor-week" class="bg-white border border-emerald-200 p-2 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-500">
-                                            <option value="1">Week 1</option>
-                                            <option value="2">Week 2</option>
-                                            <option value="3">Week 3</option>
-                                            <option value="4">Week 4</option>
-                                        </select>
-                                        <select id="admin-anchor-day" class="bg-white border border-emerald-200 p-2 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-emerald-500">
-                                            <option value="1">Day 1</option>
-                                            <option value="2">Day 2</option>
-                                            <option value="3">Day 3</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-emerald-800 uppercase mb-1">Jatuh Pada Tanggal:</label>
-                                        <input type="date" id="admin-sched-start-date" class="w-full bg-white border border-emerald-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-emerald-500 text-slate-700">
-                                    </div>
-                                </div>
+                                <!-- Ringkasan Tanggal Batas per Bulan yang Sudah Tersimpan -->
+                                <div id="admin-saved-month-dates-box" class="mb-4 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px]"></div>
 
                                 <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">Hari Kelas Rutin</label>
                                 <div class="flex flex-wrap gap-2 mb-5">
@@ -201,7 +173,7 @@
                                 </div>
 
                                 <button onclick="saveStudentSchedule(event)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-bold shadow-sm transition">
-                                    <i class="fas fa-save mr-1"></i> Simpan Konfigurasi Jadwal
+                                    <i class="fas fa-save mr-1"></i> Simpan Konfigurasi Jadwal & Tanggal Bulan
                                 </button>
                             </div>
                         </div>
@@ -217,7 +189,7 @@
                                         <tr class="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
                                             <th class="p-3.5">Nama Murid</th>
                                             <th class="p-3.5">Email</th>
-                                            <th class="p-3.5">Jadwal & Masa Aktif</th>
+                                            <th class="p-3.5">Jadwal & Batas Per-Bulan</th>
                                             <th class="p-3.5">Kata Sandi</th>
                                             <th class="p-3.5 text-right">Tindakan</th>
                                         </tr>
