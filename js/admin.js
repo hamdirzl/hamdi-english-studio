@@ -79,6 +79,7 @@ function populateAllAdminDropdowns() {
 
     setHTML('admin-sched-student', studentOptions);
     setHTML('admin-sched-max-month', maxMonthOptions);
+    setHTML('admin-anchor-month', monthOptions);
     setHTML('admin-target-student', `<option value="all">Global (Semua Murid)</option>${studentOptions}`);
     setHTML('admin-month', monthOptions);
     setHTML('admin-vocab-month', monthOptions);
@@ -199,12 +200,18 @@ window.loadStudentScheduleForm = function() {
     const p = window.HES.materials[`profile-${email}`] || {};
 
     const maxMonthEl = document.getElementById('admin-sched-max-month');
+    const anchorMonthEl = document.getElementById('admin-anchor-month');
+    const anchorWeekEl = document.getElementById('admin-anchor-week');
+    const anchorDayEl = document.getElementById('admin-anchor-day');
     const startDateEl = document.getElementById('admin-sched-start-date');
     const dateEl = document.getElementById('admin-sched-date');
     const startEl = document.getElementById('admin-sched-start');
     const endEl = document.getElementById('admin-sched-end');
 
     if (maxMonthEl) maxMonthEl.value = p.maxMonth || '1';
+    if (anchorMonthEl) anchorMonthEl.value = p.anchorMonth || 'm1';
+    if (anchorWeekEl) anchorWeekEl.value = String(p.anchorWeek || '1');
+    if (anchorDayEl) anchorDayEl.value = String(p.anchorDay || '1');
     if (startDateEl) startDateEl.value = (p.startDate && p.startDate !== 'Belum diatur') ? p.startDate : '';
     if (dateEl) dateEl.value = (p.validUntil && p.validUntil !== 'Belum diatur') ? p.validUntil : '';
 
@@ -232,9 +239,13 @@ function renderAdminUsersTab() {
         const schedSummary = (p.days && p.days.length > 0)
             ? `${p.days.join(', ')} (${p.time || '-'})`
             : '<span class="text-slate-400 italic">Belum diatur</span>';
-        const startSummary = (p.startDate && p.startDate !== 'Belum diatur') ? `Mulai: ${p.startDate} • ` : '';
+
+        const anchorLabel = (p.startDate && p.startDate !== 'Belum diatur')
+            ? `Patokan: ${(p.anchorMonth || 'm1').toUpperCase()}•W${p.anchorWeek || 1}•D${p.anchorDay || 1} (${p.startDate}) • `
+            : '';
+
         const validSummary = (p.validUntil && p.validUntil !== 'Belum diatur')
-            ? `${startSummary}Aktif s/d: ${p.validUntil} • Max M${p.maxMonth || 1}`
+            ? `${anchorLabel}Aktif s/d: ${p.validUntil} • Max M${p.maxMonth || 1}`
             : 'Masa aktif belum diatur';
 
         return `
@@ -325,6 +336,11 @@ window.saveStudentSchedule = async function(e) {
     if (!email) return;
 
     let profile = window.HES.materials[`profile-${email}`] || {};
+
+    profile.anchorMonth = document.getElementById('admin-anchor-month').value || 'm1';
+    profile.anchorWeek = parseInt(document.getElementById('admin-anchor-week').value) || 1;
+    profile.anchorDay = parseInt(document.getElementById('admin-anchor-day').value) || 1;
+
     const startDateVal = document.getElementById('admin-sched-start-date').value;
     if (startDateVal) profile.startDate = startDateVal;
 
@@ -350,7 +366,7 @@ window.saveStudentSchedule = async function(e) {
     btn.disabled = false;
 
     if (!error) {
-        showToast('Konfigurasi jadwal & tanggal mulai berhasil disimpan!', 'success');
+        showToast('Konfigurasi jadwal & kalibrasi posisi murid berhasil disimpan!', 'success');
         renderAdminUsersTab();
     } else {
         showToast('Gagal menyimpan jadwal: ' + error.message, 'error');

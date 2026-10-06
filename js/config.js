@@ -222,51 +222,76 @@ function checkOverlap(time1, time2) {
 }
 
 /**
- * Menghasilkan peta tanggal kurikulum (Month -> Week -> Day) beserta pelacak sesi:
- * - status 'current': Sesi tempat murid berada saat ini (Sedang Di Sini / Hari Ini)
- * - status 'next': Sesi pertemuan berikutnya (Selanjutnya)
- * - status 'completed': Sesi yang sudah lewat
- * - status 'upcoming': Sesi masa depan lainnya
+ * Menghasilkan peta tanggal kurikulum (Month -> Week -> Day) dengan dukungan
+ * Kalibrasi Sesi Patokan (Anchor Session) untuk murid lama maupun murid baru.
  */
 function getStudentCurriculumTimeline(email) {
     let p = window.HES.materials[`profile-${email}`];
     if (!p || !p.days || p.days.length === 0) return null;
 
-    let startBase;
+    // 1. Tentukan tanggal patokan (Anchor Date)
+    let anchorBase;
     if (p.startDate && p.startDate !== 'Belum diatur') {
-        startBase = parseDateStr(p.startDate);
+        anchorBase = parseDateStr(p.startDate);
     } else {
-        // Fallback otomatis ke Senin minggu ini jika Admin belum mengisi Tanggal Mulai
         let now = new Date();
         let day = now.getDay();
         let diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        startBase = new Date(now.getFullYear(), now.getMonth(), diff);
+        anchorBase = new Date(now.getFullYear(), now.getMonth(), diff);
     }
-    startBase.setHours(0, 0, 0, 0);
+    anchorBase.setHours(0, 0, 0, 0);
 
+    // 2. Tentukan index sesi patokan (Anchor Session Index)
+    // Contoh: Month 2 (idx 1) * 12 + Week 2 (idx 1) * 3 + Day 1 (idx 0) = Sesi ke-15
+    const anchorMonthId = p.anchorMonth || 'm1';
+    const anchorWeekNum = parseInt(p.anchorWeek) || 1;
+    const anchorDayNum = parseInt(p.anchorDay) || 1;
+
+    let mIndex = window.HES.months.findIndex(m => m.id === anchorMonthId);
+    if (mIndex === -1) mIndex = 0;
+
+    const anchorGlobalIdx = (mIndex * 12) + ((anchorWeekNum - 1) * 3) + (anchorDayNum - 1);
     const totalMonths = window.HES.months.length;
-    const totalSessionsNeeded = totalMonths * 12; // 4 week * 3 day per month
-    let sessionDates = [];
-    let cursor = new Date(startBase);
-    let safety = 0;
+    const totalSessionsNeeded = totalMonths * 12;
 
-    while (sessionDates.length < totalSessionsNeeded && safety < 900) {
-        let dStr = formatDateForID(cursor);
+    let sessionDates = new Array(totalSessionsNeeded);
+
+    // 3. Hitung MAJU dari sesi patokan (untuk sesi patokan hingga sesi terakhir)
+    let forwardCursor = new Date(anchorBase);
+    let fIdx = anchorGlobalIdx;
+    let safetyF = 0;
+    while (fIdx < totalSessionsNeeded && safetyF < 1200) {
+        let dStr = formatDateForID(forwardCursor);
         if (isOccupied(email, dStr, true)) {
-            sessionDates.push(new Date(cursor));
+            sessionDates[fIdx] = new Date(forwardCursor);
+            fIdx++;
         }
-        cursor.setDate(cursor.getDate() + 1);
-        safety++;
+        forwardCursor.setDate(forwardCursor.getDate() + 1);
+        safetyF++;
     }
 
-    if (sessionDates.length === 0) return null;
+    // 4. Hitung MUNDUR dari sesi patokan (untuk sesi-sesi yang sudah lewat sebelum sesi patokan)
+    let backwardCursor = new Date(anchorBase);
+    backwardCursor.setDate(backwardCursor.getDate() - 1);
+    let bIdx = anchorGlobalIdx - 1;
+    let safetyB = 0;
+    while (bIdx >= 0 && safetyB < 1200) {
+        let dStr = formatDateForID(backwardCursor);
+        if (isOccupied(email, dStr, true)) {
+            sessionDates[bIdx] = new Date(backwardCursor);
+            bIdx--;
+        }
+        backwardCursor.setDate(backwardCursor.getDate() - 1);
+        safetyB++;
+    }
 
     let today = new Date();
     today.setHours(0, 0, 0, 0);
     let todayStr = formatDateForID(today);
 
     // Cari sesi yang jatuh tepat hari ini atau sesi pertama setelah hari ini
-    let firstUpcomingIdx = sessionDates.findIndex(d => d >= today);
+    // Namun pastikan tidak mundur ke belakang anchorGlobalIdx jika tanggal anchor diset untuk minggu ini
+    let firstUpcomingIdx = sessionDates.findIndex((d, idx) => d && d >= today);
     let currentIdx = -1;
     let nextIdx = -1;
     let isTodayClass = false;
@@ -277,18 +302,17 @@ function getStudentCurriculumTimeline(email) {
     } else {
         let firstDateStr = formatDateForID(sessionDates[firstUpcomingIdx]);
         if (firstDateStr === todayStr) {
-            // Hari ini ada jadwal kelas!
             currentIdx = firstUpcomingIdx;
             nextIdx = (firstUpcomingIdx + 1 < sessionDates.length) ? firstUpcomingIdx + 1 : -1;
             isTodayClass = true;
         } else {
-            // Hari ini tidak ada kelas: Current adalah sesi terakhir yang sedang/baru dipelajari (atau Day 1 jika belum mulai), Next adalah jadwal kelas terdekat berikutnya
-            if (firstUpcomingIdx > 0) {
+            if (firstUpcomingIdx > anchorGlobalIdx) {
                 currentIdx = firstUpcomingIdx - 1;
                 nextIdx = firstUpcomingIdx;
             } else {
-                currentIdx = 0;
-                nextIdx = (sessionDates.length > 1) ? 1 : -1;
+                // Jika hari ini masih sebelum tanggal patokan yang diset Admin, fokuskan ke sesi patokan tersebut
+                currentIdx = anchorGlobalIdx;
+                nextIdx = (anchorGlobalIdx + 1 < sessionDates.length) ? anchorGlobalIdx + 1 : -1;
             }
         }
     }
@@ -369,14 +393,16 @@ function getStudentCurriculumTimeline(email) {
                 globalIdx++;
             });
 
-            let wStatus = wHasCurrent ? 'current' : (wHasNext ? 'next' : (wDates.length && wDates[wDates.length - 1] < today ? 'completed' : 'upcoming'));
+            const allWeekDone = ( ((window.HES.months.findIndex(x => x.id === m.id) * 12) + ((w - 1) * 3) + 2) < currentIdx );
+            let wStatus = wHasCurrent ? 'current' : (wHasNext ? 'next' : (allWeekDone ? 'completed' : 'upcoming'));
             timeline.weeks[`${m.id}-w${w}`] = {
                 rangeText: wDates.length ? formatDateRangeShort(wDates[0], wDates[wDates.length - 1]) : '',
                 status: wStatus
             };
         });
 
-        let mStatus = mHasCurrent ? 'current' : (mHasNext ? 'next' : (mDates.length && mDates[mDates.length - 1] < today ? 'completed' : 'upcoming'));
+        const allMonthDone = ( ((window.HES.months.findIndex(x => x.id === m.id) * 12) + 11) < currentIdx );
+        let mStatus = mHasCurrent ? 'current' : (mHasNext ? 'next' : (allMonthDone ? 'completed' : 'upcoming'));
         timeline.months[m.id] = {
             rangeText: mDates.length ? formatDateRangeShort(mDates[0], mDates[mDates.length - 1]) : '',
             status: mStatus
