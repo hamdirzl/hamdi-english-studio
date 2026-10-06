@@ -6,6 +6,9 @@ let activeMateriState = {
     day: 1
 };
 
+let currentVocabItems = [];
+let allCardsFlipped = false;
+
 document.addEventListener('DOMContentLoaded', async () => {
     const session = requireAuth();
     if (!session) return;
@@ -27,7 +30,6 @@ function parseMateriQueryParams() {
     let w = parseInt(params.get('week'));
     let d = parseInt(params.get('day'));
 
-    // Jika murid membuka materi.html tanpa parameter URL, langsung arahkan ke pertemuan tempat ia berada saat ini
     if (!m && window.HES.userRole === 'student' && window.HES.currentUser) {
         const timeline = getStudentCurriculumTimeline(window.HES.currentUser.email);
         if (timeline && timeline.currentPointer) {
@@ -67,7 +69,6 @@ function setupQuickSelectors() {
         showToast('Modul bulan tersebut masih terkunci.', 'info');
     }
 
-    // Label singkat dan rapi agar muat di layar HP
     qMonth.innerHTML = window.HES.months.map(m => {
         const mNum = parseInt(m.id.replace('m', ''));
         const locked = role === 'student' && mNum > maxMonthNum;
@@ -153,7 +154,6 @@ function renderMateriContent() {
         trackerBanner.classList.remove('hidden');
         trackerBanner.innerHTML = `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <!-- Pill 1: Pertemuan Saat Ini (Hijau Emerald) -->
                 <a href="materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isViewingCurrent ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-emerald-50/90 hover:bg-emerald-100/70 text-emerald-950 border-emerald-200'}">
                     <div class="flex items-center gap-2.5 min-w-0">
                         <span class="w-7 h-7 rounded-lg ${isViewingCurrent ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'} flex items-center justify-center text-xs shrink-0">
@@ -173,7 +173,6 @@ function renderMateriContent() {
                     </span>
                 </a>
 
-                <!-- Pill 2: Pertemuan Berikutnya (Kuning Amber) -->
                 ${nxt ? `
                 <a href="materi.html?month=${nxt.monthId}&week=${nxt.week}&day=${nxt.day}" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isViewingNext ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-amber-50/90 hover:bg-amber-100/70 text-amber-950 border-amber-200'}">
                     <div class="flex items-center gap-2.5 min-w-0">
@@ -200,11 +199,12 @@ function renderMateriContent() {
         trackerBanner.classList.add('hidden');
     }
 
-    // 1. Render Kosakata Harian (Flashcards)
+    // ====================================================
+    // 1. RENDER INTERACTIVE 3D VOCABULARY FLASHCARDS
+    // ====================================================
     const vocabData = window.HES.materials[`vocab-${monthId}-w${week}-d${day}`] || '';
     const vocabStatus = window.HES.materials[`vocab_status-${email}-${monthId}-w${week}-d${day}`] || { status: 'none', feedback: '' };
     const vocabSection = document.getElementById('vocab-section');
-    const vocabCardsContainer = document.getElementById('vocab-cards-container');
     const vocabCountBadge = document.getElementById('vocab-count-badge');
     const vocabActionArea = document.getElementById('vocab-action-area');
 
@@ -214,30 +214,29 @@ function renderMateriContent() {
             vocabSection.classList.remove('hidden');
             vocabCountBadge.innerText = `${lines.length} Kata`;
 
-            vocabCardsContainer.innerHTML = lines.map((w, index) => {
+            currentVocabItems = lines.map((w, idx) => {
                 const parts = w.split('=');
-                const eng = parts[0].trim();
-                const ind = parts.slice(1).join('=').trim();
-                return `
-                    <div class="snap-center shrink-0 w-36 sm:w-44 bg-white p-3.5 rounded-xl border border-slate-200/90 text-center shadow-2xs hover:border-indigo-300 transition flex flex-col justify-between">
-                        <span class="text-[10px] font-bold text-slate-300">#${index + 1}</span>
-                        <p class="font-extrabold text-slate-800 text-xs sm:text-sm my-1.5 break-words">${eng}</p>
-                        <span class="text-[10px] sm:text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 py-1 px-2 rounded-lg inline-block truncate">${ind}</span>
-                    </div>
-                `;
-            }).join('');
+                return {
+                    num: idx + 1,
+                    eng: parts[0].trim(),
+                    ind: parts.slice(1).join('=').trim()
+                };
+            });
+
+            allCardsFlipped = false;
+            renderFlashcardDeck();
 
             if (role === 'student') {
                 if (!vocabStatus.status || vocabStatus.status === 'none') {
                     vocabActionArea.innerHTML = `
-                        <p class="text-xs text-slate-500 font-medium text-center sm:text-left">Sudah menghafal seluruh kosakata di atas?</p>
+                        <p class="text-xs text-slate-500 font-medium text-center sm:text-left">Sudah menghafal dan menguji pengucapan seluruh kosakata di atas?</p>
                         <button onclick="submitVocab(this, '${monthId}', ${week}, ${day})" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition">
-                            <i class="fas fa-check mr-1.5"></i> Tandai Selesai Dihafal
+                            <i class="fas fa-check mr-1.5"></i> Tandai Selesai Dihafal (+10 XP)
                         </button>
                     `;
                 } else if (vocabStatus.status === 'submitted') {
                     vocabActionArea.innerHTML = `
-                        <p class="text-xs text-slate-500 font-medium">Setoran hafalan Anda telah tercatat.</p>
+                        <p class="text-xs text-slate-500 font-medium">Setoran hafalan Anda telah tercatat (+10 XP).</p>
                         <div class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5">
                             <i class="fas fa-clock"></i> Menunggu Verifikasi Admin
                         </div>
@@ -248,12 +247,12 @@ function renderMateriContent() {
                             <i class="fas fa-comment-dots mr-1"></i> Catatan Admin: <strong>"${vocabStatus.feedback || 'Good Job!'}"</strong>
                         </div>
                         <div class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5">
-                            <i class="fas fa-check-circle"></i> Hafalan Terverifikasi
+                            <i class="fas fa-check-circle"></i> Hafalan Terverifikasi (+25 XP)
                         </div>
                     `;
                 }
             } else {
-                vocabActionArea.innerHTML = `<p class="text-xs text-slate-400 italic">Mode Pratinjau Administrator.</p>`;
+                vocabActionArea.innerHTML = `<p class="text-xs text-slate-400 italic">Mode Pratinjau Administrator — Ketuk kartu untuk mencoba efek 3D Flip & Suara.</p>`;
             }
         } else {
             vocabSection.classList.add('hidden');
@@ -262,7 +261,9 @@ function renderMateriContent() {
         vocabSection.classList.add('hidden');
     }
 
-    // 2. Render Modul Presentasi & Catatan Rangkuman (PDF)
+    // ====================================================
+    // 2. RENDER MODUL PRESENTASI & CATATAN RANGKUMAN (PDF)
+    // ====================================================
     const rawLink = window.HES.materials[`${email}-${monthId}-w${week}-d${day}-link`] || window.HES.materials[`all-${monthId}-w${week}-d${day}-link`] || '';
     const rawRecap = window.HES.materials[`${email}-${monthId}-w${week}-d${day}-recap`] || window.HES.materials[`all-${monthId}-w${week}-d${day}-recap`] || '';
 
@@ -301,6 +302,124 @@ function renderMateriContent() {
         `;
     }
 }
+
+// Render deretan kartu 3D Flip beserta tombol speaker Text-to-Speech
+function renderFlashcardDeck() {
+    const container = document.getElementById('vocab-cards-container');
+    if (!container) return;
+
+    const btnFlipAll = document.getElementById('btn-flip-all');
+    if (btnFlipAll) {
+        btnFlipAll.innerHTML = allCardsFlipped
+            ? `<i class="fas fa-rotate"></i> <span>Tutup Arti</span>`
+            : `<i class="fas fa-rotate"></i> <span>Balik Semua</span>`;
+    }
+
+    container.innerHTML = currentVocabItems.map((item, idx) => {
+        const safeWord = item.eng.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return `
+            <div class="flip-card ${allCardsFlipped ? 'is-flipped' : ''} perspective-1000 snap-center shrink-0 w-44 sm:w-52 h-40 sm:h-44 cursor-pointer select-none" onclick="flipVocabCard(this)">
+                <div class="flip-card-inner">
+                    
+                    <!-- SISI DEPAN: Bahasa Inggris + Tombol Suara -->
+                    <div class="flip-card-front bg-white p-3.5 sm:p-4 border border-slate-200/90 hover:border-indigo-300 shadow-xs flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">#${item.num}</span>
+                            <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white flex items-center justify-center transition shadow-2xs" title="Dengarkan Pengucapan">
+                                <i class="fas fa-volume-high text-xs"></i>
+                            </button>
+                        </div>
+
+                        <div class="my-auto text-center px-1">
+                            <p class="font-extrabold text-slate-800 text-sm sm:text-base leading-snug break-words">${item.eng}</p>
+                        </div>
+
+                        <div class="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-400 border-t border-slate-100 pt-2">
+                            <i class="fas fa-hand-pointer text-[9px] text-indigo-400"></i>
+                            <span>Ketuk untuk balik</span>
+                        </div>
+                    </div>
+
+                    <!-- SISI BELAKANG: Arti Bahasa Indonesia -->
+                    <div class="flip-card-back bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 text-white p-3.5 sm:p-4 border border-indigo-500 shadow-md flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[9px] font-extrabold uppercase tracking-wider bg-white/20 text-indigo-100 px-2 py-0.5 rounded-md">Arti Kata</span>
+                            <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/30 text-white flex items-center justify-center transition" title="Dengarkan Pengucapan">
+                                <i class="fas fa-volume-high text-xs"></i>
+                            </button>
+                        </div>
+
+                        <div class="my-auto text-center px-1">
+                            <p class="text-[10px] font-semibold text-indigo-200 truncate mb-0.5">${item.eng}</p>
+                            <p class="font-extrabold text-white text-sm sm:text-base leading-snug break-words">${item.ind}</p>
+                        </div>
+
+                        <div class="flex items-center justify-center gap-1 text-[10px] font-semibold text-indigo-200 border-t border-white/15 pt-2">
+                            <i class="fas fa-rotate-left text-[9px]"></i>
+                            <span>Ketuk untuk kembali</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+window.flipVocabCard = function(cardEl) {
+    if (!cardEl) return;
+    cardEl.classList.toggle('is-flipped');
+};
+
+window.toggleFlipAllCards = function() {
+    allCardsFlipped = !allCardsFlipped;
+    const cards = document.querySelectorAll('#vocab-cards-container .flip-card');
+    cards.forEach(c => {
+        if (allCardsFlipped) c.classList.add('is-flipped');
+        else c.classList.remove('is-flipped');
+    });
+
+    const btnFlipAll = document.getElementById('btn-flip-all');
+    if (btnFlipAll) {
+        btnFlipAll.innerHTML = allCardsFlipped
+            ? `<i class="fas fa-rotate"></i> <span>Tutup Arti</span>`
+            : `<i class="fas fa-rotate"></i> <span>Balik Semua</span>`;
+    }
+};
+
+window.shuffleVocabCards = function() {
+    if (currentVocabItems.length <= 1) return;
+    for (let i = currentVocabItems.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [currentVocabItems[i], currentVocabItems[j]] = [currentVocabItems[j], currentVocabItems[i]];
+    }
+    allCardsFlipped = false;
+    renderFlashcardDeck();
+    showToast('Urutan kartu kosakata berhasil diacak!', 'info');
+};
+
+window.speakVocabWord = function(event, word, btnEl) {
+    event.stopPropagation(); // Mencegah kartu ikut terbalik saat hanya menekan tombol suara
+
+    if (!('speechSynthesis' in window)) {
+        showToast('Browser Anda belum mendukung fitur suara otomatis.', 'error');
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9; // Sedikit lebih lambat agar artikulasi jelas bagi murid
+
+    if (btnEl) {
+        btnEl.classList.add('speaking-pulse');
+        utterance.onend = () => btnEl.classList.remove('speaking-pulse');
+        utterance.onerror = () => btnEl.classList.remove('speaking-pulse');
+    }
+
+    window.speechSynthesis.speak(utterance);
+};
 
 window.submitVocab = async function(btnElement, m, w, d) {
     const email = window.HES.currentUser.email;
