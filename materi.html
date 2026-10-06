@@ -77,40 +77,40 @@
                         </div>
                     </div>
 
-                    <!-- Section Daily Vocabulary (Interactive 3D Flashcards + Audio) -->
-                    <section id="vocab-section" class="hidden mb-5 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <!-- Section Daily Vocabulary (Interactive Single-Card Deck + Swipe & Loop) -->
+                    <section id="vocab-section" class="hidden mb-6 bg-white p-4 sm:p-6 md:p-7 rounded-3xl border border-slate-200/90 shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                             <div>
-                                <div class="flex items-center gap-2">
-                                    <h3 class="text-xs sm:text-base font-extrabold text-slate-800 flex items-center gap-2">
-                                        <i class="fas fa-layer-group text-indigo-600"></i>
-                                        Interactive Vocabulary Flashcards
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h3 class="text-sm sm:text-base md:text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                                        <i class="fas fa-clone text-indigo-600"></i>
+                                        Interactive Vocabulary Deck
                                     </h3>
-                                    <span id="vocab-count-badge" class="shrink-0 text-[10px] font-extrabold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md border border-indigo-100">0 Kata</span>
+                                    <span id="vocab-count-badge" class="shrink-0 text-[10px] font-extrabold bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full border border-indigo-100">0 Kata</span>
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                        <i class="fas fa-infinity text-[9px]"></i> Loop Aktif
+                                    </span>
                                 </div>
-                                <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                                    Ketuk kartu untuk membalik arti <span class="text-indigo-600 font-semibold">(3D Flip)</span> atau klik ikon <i class="fas fa-volume-high text-indigo-500 mx-0.5"></i> untuk mendengar pengucapan.
+                                <p class="text-[11px] sm:text-xs text-slate-500 mt-1">
+                                    <strong>Ketuk kartu</strong> untuk membalik arti, atau <strong>geser (swipe) kiri/kanan</strong> untuk berpindah kata secara berulang.
                                 </p>
                             </div>
 
-                            <!-- Toolbar Kontrol Flashcard -->
-                            <div class="flex items-center gap-1.5 self-start sm:self-auto">
-                                <button type="button" onclick="toggleFlipAllCards()" id="btn-flip-all" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 text-[11px] font-bold transition flex items-center gap-1.5">
-                                    <i class="fas fa-rotate"></i> <span>Balik Semua</span>
-                                </button>
-                                <button type="button" onclick="shuffleVocabCards()" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-600 hover:text-amber-700 border border-slate-200 hover:border-amber-200 text-[11px] font-bold transition flex items-center gap-1.5">
-                                    <i class="fas fa-shuffle"></i> <span>Acak</span>
+                            <!-- Tombol Acak Deck -->
+                            <div class="flex items-center gap-2 self-start sm:self-auto">
+                                <button type="button" onclick="shuffleVocabCards()" class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-600 hover:text-amber-700 border border-slate-200 hover:border-amber-200 text-xs font-extrabold transition flex items-center gap-1.5 shadow-2xs">
+                                    <i class="fas fa-shuffle text-amber-500"></i> <span>Acak Urutan</span>
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Deretan Kartu Kosakata 3D -->
-                        <div id="vocab-cards-container" class="flex overflow-x-auto gap-3 sm:gap-3.5 pb-3.5 pt-1 snap-x bg-slate-50/80 p-3 sm:p-4 rounded-2xl border border-slate-100 custom-scrollbar">
+                        <!-- Panggung Utama Single Flashcard Deck -->
+                        <div id="vocab-cards-container" class="py-2">
                             <!-- Diisi oleh js/materi.js -->
                         </div>
 
                         <!-- Area Tombol Submit / Status Verifikasi Hafalan -->
-                        <div id="vocab-action-area" class="mt-3.5 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                        <div id="vocab-action-area" class="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                             <!-- Diisi oleh js/materi.js -->
                         </div>
                     </section>

@@ -7,7 +7,13 @@ let activeMateriState = {
 };
 
 let currentVocabItems = [];
-let allCardsFlipped = false;
+let currentCardIndex = 0;
+let isCurrentCardFlipped = false;
+let isAnimatingSwipe = false;
+
+// Variabel pendeteksi gestur Swipe di layar sentuh (HP)
+let touchStartX = 0;
+let touchStartY = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
     const session = requireAuth();
@@ -17,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initLayout('Modul Pembelajaran');
     setupQuickSelectors();
     renderMateriContent();
+    setupKeyboardFlashcardShortcuts();
 
     await syncFromCloud();
     renderAppSidebar();
@@ -143,7 +150,7 @@ function renderMateriContent() {
         datePill.classList.add('hidden');
     }
 
-    // Render Bilah Pelacak Kompak (Compact Dual-Pill Tracker)
+    // Render Bilah Pelacak Kompak
     const trackerBanner = document.getElementById('materi-session-tracker-banner');
     if (trackerBanner && timeline && timeline.currentPointer) {
         const cur = timeline.currentPointer;
@@ -200,9 +207,12 @@ function renderMateriContent() {
     }
 
     // ====================================================
-    // 1. RENDER INTERACTIVE 3D VOCABULARY FLASHCARDS
+    // 1. RENDER INTERACTIVE SINGLE-CARD DECK (SWIPE & LOOP)
     // ====================================================
-    const vocabData = getSessionVocabText(monthId, week, day);
+    const vocabData = typeof getSessionVocabText === 'function'
+        ? getSessionVocabText(monthId, week, day)
+        : (window.HES.materials[`vocab-${monthId}-w${week}-d${day}`] || '');
+
     const vocabStatus = window.HES.materials[`vocab_status-${email}-${monthId}-w${week}-d${day}`] || { status: 'none', feedback: '' };
     const vocabSection = document.getElementById('vocab-section');
     const vocabCountBadge = document.getElementById('vocab-count-badge');
@@ -223,13 +233,16 @@ function renderMateriContent() {
                 };
             });
 
-            allCardsFlipped = false;
+            if (currentCardIndex >= currentVocabItems.length) {
+                currentCardIndex = 0;
+            }
+            isCurrentCardFlipped = false;
             renderFlashcardDeck();
 
             if (role === 'student') {
                 if (!vocabStatus.status || vocabStatus.status === 'none') {
                     vocabActionArea.innerHTML = `
-                        <p class="text-xs text-slate-500 font-medium text-center sm:text-left">Sudah menghafal dan menguji pengucapan seluruh kosakata di atas?</p>
+                        <p class="text-xs text-slate-500 font-medium text-center sm:text-left">Sudah lancar menebak arti & pengucapan semua kartu di atas?</p>
                         <button onclick="submitVocab(this, '${monthId}', ${week}, ${day})" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition">
                             <i class="fas fa-check mr-1.5"></i> Tandai Selesai Dihafal (+10 XP)
                         </button>
@@ -252,7 +265,7 @@ function renderMateriContent() {
                     `;
                 }
             } else {
-                vocabActionArea.innerHTML = `<p class="text-xs text-slate-400 italic">Mode Pratinjau Administrator — Ketuk kartu untuk mencoba efek 3D Flip & Suara.</p>`;
+                vocabActionArea.innerHTML = `<p class="text-xs text-slate-400 italic">Mode Pratinjau Administrator — Geser kartu ke kiri/kanan atau gunakan tombol panah.</p>`;
             }
         } else {
             vocabSection.classList.add('hidden');
@@ -303,88 +316,223 @@ function renderMateriContent() {
     }
 }
 
-// Render deretan kartu 3D Flip beserta tombol speaker Text-to-Speech
-function renderFlashcardDeck() {
+// ====================================================
+// MESIN SINGLE FLASHCARD DECK (SWIPE + INFINITE LOOP)
+// ====================================================
+function renderFlashcardDeck(enterAnim = false) {
     const container = document.getElementById('vocab-cards-container');
-    if (!container) return;
+    if (!container || currentVocabItems.length === 0) return;
 
-    const btnFlipAll = document.getElementById('btn-flip-all');
-    if (btnFlipAll) {
-        btnFlipAll.innerHTML = allCardsFlipped
-            ? `<i class="fas fa-rotate"></i> <span>Tutup Arti</span>`
-            : `<i class="fas fa-rotate"></i> <span>Balik Semua</span>`;
-    }
+    const total = currentVocabItems.length;
+    const item = currentVocabItems[currentCardIndex];
+    const safeWord = item.eng.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
-    container.innerHTML = currentVocabItems.map((item, idx) => {
-        const safeWord = item.eng.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        return `
-            <div class="flip-card ${allCardsFlipped ? 'is-flipped' : ''} perspective-1000 snap-center shrink-0 w-44 sm:w-52 h-40 sm:h-44 cursor-pointer select-none" onclick="flipVocabCard(this)">
-                <div class="flip-card-inner">
-                    
-                    <!-- SISI DEPAN: Bahasa Inggris + Tombol Suara -->
-                    <div class="flip-card-front bg-white p-3.5 sm:p-4 border border-slate-200/90 hover:border-indigo-300 shadow-xs flex flex-col justify-between">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">#${item.num}</span>
-                            <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white flex items-center justify-center transition shadow-2xs" title="Dengarkan Pengucapan">
-                                <i class="fas fa-volume-high text-xs"></i>
-                            </button>
-                        </div>
+    // Indikator titik (dots) di bagian atas kartu
+    const dotsHTML = currentVocabItems.map((_, idx) => {
+        const active = idx === currentCardIndex;
+        return `<button type="button" onclick="jumpToVocabCard(${idx})" class="h-2 rounded-full transition-all ${active ? 'w-7 bg-indigo-600' : 'w-2 bg-slate-200 hover:bg-slate-300'}" title="Kata #${idx + 1}"></button>`;
+    }).join('');
 
-                        <div class="my-auto text-center px-1">
-                            <p class="font-extrabold text-slate-800 text-sm sm:text-base leading-snug break-words">${item.eng}</p>
-                        </div>
-
-                        <div class="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-400 border-t border-slate-100 pt-2">
-                            <i class="fas fa-hand-pointer text-[9px] text-indigo-400"></i>
-                            <span>Ketuk untuk balik</span>
-                        </div>
-                    </div>
-
-                    <!-- SISI BELAKANG: Arti Bahasa Indonesia -->
-                    <div class="flip-card-back bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 text-white p-3.5 sm:p-4 border border-indigo-500 shadow-md flex flex-col justify-between">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[9px] font-extrabold uppercase tracking-wider bg-white/20 text-indigo-100 px-2 py-0.5 rounded-md">Arti Kata</span>
-                            <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/30 text-white flex items-center justify-center transition" title="Dengarkan Pengucapan">
-                                <i class="fas fa-volume-high text-xs"></i>
-                            </button>
-                        </div>
-
-                        <div class="my-auto text-center px-1">
-                            <p class="text-[10px] font-semibold text-indigo-200 truncate mb-0.5">${item.eng}</p>
-                            <p class="font-extrabold text-white text-sm sm:text-base leading-snug break-words">${item.ind}</p>
-                        </div>
-
-                        <div class="flex items-center justify-center gap-1 text-[10px] font-semibold text-indigo-200 border-t border-white/15 pt-2">
-                            <i class="fas fa-rotate-left text-[9px]"></i>
-                            <span>Ketuk untuk kembali</span>
-                        </div>
-                    </div>
-
+    container.innerHTML = `
+        <div class="max-w-lg mx-auto px-1 sm:px-4">
+            
+            <!-- Baris Indikator Posisi & Dots -->
+            <div class="flex items-center justify-between mb-3.5 px-1">
+                <span class="text-xs font-extrabold text-slate-500">
+                    Kartu <strong class="text-indigo-600">${currentCardIndex + 1}</strong> dari ${total}
+                </span>
+                <div class="flex items-center gap-1.5">
+                    ${dotsHTML}
                 </div>
             </div>
-        `;
-    }).join('');
+
+            <!-- Panggung Tumpukan Kartu 3D -->
+            <div class="flashcard-deck-stage mb-7">
+                <div id="active-flashcard"
+                     class="flip-card ${isCurrentCardFlipped ? 'is-flipped' : ''} ${enterAnim ? 'swipe-in-card' : ''} perspective-1000 w-full h-64 sm:h-72 md:h-80 cursor-pointer select-none"
+                     onclick="flipActiveVocabCard()">
+                    <div class="flip-card-inner">
+                        
+                        <!-- SISI DEPAN: Bahasa Inggris (Desain Modern & Besar) -->
+                        <div class="flip-card-front bg-gradient-to-br from-white via-white to-indigo-50/50 p-6 sm:p-8 border-2 border-indigo-100 hover:border-indigo-300 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.12)] flex flex-col justify-between relative overflow-hidden">
+                            <div class="absolute -right-10 -top-10 w-36 h-36 bg-indigo-500/5 rounded-full blur-xl pointer-events-none"></div>
+                            <div class="absolute -left-10 -bottom-10 w-36 h-36 bg-violet-500/5 rounded-full blur-xl pointer-events-none"></div>
+
+                            <!-- Header Kartu Depan -->
+                            <div class="flex items-center justify-between relative z-10">
+                                <span class="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                                    Vocabulary #${item.num}
+                                </span>
+                                <button type="button"
+                                        onclick="speakVocabWord(event, '${safeWord}', this)"
+                                        class="w-10 h-10 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition shadow-md shadow-indigo-200 active:scale-95"
+                                        title="Dengarkan Pengucapan">
+                                    <i class="fas fa-volume-high text-sm"></i>
+                                </button>
+                            </div>
+
+                            <!-- Kata Utama di Tengah (Ukuran Besar) -->
+                            <div class="my-auto text-center px-2 relative z-10">
+                                <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5">English Word</p>
+                                <h4 class="font-extrabold text-slate-800 text-2xl sm:text-3xl md:text-4xl tracking-tight leading-tight break-words">${item.eng}</h4>
+                            </div>
+
+                            <!-- Footer Petunjuk Ketuk & Swipe -->
+                            <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 border-t border-slate-100 pt-3.5 relative z-10">
+                                <span class="flex items-center gap-1.5 text-indigo-500">
+                                    <i class="fas fa-rotate"></i> Ketuk kartu untuk arti
+                                </span>
+                                <span class="flex items-center gap-1 text-slate-400">
+                                    <i class="fas fa-arrows-left-right text-[10px]"></i> Geser kiri/kanan
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- SISI BELAKANG: Arti Bahasa Indonesia (Gradient Indigo-Violet) -->
+                        <div class="flip-card-back bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 text-white p-6 sm:p-8 border-2 border-indigo-500 shadow-[0_18px_40px_-10px_rgba(79,70,229,0.35)] flex flex-col justify-between relative overflow-hidden">
+                            <div class="absolute right-0 top-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                            <div class="absolute left-0 bottom-0 -mb-10 -ml-10 w-40 h-40 bg-amber-400/15 rounded-full blur-2xl pointer-events-none"></div>
+
+                            <!-- Header Kartu Belakang -->
+                            <div class="flex items-center justify-between relative z-10">
+                                <span class="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider bg-white/15 text-amber-300 px-3 py-1 rounded-full border border-white/20 backdrop-blur-xs">
+                                    <i class="fas fa-lightbulb text-[10px]"></i> Arti Bahasa Indonesia
+                                </span>
+                                <button type="button"
+                                        onclick="speakVocabWord(event, '${safeWord}', this)"
+                                        class="w-10 h-10 rounded-2xl bg-white/15 hover:bg-white/25 text-white border border-white/20 flex items-center justify-center transition active:scale-95"
+                                        title="Dengarkan Pengucapan">
+                                    <i class="fas fa-volume-high text-sm"></i>
+                                </button>
+                            </div>
+
+                            <!-- Arti Kata di Tengah (Ukuran Besar) -->
+                            <div class="my-auto text-center px-2 relative z-10">
+                                <p class="text-xs sm:text-sm font-bold text-indigo-200 mb-1.5">${item.eng}</p>
+                                <h4 class="font-extrabold text-white text-xl sm:text-2xl md:text-3xl tracking-tight leading-snug break-words">${item.ind}</h4>
+                            </div>
+
+                            <!-- Footer Kartu Belakang -->
+                            <div class="flex items-center justify-between text-[11px] font-bold text-indigo-200 border-t border-white/15 pt-3.5 relative z-10">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fas fa-rotate-left"></i> Ketuk untuk kembali
+                                </span>
+                                <span class="flex items-center gap-1">
+                                    <i class="fas fa-arrows-left-right text-[10px]"></i> Geser lanjut
+                                </span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Baris Tombol Navigasi Bawah (Prev • Flip • Next) -->
+            <div class="flex items-center justify-center gap-3 sm:gap-4">
+                <button type="button"
+                        onclick="prevVocabCard()"
+                        class="w-12 h-12 rounded-2xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 flex items-center justify-center transition shadow-2xs active:scale-95"
+                        title="Kata Sebelumnya">
+                    <i class="fas fa-arrow-left text-sm"></i>
+                </button>
+
+                <button type="button"
+                        onclick="flipActiveVocabCard()"
+                        class="flex-1 max-w-[200px] h-12 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 font-extrabold text-xs flex items-center justify-center gap-2 transition active:scale-95">
+                    <i class="fas fa-rotate"></i>
+                    <span>Balik Kartu</span>
+                </button>
+
+                <button type="button"
+                        onclick="nextVocabCard()"
+                        class="w-12 h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition shadow-md shadow-indigo-200 active:scale-95"
+                        title="Kata Berikutnya (Loop)">
+                    <i class="fas fa-arrow-right text-sm"></i>
+                </button>
+            </div>
+
+        </div>
+    `;
+
+    attachCardTouchSwipeEvents();
 }
 
-window.flipVocabCard = function(cardEl) {
+function attachCardTouchSwipeEvents() {
+    const cardEl = document.getElementById('active-flashcard');
     if (!cardEl) return;
-    cardEl.classList.toggle('is-flipped');
+
+    cardEl.addEventListener('touchstart', (e) => {
+        if (!e.changedTouches || e.changedTouches.length === 0) return;
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    cardEl.addEventListener('touchend', (e) => {
+        if (!e.changedTouches || e.changedTouches.length === 0) return;
+        const diffX = e.changedTouches[0].screenX - touchStartX;
+        const diffY = e.changedTouches[0].screenY - touchStartY;
+
+        // Jika geseran horizontal cukup jauh (> 45px) dan lebih dominan dari geseran vertikal
+        if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX < 0) {
+                // Geser ke kiri -> Kartu Berikutnya
+                nextVocabCard();
+            } else {
+                // Geser ke kanan -> Kartu Sebelumnya
+                prevVocabCard();
+            }
+        }
+    }, { passive: true });
+}
+
+window.flipActiveVocabCard = function() {
+    if (isAnimatingSwipe) return;
+    isCurrentCardFlipped = !isCurrentCardFlipped;
+    const cardEl = document.getElementById('active-flashcard');
+    if (cardEl) {
+        if (isCurrentCardFlipped) cardEl.classList.add('is-flipped');
+        else cardEl.classList.remove('is-flipped');
+    }
 };
 
-window.toggleFlipAllCards = function() {
-    allCardsFlipped = !allCardsFlipped;
-    const cards = document.querySelectorAll('#vocab-cards-container .flip-card');
-    cards.forEach(c => {
-        if (allCardsFlipped) c.classList.add('is-flipped');
-        else c.classList.remove('is-flipped');
-    });
+window.nextVocabCard = function() {
+    if (isAnimatingSwipe || currentVocabItems.length === 0) return;
+    isAnimatingSwipe = true;
 
-    const btnFlipAll = document.getElementById('btn-flip-all');
-    if (btnFlipAll) {
-        btnFlipAll.innerHTML = allCardsFlipped
-            ? `<i class="fas fa-rotate"></i> <span>Tutup Arti</span>`
-            : `<i class="fas fa-rotate"></i> <span>Balik Semua</span>`;
-    }
+    const cardEl = document.getElementById('active-flashcard');
+    if (cardEl) cardEl.classList.add('swipe-out-left');
+
+    setTimeout(() => {
+        // Infinite Loop: Jika sudah di kartu terakhir, kembali ke kartu pertama (0)
+        currentCardIndex = (currentCardIndex + 1) % currentVocabItems.length;
+        isCurrentCardFlipped = false;
+        isAnimatingSwipe = false;
+        renderFlashcardDeck(true);
+    }, 210);
+};
+
+window.prevVocabCard = function() {
+    if (isAnimatingSwipe || currentVocabItems.length === 0) return;
+    isAnimatingSwipe = true;
+
+    const cardEl = document.getElementById('active-flashcard');
+    if (cardEl) cardEl.classList.add('swipe-out-right');
+
+    setTimeout(() => {
+        // Infinite Loop Mundur: Jika di kartu pertama (0), lompat ke kartu terakhir
+        currentCardIndex = (currentCardIndex - 1 + currentVocabItems.length) % currentVocabItems.length;
+        isCurrentCardFlipped = false;
+        isAnimatingSwipe = false;
+        renderFlashcardDeck(true);
+    }, 210);
+};
+
+window.jumpToVocabCard = function(index) {
+    if (isAnimatingSwipe || index === currentCardIndex) return;
+    currentCardIndex = index;
+    isCurrentCardFlipped = false;
+    renderFlashcardDeck(true);
 };
 
 window.shuffleVocabCards = function() {
@@ -393,13 +541,28 @@ window.shuffleVocabCards = function() {
         const j = Math.floor(Math.random() * (i + 1));
         [currentVocabItems[i], currentVocabItems[j]] = [currentVocabItems[j], currentVocabItems[i]];
     }
-    allCardsFlipped = false;
-    renderFlashcardDeck();
-    showToast('Urutan kartu kosakata berhasil diacak!', 'info');
+    currentCardIndex = 0;
+    isCurrentCardFlipped = false;
+    renderFlashcardDeck(true);
+    showToast('Urutan tumpukan kartu diacak! Mulai dari kartu pertama.', 'info');
 };
 
+function setupKeyboardFlashcardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+        const vocabSection = document.getElementById('vocab-section');
+        if (!vocabSection || vocabSection.classList.contains('hidden')) return;
+
+        if (e.key === 'ArrowRight') {
+            nextVocabCard();
+        } else if (e.key === 'ArrowLeft') {
+            prevVocabCard();
+        }
+    });
+}
+
 window.speakVocabWord = function(event, word, btnEl) {
-    event.stopPropagation(); // Mencegah kartu ikut terbalik saat hanya menekan tombol suara
+    event.stopPropagation();
 
     if (!('speechSynthesis' in window)) {
         showToast('Browser Anda belum mendukung fitur suara otomatis.', 'error');
@@ -410,7 +573,7 @@ window.speakVocabWord = function(event, word, btnEl) {
 
     const utterance = new SpeechSynthesisUtterance(word);
     utterance.lang = 'en-US';
-    utterance.rate = 0.9; // Sedikit lebih lambat agar artikulasi jelas bagi murid
+    utterance.rate = 0.9;
 
     if (btnEl) {
         btnEl.classList.add('speaking-pulse');
