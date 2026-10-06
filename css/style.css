@@ -62,26 +62,27 @@ body {
 
 /* ==========================================
    3D STACKED FLIP & SWIPE FLASHCARD STYLES
+   (FIXED: Anti-Tailwind Override & Anti-Turun)
    ========================================== */
 .perspective-1000 {
-    perspective: 1200px;
-    -webkit-perspective: 1200px;
+    perspective: 1200px !important;
+    -webkit-perspective: 1200px !important;
 }
 
 /* Efek tumpukan kartu di belakang kartu utama */
 .flashcard-deck-stage {
-    position: relative;
+    position: relative !important;
     z-index: 10;
-    height: 17rem;
+    height: 17rem !important;
 }
 @media (min-width: 640px) {
     .flashcard-deck-stage {
-        height: 19rem;
+        height: 19rem !important;
     }
 }
 @media (min-width: 768px) {
     .flashcard-deck-stage {
-        height: 20rem;
+        height: 20rem !important;
     }
 }
 
@@ -112,56 +113,67 @@ body {
 }
 
 .flip-card {
-    position: relative;
-    width: 100%;
+    position: relative !important;
+    width: 100% !important;
     height: 100% !important;
     touch-action: pan-y;
     -webkit-tap-highlight-color: transparent;
 }
 
 .flip-card-inner {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    transform-origin: center center;
-    -webkit-transform-origin: center center;
-    transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
-    -webkit-transition: -webkit-transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
-    transform-style: preserve-3d;
-    -webkit-transform-style: preserve-3d;
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    transform-origin: center center !important;
+    -webkit-transform-origin: center center !important;
+    transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    -webkit-transition: -webkit-transform 0.55s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transform-style: preserve-3d !important;
+    -webkit-transform-style: preserve-3d !important;
 }
 
 .flip-card.is-flipped .flip-card-inner {
-    transform: rotateY(180deg);
-    -webkit-transform: rotateY(180deg);
+    transform: rotateY(180deg) !important;
+    -webkit-transform: rotateY(180deg) !important;
 }
 
+/* !important mencegah class 'relative' dari Tailwind CDN menimpa posisi absolute */
 .flip-card-front,
 .flip-card-back {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    transform-origin: center center;
-    -webkit-transform-origin: center center;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    transform-origin: center center !important;
+    -webkit-transform-origin: center center !important;
+    -webkit-backface-visibility: hidden !important;
+    backface-visibility: hidden !important;
     border-radius: 1.75rem;
     box-sizing: border-box;
 }
 
 .flip-card-front {
-    transform: rotateY(0deg) translateZ(1px);
-    -webkit-transform: rotateY(0deg) translateZ(1px);
+    transform: rotateY(0deg) !important;
+    -webkit-transform: rotateY(0deg) !important;
     z-index: 2;
 }
 
 .flip-card-back {
-    transform: rotateY(180deg) translateZ(1px);
-    -webkit-transform: rotateY(180deg) translateZ(1px);
+    transform: rotateY(180deg) !important;
+    -webkit-transform: rotateY(180deg) !important;
     z-index: 1;
+}
+
+.flip-card.is-flipped .flip-card-front {
+    pointer-events: none;
+}
+
+.flip-card:not(.is-flipped) .flip-card-back {
+    pointer-events: none;
 }
 
 /* Animasi Swipe Kiri & Kanan */
