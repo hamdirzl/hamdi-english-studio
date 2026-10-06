@@ -160,10 +160,9 @@ function updateCloudStatusUI(status) {
 }
 
 // ==========================================
-// 5. MASTER WORDBANK ENGINE (ANTI-DUPLIKAT)
+// 5. MASTER WORDBANK ENGINE (ANTI-DUPLIKAT & AUTO-SHUFFLE)
 // ==========================================
 function getCleanMasterWordbankArray() {
-    // Prioritaskan Master Wordbank yang disimpan Admin di Supabase, jika kosong gunakan dari js/wordbank.js
     const cloudRaw = window.HES.materials['master_wordbank'] || '';
     const fallbackRaw = window.DEFAULT_WORDBANK_RAW || '';
     const combinedRaw = cloudRaw.trim() !== '' ? cloudRaw : fallbackRaw;
@@ -181,12 +180,27 @@ function getCleanMasterWordbankArray() {
         if (!eng || !ind) return;
 
         const key = eng.toLowerCase();
-        // Saring otomatis agar kata bahasa Inggris yang sama tidak pernah muncul 2 kali!
+        // Saring otomatis agar kata bahasa Inggris yang sama tidak pernah muncul 2 kali
         if (!seenWords.has(key)) {
             seenWords.add(key);
             uniqueLines.push(`${eng} = ${ind}`);
         }
     });
+
+    // Pengacak Deterministik (Seeded Shuffle):
+    // Mengacak urutan kata secara merata (agar tidak urut abjad A, B, C),
+    // namun urutannya selalu konsisten setiap kali halaman dibuka sehingga
+    // kata di Day 1 tidak akan pernah muncul lagi di Day 2, Day 3, dst!
+    let seed = 202609;
+    const seededRandom = () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+    };
+
+    for (let i = uniqueLines.length - 1; i > 0; i--) {
+        const j = Math.floor(seededRandom() * (i + 1));
+        [uniqueLines[i], uniqueLines[j]] = [uniqueLines[j], uniqueLines[i]];
+    }
 
     return uniqueLines;
 }
