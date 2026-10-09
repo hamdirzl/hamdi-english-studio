@@ -203,16 +203,50 @@ function renderStudentDashboard(email) {
         const cur = timeline ? timeline.currentPointer : null;
         const nxt = timeline ? timeline.nextPointer : null;
 
+        // --- TAMBAHAN LOGIKA PERINGATAN PERTEMUAN TERAKHIR ATAU MASA AKTIF HAMPIR HABIS ---
         let warningHTML = '';
-        if (cur && cur.monthId === `m${maxMonth}` && parseInt(cur.week) === 4 && parseInt(cur.day) === 3) {
+        
+        // 1. Cek apakah ini secara urutan adalah pertemuan terakhir (W4 D3) - baik hari ini maupun sesi berikutnya
+        const isCurLast = cur && cur.monthId === `m${maxMonth}` && parseInt(cur.week) === 4 && parseInt(cur.day) === 3;
+        const isNxtLast = nxt && nxt.monthId === `m${maxMonth}` && parseInt(nxt.week) === 4 && parseInt(nxt.day) === 3;
+        
+        // 2. Cek apakah tanggal kedaluwarsa (validUntil) tinggal 7 hari lagi atau kurang
+        const maxM = String(profile.maxMonth || '1');
+        const activeValidUntil = (profile.monthEndDates && profile.monthEndDates[`m${maxM}`]) 
+            ? profile.monthEndDates[`m${maxM}`] 
+            : profile.validUntil;
+
+        let isDateAlmostExpired = false;
+        let daysLeft = 999;
+        
+        if (activeValidUntil && activeValidUntil !== 'Belum diatur') {
+            const validDate = new Date(activeValidUntil);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Reset jam agar hitungan harinya akurat
+            
+            // Hitung selisih hari dari sekarang ke tanggal kedaluwarsa
+            const diffTime = validDate.getTime() - today.getTime();
+            daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (daysLeft >= 0 && daysLeft <= 7) {
+                isDateAlmostExpired = true;
+            }
+        }
+
+        // Jika salah satu kondisi terpenuhi (W4D3 ATAU sisa waktu <= 7 hari)
+        if (isCurLast || isNxtLast || isDateAlmostExpired) {
+            let reasonText = (isCurLast || isNxtLast) 
+                ? `Anda sudah berada di <strong>penghujung pertemuan</strong> pada modul Month ${maxMonth}.` 
+                : `Masa aktif Anda akan berakhir dalam <strong>${daysLeft} hari lagi</strong> (${nextSesh.validDateStr}).`;
+
             warningHTML = `
                 <div class="mb-4 bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3.5 fade-in">
                     <div class="w-10 h-10 rounded-xl bg-white text-amber-500 flex items-center justify-center text-lg shadow-2xs shrink-0">
                         <i class="fas fa-bell animate-pulse"></i>
                     </div>
                     <div>
-                        <p class="text-amber-900 font-extrabold text-xs sm:text-sm">Masa Aktif Hampir Habis!</p>
-                        <p class="text-amber-700 text-xs mt-0.5 mb-2.5">Sesi ini adalah <strong>pertemuan terakhir</strong> Anda di modul Month ${maxMonth}. Silakan hubungi Admin untuk memperpanjang kelas ke bulan berikutnya.</p>
+                        <p class="text-amber-900 font-extrabold text-xs sm:text-sm">Peringatan Masa Aktif!</p>
+                        <p class="text-amber-700 text-xs mt-0.5 mb-2.5">${reasonText} Silakan hubungi Admin untuk memperpanjang kelas Anda.</p>
                         <a href="https://wa.me/6282298363945" target="_blank" class="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition shadow-xs">
                             <i class="fab fa-whatsapp"></i> Hubungi Admin
                         </a>
@@ -220,6 +254,7 @@ function renderStudentDashboard(email) {
                 </div>
             `;
         }
+        // ----------------------------------------------------
 
         nextBox.innerHTML = `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
