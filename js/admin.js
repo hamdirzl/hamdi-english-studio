@@ -536,6 +536,123 @@ window.saveVocabList = async function(e) {
         showToast('Gagal menyimpan kosakata manual: ' + error.message, 'error');
     }
 };
+
+// Fungsi untuk memanggil dan melihat status hafalan murid (Dengan Auto-Sync)
+window.checkVocabStatus = async function(btn) {
+    const email = document.getElementById('admin-review-student').value;
+    const m = document.getElementById('admin-review-month').value;
+    const w = document.getElementById('admin-review-week').value;
+    const d = document.getElementById('admin-review-day').value;
+    const resultBox = document.getElementById('vocab-review-result');
+
+    if (!email || !m || !w || !d) {
+        showToast('Pilih murid dan sesi terlebih dahulu.', 'error');
+        return;
+    }
+
+    // Tangkap elemen tombol jika dipanggil dari dalam fungsi lain
+    const btnEl = btn || document.querySelector('button[onclick="checkVocabStatus(this)"]');
+    const origText = btnEl ? btnEl.innerHTML : '';
+    
+    if (btnEl) {
+        btnEl.innerHTML = '<i class="fas fa-sync fa-spin mr-1"></i> Menyinkronkan Server...';
+        btnEl.disabled = true;
+    }
+    resultBox.innerHTML = `<div class="p-4 text-center text-xs font-bold text-indigo-500"><i class="fas fa-cloud-download-alt animate-bounce mr-2"></i> Mengambil data hafalan terbaru...</div>`;
+
+    // TARIK DATA TERBARU DARI SUPABASE
+    await syncFromCloud();
+
+    if (btnEl) {
+        btnEl.innerHTML = origText;
+        btnEl.disabled = false;
+    }
+
+    const key = `vocab_status-${email}-${m}-w${w}-d${d}`;
+    const statusObj = window.HES.materials[key];
+
+    if (!statusObj || statusObj.status === 'none') {
+        resultBox.innerHTML = `
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center flex flex-col items-center fade-in">
+                <i class="fas fa-user-clock text-slate-300 text-3xl mb-2"></i>
+                <p class="text-xs text-slate-500 font-semibold">Murid belum menyetor hafalan untuk sesi ini.</p>
+            </div>`;
+        return;
+    }
+
+    if (statusObj.status === 'submitted') {
+        resultBox.innerHTML = `
+            <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl fade-in">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-amber-500 shadow-2xs">
+                        <i class="fas fa-bell animate-pulse"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-extrabold text-amber-900">Menunggu Verifikasi Anda</p>
+                        <p class="text-[11px] font-medium text-amber-700">Murid telah menyelesaikan setoran hafalan.</p>
+                    </div>
+                </div>
+                <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">Beri Catatan (Opsional):</label>
+                <textarea id="admin-vocab-feedback" class="w-full p-2.5 bg-white border border-amber-200 rounded-xl text-xs outline-none focus:border-amber-500 transition mb-3" rows="2" placeholder="Misal: Good Job! / Pronunciation kata X perlu dilatih lagi..."></textarea>
+                
+                <div class="flex gap-2">
+                    <button onclick="updateVocabStatus('${email}', '${m}', ${w}, ${d}, 'approved')" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5">
+                        <i class="fas fa-check-circle"></i> Terima & Verifikasi
+                    </button>
+                    <button onclick="updateVocabStatus('${email}', '${m}', ${w}, ${d}, 'none')" class="px-4 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 py-2.5 rounded-xl text-xs font-bold transition">
+                        Tolak / Ulangi
+                    </button>
+                </div>
+            </div>
+        `;
+    } else if (statusObj.status === 'approved') {
+        resultBox.innerHTML = `
+            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl fade-in">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-emerald-500 shadow-2xs">
+                        <i class="fas fa-medal"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-extrabold text-emerald-900">Hafalan Terverifikasi</p>
+                        <p class="text-[11px] font-medium text-emerald-700">Murid telah mendapatkan tambahan 25 XP.</p>
+                    </div>
+                </div>
+                <div class="bg-white/60 p-2.5 rounded-lg border border-emerald-100 mb-3">
+                    <p class="text-[10px] font-bold text-emerald-600 uppercase mb-0.5">Catatan Anda:</p>
+                    <p class="text-xs text-emerald-900 font-semibold italic">"${statusObj.feedback || 'Tidak ada catatan'}"</p>
+                </div>
+                <button onclick="updateVocabStatus('${email}', '${m}', ${w}, ${d}, 'none')" class="text-[10px] font-bold text-red-500 hover:text-red-700 transition flex items-center gap-1">
+                    <i class="fas fa-times"></i> Batalkan Verifikasi (Reset)
+                </button>
+            </div>
+        `;
+    }
+};
+
+// Fungsi untuk mengeksekusi perubahan status hafalan (Terima / Tolak)
+window.updateVocabStatus = async function(email, m, w, d, newStatus) {
+    const key = `vocab_status-${email}-${m}-w${w}-d${d}`;
+    let fb = '';
+    
+    if (newStatus === 'approved') {
+        const fbEl = document.getElementById('admin-vocab-feedback');
+        if (fbEl) fb = fbEl.value.trim();
+    }
+
+    window.HES.materials[key] = { status: newStatus, feedback: fb };
+
+    document.body.style.cursor = 'wait';
+    const { error } = await saveToCloud('hes_materials', window.HES.materials);
+    document.body.style.cursor = 'default';
+
+    if (!error) {
+        showToast(newStatus === 'approved' ? 'Hafalan berhasil diverifikasi!' : 'Status hafalan dikembalikan ke awal.', 'success');
+        // Refresh kotak hasil secara otomatis
+        checkVocabStatus();
+    } else {
+        showToast('Gagal mengubah status: ' + error.message, 'error');
+    }
+};
 // ==========================================
 // TAB 3: MATERI PDF, MASTER WORDBANK & KOSAKATA
 // ==========================================
