@@ -203,7 +203,29 @@ window.loadStudentScheduleForm = function() {
     const startEl = document.getElementById('admin-sched-start');
     const endEl = document.getElementById('admin-sched-end');
 
-    if (maxMonthEl) maxMonthEl.value = String(p.maxMonth || '1');
+    if (maxMonthEl) {
+        let suggestedMonth = parseInt(p.maxMonth || '1');
+        
+        // Cari bulan aktif terakhir yang terdaftar di database
+        let mKey = `m${suggestedMonth}`;
+        let currentEndDate = (p.monthEndDates && p.monthEndDates[mKey]) ? p.monthEndDates[mKey] : p.validUntil;
+        
+        if (currentEndDate && currentEndDate !== 'Belum diatur') {
+            let endObj = parseDateStr(currentEndDate);
+            if (!isNaN(endObj)) {
+                endObj.setHours(23, 59, 59, 999);
+                let today = new Date();
+                
+                // Jika batas bulan sebelumnya sudah lewat (kedaluwarsa), 
+                // otomatis arahkan form untuk mengatur bulan berikutnya.
+                if (today > endObj && suggestedMonth < window.HES.months.length) {
+                    suggestedMonth++;
+                }
+            }
+        }
+        
+        maxMonthEl.value = String(suggestedMonth);
+    }
 
     if (p.time && p.time.includes('-')) {
         const [s, e] = p.time.split('-').map(t => t.trim());
