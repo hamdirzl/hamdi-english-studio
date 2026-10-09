@@ -457,6 +457,85 @@ window.saveStudentSchedule = async function(e) {
 // ==========================================
 // TAB 3: MATERI PDF & KOSAKATA
 // ==========================================
+// Fungsi untuk menyimpan tautan Google Drive (Modul & Recap)
+window.saveMaterialData = async function(e) {
+    const targetStudent = document.getElementById('admin-target-student').value;
+    const month = document.getElementById('admin-month').value;
+    const week = document.getElementById('admin-week').value;
+    const day = document.getElementById('admin-day').value;
+    
+    const link = document.getElementById('admin-link').value.trim();
+    const recap = document.getElementById('admin-recap-pdf').value.trim();
+
+    // Validasi input dropdown
+    if (!targetStudent || !month || !week || !day) {
+        showToast('Harap pilih target murid, bulan, minggu, dan hari!', 'error');
+        return;
+    }
+
+    // Tentukan prefix key berdasarkan target (all atau email murid spesifik)
+    const prefix = targetStudent === 'all' ? 'all' : targetStudent;
+    
+    const linkKey = `${prefix}-${month}-w${week}-d${day}-link`;
+    const recapKey = `${prefix}-${month}-w${week}-d${day}-recap`;
+
+    // Simpan ke state global HES (atau hapus jika dikosongkan)
+    if (link) window.HES.materials[linkKey] = link;
+    else delete window.HES.materials[linkKey];
+
+    if (recap) window.HES.materials[recapKey] = recap;
+    else delete window.HES.materials[recapKey];
+
+    // Animasi tombol loading
+    const btn = e.currentTarget;
+    const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...';
+    btn.disabled = true;
+
+    // Simpan ke database Supabase
+    const { error } = await saveToCloud('hes_materials', window.HES.materials);
+    
+    // Kembalikan tombol ke semula
+    btn.innerHTML = origText;
+    btn.disabled = false;
+
+    if (!error) {
+        showToast(`Tautan materi berhasil disimpan untuk sesi ${month.toUpperCase()} W${week} D${day}!`, 'success');
+    } else {
+        showToast('Gagal menyimpan tautan materi: ' + error.message, 'error');
+    }
+};
+
+// Fungsi untuk menyimpan Override Kosakata Harian secara manual
+window.saveVocabList = async function(e) {
+    const m = document.getElementById('admin-vocab-month').value;
+    const w = document.getElementById('admin-vocab-week').value;
+    const d = document.getElementById('admin-vocab-day').value;
+    const listText = document.getElementById('admin-vocab-list').value.trim();
+
+    const key = `vocab-${m}-w${w}-d${d}`;
+    
+    // Simpan atau hapus jika kosong
+    if (listText) window.HES.materials[key] = listText;
+    else delete window.HES.materials[key];
+
+    const btn = e.currentTarget;
+    const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...';
+    btn.disabled = true;
+
+    const { error } = await saveToCloud('hes_materials', window.HES.materials);
+    
+    btn.innerHTML = origText;
+    btn.disabled = false;
+
+    if (!error) {
+        loadAdminVocabPreview(); // Refresh preview form
+        showToast(`Override kosakata sesi ${m.toUpperCase()} W${w} D${d} berhasil disimpan!`, 'success');
+    } else {
+        showToast('Gagal menyimpan kosakata manual: ' + error.message, 'error');
+    }
+};
 // ==========================================
 // TAB 3: MATERI PDF, MASTER WORDBANK & KOSAKATA
 // ==========================================
