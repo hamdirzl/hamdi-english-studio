@@ -257,6 +257,7 @@ function renderStudentDashboard(email) {
         // ----------------------------------------------------
 
         nextBox.innerHTML = `
+        ${warningHTML}
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <!-- Kartu 1: Pertemuan Saat Ini (Hijau Emerald) -->
                 ${cur ? `
