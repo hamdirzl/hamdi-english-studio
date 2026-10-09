@@ -203,6 +203,24 @@ function renderStudentDashboard(email) {
         const cur = timeline ? timeline.currentPointer : null;
         const nxt = timeline ? timeline.nextPointer : null;
 
+        let warningHTML = '';
+        if (cur && cur.monthId === `m${maxMonth}` && parseInt(cur.week) === 4 && parseInt(cur.day) === 3) {
+            warningHTML = `
+                <div class="mb-4 bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3.5 fade-in">
+                    <div class="w-10 h-10 rounded-xl bg-white text-amber-500 flex items-center justify-center text-lg shadow-2xs shrink-0">
+                        <i class="fas fa-bell animate-pulse"></i>
+                    </div>
+                    <div>
+                        <p class="text-amber-900 font-extrabold text-xs sm:text-sm">Masa Aktif Hampir Habis!</p>
+                        <p class="text-amber-700 text-xs mt-0.5 mb-2.5">Sesi ini adalah <strong>pertemuan terakhir</strong> Anda di modul Month ${maxMonth}. Silakan hubungi Admin untuk memperpanjang kelas ke bulan berikutnya.</p>
+                        <a href="https://wa.me/6282298363945" target="_blank" class="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition shadow-xs">
+                            <i class="fab fa-whatsapp"></i> Hubungi Admin
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
         nextBox.innerHTML = `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <!-- Kartu 1: Pertemuan Saat Ini (Hijau Emerald) -->
