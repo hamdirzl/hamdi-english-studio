@@ -3,161 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modul Pembelajaran | Hamdi English Studio</title>
-    <!-- Tailwind CSS -->
+    <title>Ruang Belajar | Hamdi English Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts: Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: { primary: '#4f46e5' }
-                }
-            }
-        }
-    </script>
 </head>
-<body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-900">
+<body class="h-screen flex overflow-hidden">
 
-    <div class="h-screen flex overflow-hidden bg-[#F8FAFC]">
-        
-        <!-- Sidebar (Dirender oleh js/layout.js) -->
-        <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
-        <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
+    <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
 
-        <!-- Area Konten Utama -->
-        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
-            
-            <!-- Header (Dirender oleh js/layout.js) -->
-            <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+        <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
 
-            <!-- Konten Materi -->
-            <div class="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-8 custom-scrollbar">
-                <div class="max-w-5xl mx-auto fade-in pb-16">
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
+            <div class="max-w-4xl mx-auto fade-in pb-16 space-y-6">
 
-                    <!-- Bilah Pelacak Kompak (Compact Session Tracker) -->
-                    <div id="materi-session-tracker-banner" class="hidden mb-4"></div>
+                <!-- Banner Pintas Sesi Aktif -->
+                <div id="materi-session-tracker-banner" class="hidden"></div>
 
-                    <!-- Bar Navigasi & Quick Selector Modul -->
-                    <div class="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
-                        <div class="flex items-start sm:items-center gap-3">
-                            <a href="dashboard.html" class="w-9 h-9 sm:w-10 sm:h-10 shrink-0 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl flex items-center justify-center text-slate-600 transition" title="Kembali ke Dashboard">
-                                <i class="fas fa-arrow-left text-xs sm:text-sm"></i>
-                            </a>
-                            <div class="min-w-0 flex-1">
-                                <div class="flex flex-wrap items-center gap-1.5">
-                                    <span id="materi-badge" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-extrabold uppercase tracking-wider rounded border border-indigo-100">Month 1</span>
-                                    <span id="materi-subbadge" class="text-[11px] font-bold text-slate-400">Week 1 • Day 1</span>
-                                    <span id="materi-date-pill" class="hidden text-[10px] font-extrabold px-2 py-0.5 rounded border"></span>
-                                </div>
-                                <h2 id="materi-title" class="text-sm sm:text-base md:text-lg font-extrabold text-slate-800 mt-1 truncate">Modul Pembelajaran Harian</h2>
-                            </div>
+                <!-- Header & Pemilih Sesi Belajar -->
+                <div class="hes-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                            <span id="materi-badge" class="px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-extrabold rounded-lg">Month 1</span>
+                            <span id="materi-subbadge" class="text-xs font-bold text-slate-400">Week 1 • Day 1</span>
+                            <span id="materi-date-pill" class="hidden text-xs font-extrabold px-2.5 py-0.5 rounded-lg"></span>
                         </div>
-
-                        <!-- Selector Cepat Pindah Sesi (3 Kolom Rata di HP) -->
-                        <div class="grid grid-cols-3 sm:flex items-center gap-2 w-full md:w-auto pt-2.5 md:pt-0 border-t md:border-t-0 border-slate-100">
-                            <select id="quick-month" class="w-full sm:w-auto bg-slate-50 border border-slate-200 px-2.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer truncate"></select>
-                            <select id="quick-week" class="w-full sm:w-auto bg-slate-50 border border-slate-200 px-2.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer truncate">
-                                <option value="1">Week 1</option>
-                                <option value="2">Week 2</option>
-                                <option value="3">Week 3</option>
-                                <option value="4">Week 4</option>
-                            </select>
-                            <select id="quick-day" class="w-full sm:w-auto bg-slate-50 border border-slate-200 px-2.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer truncate">
-                                <option value="1">Day 1</option>
-                                <option value="2">Day 2</option>
-                                <option value="3">Day 3</option>
-                            </select>
-                        </div>
+                        <h2 id="materi-title" class="text-lg sm:text-xl font-extrabold text-slate-800">Materi Kelas Harian</h2>
                     </div>
 
-                    <!-- Section Daily Vocabulary (Interactive Single-Card Deck + Swipe & Loop) -->
-                    <section id="vocab-section" class="hidden mb-6 bg-white p-4 sm:p-6 md:p-7 rounded-3xl border border-slate-200/90 shadow-sm">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-                            <div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <h3 class="text-sm sm:text-base md:text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                                        <i class="fas fa-clone text-indigo-600"></i>
-                                        Interactive Vocabulary Deck
-                                    </h3>
-                                    <span id="vocab-count-badge" class="shrink-0 text-[10px] font-extrabold bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full border border-indigo-100">0 Kata</span>
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                                        <i class="fas fa-infinity text-[9px]"></i> Loop Aktif
-                                    </span>
-                                </div>
-                                <p class="text-[11px] sm:text-xs text-slate-500 mt-1">
-                                    <strong>Ketuk kartu</strong> untuk membalik arti, atau <strong>geser (swipe) kiri/kanan</strong> untuk berpindah kata secara berulang.
-                                </p>
-                            </div>
-
-                            <!-- Tombol Acak Deck -->
-                            <div class="flex items-center gap-2 self-start sm:self-auto">
-                                <button type="button" onclick="shuffleVocabCards()" class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-600 hover:text-amber-700 border border-slate-200 hover:border-amber-200 text-xs font-extrabold transition flex items-center gap-1.5 shadow-2xs">
-                                    <i class="fas fa-shuffle text-amber-500"></i> <span>Acak Urutan</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Panggung Utama Single Flashcard Deck -->
-                        <div id="vocab-cards-container" class="py-2">
-                            <!-- Diisi oleh js/materi.js -->
-                        </div>
-
-                        <!-- Area Tombol Submit / Status Verifikasi Hafalan -->
-                        <div id="vocab-action-area" class="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                            <!-- Diisi oleh js/materi.js -->
-                        </div>
-                    </section>
-
-                    <!-- Grid Dokumen PDF (Modul Presentasi & Catatan Rangkuman) -->
-                    <div class="grid grid-cols-1 gap-5">
-                        
-                        <!-- Modul Presentasi -->
-                        <section class="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <div class="flex items-center justify-between mb-3.5">
-                                <h3 class="text-xs sm:text-base font-bold text-slate-800 flex items-center gap-2">
-                                    <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0"><i class="fas fa-file-pdf text-xs sm:text-sm"></i></span>
-                                    <span>Modul Presentasi Utama</span>
-                                </h3>
-                                <a id="presentation-external-link" href="#" target="_blank" class="hidden shrink-0 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-100 transition">
-                                    <i class="fas fa-external-link-alt mr-1"></i> Layar Penuh
-                                </a>
-                            </div>
-                            <div id="presentation-viewer-box">
-                                <!-- Diisi oleh js/materi.js -->
-                            </div>
-                        </section>
-
-                        <!-- Catatan Rangkuman (Recap) -->
-                        <section class="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <div class="flex items-center justify-between mb-3.5">
-                                <h3 class="text-xs sm:text-base font-bold text-slate-800 flex items-center gap-2">
-                                    <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><i class="fas fa-clipboard-check text-xs sm:text-sm"></i></span>
-                                    <span>Catatan Rangkuman (Recap)</span>
-                                </h3>
-                                <a id="recap-external-link" href="#" target="_blank" class="hidden shrink-0 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-100 transition">
-                                    <i class="fas fa-external-link-alt mr-1"></i> Layar Penuh
-                                </a>
-                            </div>
-                            <div id="recap-viewer-box">
-                                <!-- Diisi oleh js/materi.js -->
-                            </div>
-                        </section>
-
+                    <!-- Dropdown Pilih Bulan, Minggu, Hari -->
+                    <div class="grid grid-cols-3 gap-2 w-full md:w-auto">
+                        <select id="quick-month" class="hes-input !py-2 !px-3 !text-xs cursor-pointer"></select>
+                        <select id="quick-week" class="hes-input !py-2 !px-3 !text-xs cursor-pointer"></select>
+                        <select id="quick-day" class="hes-input !py-2 !px-3 !text-xs cursor-pointer"></select>
                     </div>
-
                 </div>
-            </div>
-        </main>
-    </div>
 
-    <!-- Library Supabase & Script Halaman -->
+                <!-- Kartu Hafalan Kosakata (Flashcard 3D) -->
+                <section id="vocab-section" class="hidden hes-card">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-base sm:text-lg font-extrabold text-slate-800">🎯 Kartu Kosakata Harian</h3>
+                                <span id="vocab-count-badge" class="text-xs font-extrabold bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full">0 Kata</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-0.5">Ketuk kartu untuk melihat arti bahasa Indonesia, atau geser untuk kata berikutnya.</p>
+                        </div>
+                        <button type="button" onclick="shuffleVocabCards()" class="hes-btn-soft self-start sm:self-auto">
+                            <i class="fas fa-shuffle"></i> Acak Kartu
+                        </button>
+                    </div>
+
+                    <div id="vocab-cards-container" class="py-2"></div>
+                    <div id="vocab-action-area" class="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3"></div>
+                </section>
+
+                <!-- Modul Presentasi Utama -->
+                <section class="hes-card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-base font-extrabold text-slate-800 flex items-center gap-2.5">
+                            <span class="w-8 h-8 rounded-xl bg-red-50 text-red-500 flex items-center justify-center"><i class="fas fa-book-open"></i></span>
+                            <span>Modul Bacaan & Presentasi</span>
+                        </h3>
+                        <a id="presentation-external-link" href="#" target="_blank" class="hidden hes-btn-soft">
+                            <i class="fas fa-up-right-from-square"></i> Buka Layar Penuh
+                        </a>
+                    </div>
+                    <div id="presentation-viewer-box"></div>
+                </section>
+
+                <!-- Catatan Rangkuman (Recap) -->
+                <section class="hes-card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-base font-extrabold text-slate-800 flex items-center gap-2.5">
+                            <span class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fas fa-clipboard-check"></i></span>
+                            <span>Catatan Rangkuman Kelas (Recap)</span>
+                        </h3>
+                        <a id="recap-external-link" href="#" target="_blank" class="hidden hes-btn-soft !bg-emerald-50 !text-emerald-700">
+                            <i class="fas fa-up-right-from-square"></i> Buka Layar Penuh
+                        </a>
+                    </div>
+                    <div id="recap-viewer-box"></div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/wordbank.js"></script>
     <script src="js/config.js"></script>

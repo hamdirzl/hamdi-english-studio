@@ -1,9 +1,7 @@
 // js/layout.js
 
-function initLayout(pageTitle = 'Portal Akademik') {
-    const session = getSession();
-    if (!session) return;
-
+function initLayout(pageTitle = 'Portal Belajar') {
+    if (!getSession()) return;
     renderAppHeader(pageTitle);
     renderAppSidebar();
 }
@@ -12,31 +10,24 @@ function renderAppHeader(pageTitle) {
     const headerEl = document.getElementById('app-header');
     if (!headerEl) return;
 
-    const todayStr = getDisplayDate(new Date());
-
     headerEl.innerHTML = `
-        <div class="flex items-center gap-2.5 min-w-0">
-            <button id="open-sidebar-btn" class="md:hidden text-slate-600 hover:text-slate-900 p-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200/80 transition shrink-0">
-                <i class="fas fa-bars text-sm"></i>
+        <div class="flex items-center gap-3 min-w-0">
+            <button id="open-sidebar-btn" class="md:hidden text-slate-600 hover:text-indigo-600 p-2.5 bg-slate-100/80 rounded-xl transition">
+                <i class="fas fa-bars"></i>
             </button>
             <div class="truncate">
-                <h1 class="text-xs sm:text-sm md:text-base font-extrabold text-slate-800 tracking-tight truncate">${pageTitle}</h1>
-                <p class="text-[11px] font-medium text-slate-400 hidden sm:block">${todayStr}</p>
+                <h1 class="text-sm sm:text-base font-extrabold text-slate-800 truncate">${pageTitle}</h1>
+                <p class="text-xs font-medium text-slate-400 hidden sm:block">${getDisplayDate(new Date())}</p>
             </div>
         </div>
-
-        <div class="flex items-center gap-2 shrink-0">
-            <div id="cloud-status-indicator" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                <span>Memeriksa...</span>
-            </div>
+        <div id="cloud-status-indicator" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span>Memuat...</span>
         </div>
     `;
 
-    const openBtn = document.getElementById('open-sidebar-btn');
-    const overlay = document.getElementById('sidebar-overlay');
-    if (openBtn) openBtn.addEventListener('click', openMobileSidebar);
-    if (overlay) overlay.addEventListener('click', closeMobileSidebar);
+    document.getElementById('open-sidebar-btn')?.addEventListener('click', () => toggleMobileSidebar(true));
+    document.getElementById('sidebar-overlay')?.addEventListener('click', () => toggleMobileSidebar(false));
 }
 
 function renderAppSidebar() {
@@ -45,363 +36,103 @@ function renderAppSidebar() {
 
     const user = window.HES.currentUser;
     const role = window.HES.userRole;
-    const currentPath = window.location.pathname.split('/').pop() || 'dashboard.html';
-    const urlParams = new URLSearchParams(window.location.search);
-    const activeMonthParam = urlParams.get('month');
-    const activeWeekParam = urlParams.get('week');
-    const activeDayParam = urlParams.get('day');
+    const path = window.location.pathname.split('/').pop() || 'dashboard.html';
 
-    let targetEmailForTimeline = user.email;
-    let maxMonthNum = 99;
+    const timeline = role === 'student' ? getStudentCurriculumTimeline(user.email) : null;
+    const stats = role === 'student' ? getStudentGamificationStats(user.email) : null;
+    const cur = timeline?.currentPointer;
 
-    if (role === 'student') {
-        let p = window.HES.materials[`profile-${user.email}`];
-        if (p && p.maxMonth) maxMonthNum = parseInt(p.maxMonth);
-    } else if (role === 'admin') {
-        const adminStuSelect = document.getElementById('admin-sched-student');
-        if (adminStuSelect && adminStuSelect.value) {
-            targetEmailForTimeline = adminStuSelect.value;
-        } else if (window.HES.students.length > 0) {
-            targetEmailForTimeline = window.HES.students[0].email;
-        }
+    const materiHref = cur ? `materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}` : 'materi.html';
+
+    const menus = [
+        { file: 'dashboard.html', href: 'dashboard.html', icon: 'fa-house', label: 'Beranda Utama' },
+        { file: 'materi.html',    href: materiHref,       icon: 'fa-book-open', label: 'Ruang Belajar' },
+        { file: 'exam.html',      href: 'exam.html',      icon: 'fa-award', label: 'Ujian & Rapor' },
+        { file: 'reschedule.html',href: 'reschedule.html',icon: 'fa-calendar-days', label: 'Atur Jadwal' }
+    ];
+    if (role === 'admin') {
+        menus.unshift({ file: 'admin.html', href: 'admin.html', icon: 'fa-sliders', label: 'Panel Admin (CMS)' });
     }
 
-    const timeline = getStudentCurriculumTimeline(targetEmailForTimeline);
-    const gamification = role === 'student' ? getStudentGamificationStats(user.email) : null;
-
-    // Widget Mini Live Tracker di Sidebar
-    let trackerSummaryHTML = '';
-    if (timeline && timeline.currentPointer) {
-        const cur = timeline.currentPointer;
-        const nxt = timeline.nextPointer;
-        trackerSummaryHTML = `
-            <div class="mx-4 mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
-                <a href="materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white shadow-2xs hover:bg-emerald-600 transition">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0"></span>
-                        <span class="text-[11px] font-extrabold truncate">Di Sini: M${cur.monthId.replace('m', '')}•W${cur.week}•D${cur.day}</span>
-                    </div>
-                    <span class="text-[10px] font-bold bg-black/15 px-1.5 py-0.5 rounded shrink-0 ml-1">${cur.shortDate}</span>
-                </a>
-                ${nxt ? `
-                <a href="materi.html?month=${nxt.monthId}&week=${nxt.week}&day=${nxt.day}" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200/80 hover:bg-amber-100/70 transition">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                        <i class="fas fa-forward text-[9px] text-amber-500 shrink-0"></i>
-                        <span class="text-[10px] font-bold truncate">Esok: M${nxt.monthId.replace('m', '')}•W${nxt.week}•D${nxt.day}</span>
-                    </div>
-                    <span class="text-[10px] font-extrabold text-amber-700 shrink-0 ml-1">${nxt.shortDate}</span>
-                </a>
-                ` : ''}
-            </div>
+    const navHTML = menus.map(m => {
+        const active = path === m.file;
+        return `
+            <a href="${m.href}" class="flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${active ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}">
+                <i class="fas ${m.icon} w-5 text-center ${active ? 'text-white' : 'text-slate-400'}"></i>
+                <span>${m.label}</span>
+            </a>
         `;
-    }
-
-    // Susun daftar modul bulan (1 baris rapi per item)
-    let modulesHTML = '';
-    window.HES.months.forEach((month) => {
-        const currentMonthNum = parseInt(month.id.replace('m', ''));
-        const isLocked = role === 'student' && currentMonthNum > maxMonthNum;
-
-        const mInfo = (timeline && timeline.months[month.id]) ? timeline.months[month.id] : null;
-        const mStatus = mInfo ? mInfo.status : 'upcoming';
-        const isMonthOpen = activeMonthParam
-            ? (activeMonthParam === month.id)
-            : (mStatus === 'current');
-
-        if (isLocked) {
-            modulesHTML += `
-                <div onclick="showToast('Modul ${month.title} masih terkunci. Silakan hubungi Admin.', 'info')" class="px-3 py-2 flex items-center justify-between text-slate-400 font-medium text-xs cursor-not-allowed opacity-70 rounded-xl hover:bg-slate-50">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-lock w-4 text-center text-slate-300 text-[11px]"></i>
-                        <span>${month.title}</span>
-                    </div>
-                    <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">Terkunci</span>
-                </div>
-            `;
-        } else {
-            let monthBoxClass = 'hover:bg-slate-50 text-slate-700';
-            let monthIconClass = 'far fa-folder-open text-indigo-500';
-            let monthBadgeHTML = '';
-
-            if (mStatus === 'current') {
-                monthBoxClass = 'bg-emerald-50/80 text-emerald-900 border border-emerald-200/80';
-                monthIconClass = 'fas fa-folder-open text-emerald-600';
-                monthBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white shrink-0">Aktif</span>`;
-            } else if (mStatus === 'completed') {
-                monthBoxClass = 'bg-slate-50/90 text-slate-500 border border-slate-200/60 hover:bg-slate-100';
-                monthIconClass = 'fas fa-check-circle text-emerald-500';
-                monthBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Selesai</span>`;
-            } else if (mStatus === 'next') {
-                monthBoxClass = 'bg-amber-50/60 text-amber-900 border border-amber-200/60';
-                monthIconClass = 'fas fa-folder text-amber-500';
-                monthBadgeHTML = `<span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white shrink-0">Esok</span>`;
-            } else if (isMonthOpen) {
-                monthBoxClass = 'bg-slate-50 text-indigo-600';
-            }
-
-            let weeksHTML = '';
-            month.weeks.forEach(week => {
-                const wKey = `${month.id}-w${week}`;
-                const wInfo = (timeline && timeline.weeks[wKey]) ? timeline.weeks[wKey] : null;
-                const wStatus = wInfo ? wInfo.status : 'upcoming';
-
-                const isWeekOpen = (activeMonthParam === month.id && String(activeWeekParam) === String(week))
-                    || (!activeWeekParam && wStatus === 'current');
-
-                let weekBtnClass = 'text-slate-600 hover:text-indigo-600 hover:bg-slate-50';
-                let weekStatusPill = '';
-
-                if (wStatus === 'current') {
-                    weekBtnClass = 'bg-emerald-50/90 text-emerald-800 font-extrabold border border-emerald-200/70';
-                    weekStatusPill = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>`;
-                } else if (wStatus === 'completed') {
-                    weekBtnClass = 'text-slate-500 hover:bg-slate-50';
-                    weekStatusPill = `<i class="fas fa-check text-emerald-500 text-[9px] shrink-0"></i>`;
-                } else if (wStatus === 'next') {
-                    weekBtnClass = 'bg-amber-50/70 text-amber-800 font-bold border border-amber-200/60';
-                    weekStatusPill = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>`;
-                }
-
-                let daysHTML = [1, 2, 3].map(day => {
-                    const dKey = `${month.id}-w${week}-d${day}`;
-                    const dInfo = (timeline && timeline.days[dKey]) ? timeline.days[dKey] : null;
-                    const dStatus = dInfo ? dInfo.status : 'upcoming';
-                    const isDayActive = currentPath === 'materi.html'
-                        && activeMonthParam === month.id
-                        && String(activeWeekParam) === String(week)
-                        && String(activeDayParam) === String(day);
-
-                    let dayItemClass = 'text-slate-600 hover:text-indigo-600 hover:bg-slate-50';
-                    let leftIndicator = `<span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>`;
-                    let rightBadge = dInfo && dInfo.shortDate
-                        ? `<span class="text-[10px] font-medium text-slate-400 shrink-0">${dInfo.shortDate}</span>`
-                        : '';
-
-                    if (dStatus === 'current') {
-                        dayItemClass = isDayActive
-                            ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                            : 'bg-emerald-50 text-emerald-900 border border-emerald-200/90 hover:bg-emerald-100/70 font-extrabold';
-                        leftIndicator = `<span class="w-2 h-2 rounded-full ${isDayActive ? 'bg-white' : 'bg-emerald-500'} animate-pulse shrink-0"></span>`;
-                        rightBadge = `
-                            <div class="flex items-center gap-1 shrink-0">
-                                ${dInfo && dInfo.shortDate ? `<span class="text-[10px] font-bold ${isDayActive ? 'text-emerald-100' : 'text-emerald-700'}">${dInfo.shortDate}</span>` : ''}
-                                <span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${isDayActive ? 'bg-white text-emerald-700' : 'bg-emerald-600 text-white'}">Di Sini</span>
-                            </div>
-                        `;
-                    } else if (dStatus === 'next') {
-                        dayItemClass = isDayActive
-                            ? 'bg-amber-500 text-white shadow-xs font-extrabold'
-                            : 'bg-amber-50/80 text-amber-900 border border-amber-200/90 hover:bg-amber-100/70 font-bold';
-                        leftIndicator = `<span class="w-2 h-2 rounded-full ${isDayActive ? 'bg-white' : 'bg-amber-500'} shrink-0"></span>`;
-                        rightBadge = `
-                            <div class="flex items-center gap-1 shrink-0">
-                                ${dInfo && dInfo.shortDate ? `<span class="text-[10px] font-bold ${isDayActive ? 'text-amber-100' : 'text-amber-700'}">${dInfo.shortDate}</span>` : ''}
-                                <span class="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${isDayActive ? 'bg-white text-amber-700' : 'bg-amber-500 text-white'}">Esok</span>
-                            </div>
-                        `;
-                    } else if (dStatus === 'completed') {
-                        dayItemClass = isDayActive
-                            ? 'bg-indigo-600 text-white font-bold shadow-2xs'
-                            : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-50';
-                        leftIndicator = `<i class="fas fa-check ${isDayActive ? 'text-white' : 'text-emerald-500'} text-[9px] shrink-0"></i>`;
-                        rightBadge = dInfo && dInfo.shortDate
-                            ? `<span class="text-[10px] font-medium ${isDayActive ? 'text-indigo-100' : 'text-slate-400'} shrink-0">${dInfo.shortDate}</span>`
-                            : '';
-                    } else if (isDayActive) {
-                        dayItemClass = 'bg-indigo-600 text-white font-bold shadow-2xs';
-                        leftIndicator = `<span class="w-1.5 h-1.5 rounded-full bg-white shrink-0"></span>`;
-                        rightBadge = dInfo && dInfo.shortDate
-                            ? `<span class="text-[10px] font-medium text-indigo-100 shrink-0">${dInfo.shortDate}</span>`
-                            : '';
-                    }
-
-                    return `
-                        <a href="materi.html?month=${month.id}&week=${week}&day=${day}" class="px-2.5 py-1.5 text-xs rounded-lg flex items-center justify-between gap-2 transition-all ${dayItemClass}">
-                            <div class="flex items-center gap-2 min-w-0">
-                                ${leftIndicator}
-                                <span class="truncate">Day ${day}</span>
-                            </div>
-                            ${rightBadge}
-                        </a>
-                    `;
-                }).join('');
-
-                weeksHTML += `
-                    <div>
-                        <button type="button" onclick="toggleSidebarSubmenu('w-${month.id}-${week}', this)" class="w-full px-2.5 py-1.5 text-xs font-bold flex justify-between items-center rounded-lg transition ${weekBtnClass}">
-                            <div class="flex items-center gap-1.5 min-w-0">
-                                ${weekStatusPill}
-                                <span class="truncate">Week ${week}</span>
-                            </div>
-                            <div class="flex items-center gap-1.5 shrink-0">
-                                ${wInfo && wInfo.rangeText ? `<span class="text-[10px] font-semibold opacity-75">${wInfo.rangeText}</span>` : ''}
-                                <i class="fas fa-angle-down text-[10px] transition-transform ${isWeekOpen ? 'rotate-180' : ''}"></i>
-                            </div>
-                        </button>
-                        <div id="w-${month.id}-${week}" class="${isWeekOpen ? '' : 'hidden'} pl-2 pt-1 pb-1 space-y-1">
-                            ${daysHTML}
-                        </div>
-                    </div>
-                `;
-            });
-
-            const isExamActive = currentPath === 'exam.html' && activeMonthParam === month.id;
-
-            modulesHTML += `
-                <div>
-                    <button type="button" onclick="toggleSidebarSubmenu('m-${month.id}', this)" class="w-full px-3 py-2 flex justify-between items-center rounded-xl transition font-bold text-xs ${monthBoxClass}">
-                        <div class="flex items-center gap-2 min-w-0">
-                            <i class="${monthIconClass} w-4 text-center shrink-0"></i>
-                            <span class="truncate">${month.title}</span>
-                            ${monthBadgeHTML}
-                        </div>
-                        <div class="flex items-center gap-1.5 shrink-0">
-                            ${mInfo && mInfo.rangeText ? `<span class="text-[10px] font-semibold opacity-75">${mInfo.rangeText}</span>` : ''}
-                            <i class="fas fa-chevron-down text-[10px] opacity-60 transition-transform ${isMonthOpen ? 'rotate-180' : ''}"></i>
-                        </div>
-                    </button>
-                    <div id="m-${month.id}" class="${isMonthOpen ? '' : 'hidden'} pl-2.5 py-1 space-y-1 border-l-2 border-slate-100 ml-3.5 my-1">
-                        ${weeksHTML}
-                        <a href="exam.html?month=${month.id}" class="px-2.5 py-1.5 mt-1 text-xs font-bold rounded-lg flex items-center transition-colors border ${isExamActive ? 'bg-amber-500 text-white border-amber-600' : 'text-amber-700 bg-amber-50/70 hover:bg-amber-100 border-amber-200/80'}">
-                            <i class="fas fa-star mr-2 ${isExamActive ? 'text-white' : 'text-amber-500'} text-[11px]"></i> Final Exam
-                        </a>
-                    </div>
-                </div>
-            `;
-        }
-    });
-
-    const navItemClass = (targetFile) => {
-        const active = currentPath === targetFile;
-        return active
-            ? 'w-full flex items-center px-3 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-200 transition-all'
-            : 'w-full flex items-center px-3 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors group';
-    };
-
-    const navIconClass = (targetFile) => {
-        const active = currentPath === targetFile;
-        return active
-            ? 'w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center mr-2.5 text-white shrink-0'
-            : 'w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mr-2.5 text-slate-500 group-hover:text-indigo-600 transition-colors shrink-0';
-    };
+    }).join('');
 
     sidebarEl.innerHTML = `
         <!-- Brand Header -->
-        <div class="p-4 sm:p-5 flex justify-between items-center border-b border-slate-100">
-            <a href="dashboard.html" class="flex items-center gap-2.5">
-                <div class="w-8 h-8 sm:w-9 sm:h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-sm shadow-indigo-200">
-                    <i class="fas fa-graduation-cap text-white text-xs sm:text-sm"></i>
+        <div class="p-5 flex justify-between items-center border-b border-slate-100">
+            <a href="dashboard.html" class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                    <i class="fas fa-graduation-cap"></i>
                 </div>
                 <div>
-                    <h2 class="text-xs sm:text-sm font-extrabold text-slate-800 tracking-tight leading-none">Hamdi Studio</h2>
-                    <p class="text-[9px] sm:text-[10px] uppercase tracking-widest text-indigo-600 font-bold mt-1">Premium Class</p>
+                    <h2 class="text-sm font-extrabold text-slate-800 leading-none">Hamdi Studio</h2>
+                    <p class="text-[11px] text-indigo-600 font-bold mt-1">English Learning Portal</p>
                 </div>
             </a>
-            <button id="close-sidebar-btn" class="md:hidden text-slate-400 hover:text-slate-600 bg-slate-50 p-2 rounded-lg">
-                <i class="fas fa-times text-xs"></i>
+            <button id="close-sidebar-btn" class="md:hidden text-slate-400 hover:text-slate-700 p-2 rounded-xl bg-slate-50">
+                <i class="fas fa-times"></i>
             </button>
         </div>
 
-        <!-- User Profile Box + Mini Level XP Bar -->
-        <div class="p-3 mx-4 mt-3 rounded-xl bg-slate-50 border border-slate-200/70">
-            <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-extrabold text-xs shadow-2xs shrink-0">
+        <!-- Kartu Profil Ramah -->
+        <div class="p-4 mx-4 mt-4 rounded-2xl bg-gradient-to-br from-slate-50 to-indigo-50/40 border border-slate-200/80">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0">
                     ${user.name ? user.name.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <div class="flex-1 overflow-hidden">
-                    <p class="text-xs font-extrabold text-slate-800 truncate">${user.name}</p>
-                    <p class="text-[10px] font-semibold text-indigo-600 truncate">
-                        ${gamification ? `Lv. ${gamification.level} •${gamification.levelTitle}` : (role === 'admin' ? 'Administrator' : 'Premium Member')}
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-extrabold text-slate-800 truncate">${user.name}</p>
+                    <p class="text-xs font-bold text-indigo-600 truncate">
+                        ${stats ? `Level ${stats.level} •${stats.xp} XP` : 'Administrator'}
                     </p>
                 </div>
             </div>
-            ${gamification ? `
-            <div class="mt-2 pt-2 border-t border-slate-200/60">
-                <div class="flex justify-between text-[9px] font-extrabold text-slate-500 mb-1">
-                    <span><i class="fas fa-bolt text-amber-500 mr-0.5"></i> ${gamification.xp} XP</span>
-                    <span>${gamification.activeMonthTitle}:${gamification.activeMonthPercent}%</span>
-                </div>
-                <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div class="h-full bg-indigo-600 rounded-full" style="width: ${gamification.xpProgressPercent}%"></div>
-                </div>
+        </div>
+
+        <!-- Menu Utama yang Bersih -->
+        <div class="flex-1 overflow-y-auto px-4 py-5 space-y-1.5 custom-scrollbar">
+            <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider px-3 mb-2">Menu Navigasi</p>
+            ${navHTML}
+
+            ${cur ? `
+            <!-- Kartu Pintas Sesi Aktif Murid -->
+            <div class="mt-6 pt-5 border-t border-slate-100">
+                <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider px-2 mb-2">Sesi Belajar Kamu</p>
+                <a href="${materiHref}" class="block p-4 rounded-2xl bg-emerald-50/90 hover:bg-emerald-100/80 border border-emerald-200 transition">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-600 text-white">
+                            ${cur.isTodayClass ? 'Hari Ini' : 'Sesi Aktif'}
+                        </span>
+                        <span class="text-xs font-bold text-emerald-800">${cur.shortDate}</span>
+                    </div>
+                    <p class="text-sm font-extrabold text-slate-800 mt-1.5">${cur.monthTitle} • Minggu ${cur.week}</p>
+                    <p class="text-xs font-semibold text-emerald-700 mt-0.5">Pertemuan Hari ke-${cur.day} <i class="fas fa-arrow-right ml-1"></i></p>
+                </a>
             </div>
             ` : ''}
         </div>
 
-        ${trackerSummaryHTML}
-
-        <!-- Menu Navigasi -->
-        <div class="overflow-y-auto flex-1 p-3.5 sm:p-4 custom-scrollbar">
-            <div class="space-y-1">
-                <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 pl-2">Menu Utama</p>
-                
-                ${role === 'admin' ? `
-                <a href="admin.html" class="${navItemClass('admin.html')}">
-                    <div class="${navIconClass('admin.html')}"><i class="fas fa-sliders text-xs"></i></div>
-                    <span>Administrative CMS</span>
-                </a>
-                ` : ''}
-
-                <a href="dashboard.html" class="${navItemClass('dashboard.html')}">
-                    <div class="${navIconClass('dashboard.html')}"><i class="fas fa-home text-xs"></i></div>
-                    <span>Dashboard</span>
-                </a>
-
-                <a href="reschedule.html" class="${navItemClass('reschedule.html')}">
-                    <div class="${navIconClass('reschedule.html')}"><i class="fas fa-calendar-alt text-xs"></i></div>
-                    <span>Reschedule Jadwal</span>
-                </a>
-            </div>
-
-            <div class="mt-5 mb-3">
-                <div class="flex items-center justify-between mb-1.5 px-2">
-                    <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Kurikulum & Jadwal</p>
-                    <div class="flex items-center gap-2 text-[9px] font-bold text-slate-400">
-                        <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Di Sini</span>
-                        <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Esok</span>
-                    </div>
-                </div>
-                <div class="space-y-1">
-                    ${modulesHTML}
-                </div>
-            </div>
-        </div>
-
         <!-- Tombol Keluar -->
-        <div class="p-3.5 border-t border-slate-100">
-            <button onclick="logoutUser()" class="w-full flex items-center justify-center p-2.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all shadow-2xs">
-                <i class="fas fa-sign-out-alt mr-2"></i> Keluar dari Portal
+        <div class="p-4 border-t border-slate-100">
+            <button onclick="logoutUser()" class="w-full flex items-center justify-center gap-2 py-3 px-4 text-xs font-extrabold text-slate-600 bg-slate-50 hover:bg-red-50 hover:text-red-600 rounded-2xl border border-slate-200/80 transition">
+                <i class="fas fa-right-from-bracket"></i> Keluar dari Portal
             </button>
         </div>
     `;
 
-    const closeBtn = document.getElementById('close-sidebar-btn');
-    if (closeBtn) closeBtn.addEventListener('click', closeMobileSidebar);
+    document.getElementById('close-sidebar-btn')?.addEventListener('click', () => toggleMobileSidebar(false));
 }
 
-window.toggleSidebarSubmenu = function(id, btnEl) {
-    const target = document.getElementById(id);
-    if (!target) return;
-    const icon = btnEl.querySelector('.fa-chevron-down, .fa-angle-down');
-    if (target.classList.contains('hidden')) {
-        target.classList.remove('hidden');
-        if (icon) icon.classList.add('rotate-180');
-    } else {
-        target.classList.add('hidden');
-        if (icon) icon.classList.remove('rotate-180');
-    }
-};
-
-function openMobileSidebar() {
-    const sidebar = document.getElementById('app-sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
-    if (sidebar) sidebar.classList.remove('-translate-x-full');
-    if (overlay) overlay.classList.remove('hidden');
-}
-
-function closeMobileSidebar() {
-    const sidebar = document.getElementById('app-sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
-    if (sidebar) sidebar.classList.add('-translate-x-full');
-    if (overlay) overlay.classList.add('hidden');
+function toggleMobileSidebar(show) {
+    const sb = document.getElementById('app-sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    if (sb) sb.classList.toggle('-translate-x-full', !show);
+    if (ov) ov.classList.toggle('hidden', !show);
 }

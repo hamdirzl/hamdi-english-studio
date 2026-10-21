@@ -3,421 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administrative CMS | Hamdi English Studio</title>
-    <!-- Tailwind CSS -->
+    <title>Panel Admin | Hamdi English Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts: Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: { primary: '#4f46e5' }
-                }
-            }
-        }
-    </script>
 </head>
-<body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-900">
+<body class="h-screen flex overflow-hidden">
 
-    <div class="h-screen flex overflow-hidden bg-[#F8FAFC]">
-        
-        <!-- Sidebar (Dirender oleh js/layout.js) -->
-        <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
-        <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
+    <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
 
-        <!-- Area Konten Utama -->
-        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
-            
-            <!-- Header (Dirender oleh js/layout.js) -->
-            <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+        <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
 
-            <!-- Konten Admin CMS -->
-            <div class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-                <div class="max-w-6xl mx-auto fade-in pb-20">
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
+            <div class="max-w-6xl mx-auto fade-in pb-20 space-y-6">
 
-                    <!-- Judul Halaman Admin -->
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                        <div>
-                            <span class="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-extrabold uppercase tracking-widest rounded border border-indigo-100 mb-1">Control Center</span>
-                            <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight">Administrative Workspace</h2>
-                            <p class="text-slate-500 font-medium text-xs md:text-sm mt-0.5">Kelola akun murid, jadwal master, distribusi materi, dan evaluasi ujian.</p>
-                        </div>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800">Panel Kendali Admin (CMS)</h2>
+                        <p class="text-xs sm:text-sm text-slate-500">Kelola murid, jadwal, materi PDF, wordbank, dan penilaian ujian.</p>
                     </div>
-
-                    <!-- Navigasi Tab CMS -->
-                    <div class="flex overflow-x-auto gap-1.5 mb-8 bg-slate-200/60 p-1.5 rounded-2xl max-w-full md:max-w-fit custom-scrollbar border border-slate-200/80">
-                        <button onclick="switchAdminTab('overview')" id="adm-tab-overview" class="shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2">
-                            <i class="fas fa-bell"></i> Overview & Validasi
-                        </button>
-                        <button onclick="switchAdminTab('users')" id="adm-tab-users" class="shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2">
-                            <i class="fas fa-users-cog"></i> Akun & Jadwal Master
-                        </button>
-                        <button onclick="switchAdminTab('materials')" id="adm-tab-materials" class="shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2">
-                            <i class="fas fa-book"></i> Materi & Kosakata
-                        </button>
-                        <button onclick="switchAdminTab('exam')" id="adm-tab-exam" class="shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2">
-                            <i class="fas fa-file-signature"></i> Builder & Penilaian Ujian
-                        </button>
-                    </div>
-
-                    <!-- ========================================== -->
-                    <!-- TAB 1: OVERVIEW & VALIDASI RESCHEDULE      -->
-                    <!-- ========================================== -->
-                    <section id="admin-panel-overview" class="space-y-6">
-                        <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-                                    <i class="fas fa-calendar-check text-amber-500"></i>
-                                    Antrean Validasi Perubahan Jadwal (Reschedule)
-                                </h3>
-                                <button onclick="refreshAdminCloudData()" class="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition">
-                                    <i class="fas fa-sync-alt mr-1"></i> Segarkan
-                                </button>
-                            </div>
-                            <div id="admin-pending-reschedules-list" class="bg-slate-50/70 p-3 md:p-4 rounded-xl border border-slate-100">
-                                <!-- Diisi oleh js/admin.js -->
-                            </div>
-                        </div>
-
-                        <div class="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div class="flex items-center gap-4 text-center sm:text-left">
-                                <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shrink-0 mx-auto sm:mx-0">
-                                    <i class="fas fa-folder-plus"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-base font-bold text-slate-800">Generate Modul Bulan Baru</h3>
-                                    <p class="text-xs text-slate-500 mt-0.5">Tambahkan struktur folder bulan berikutnya (lengkap dengan Week 1-4 & Final Exam) secara otomatis.</p>
-                                </div>
-                            </div>
-                            <button onclick="addNewMonth()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-xl text-xs font-bold shadow-sm transition shrink-0">
-                                <i class="fas fa-plus mr-1.5"></i> Tambah Bulan Baru
-                            </button>
-                        </div>
-                    </section>
-
-                    <!-- ========================================== -->
-                    <!-- TAB 2: AKUN MURID & JADWAL MASTER          -->
-                    <!-- ========================================== -->
-                    <section id="admin-panel-users" class="hidden space-y-6">
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            
-                            <!-- Form Pendaftaran Akun Murid -->
-                            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm h-fit">
-                                <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                    <i class="fas fa-user-plus text-emerald-500"></i> Pendaftaran Akun Murid Baru
-                                </h3>
-                                <div class="space-y-3.5">
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nama Lengkap Murid</label>
-                                        <input type="text" id="new-stu-name" placeholder="Contoh: Nadia Putri" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white outline-none transition">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Alamat Email Login</label>
-                                        <input type="email" id="new-stu-email" placeholder="nama@gmail.com" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white outline-none transition">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Kata Sandi Standar</label>
-                                        <input type="text" id="new-stu-pass" placeholder="Minimal 3 karakter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white outline-none transition">
-                                    </div>
-                                    <button onclick="addNewStudent(event)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-bold shadow-sm transition mt-2">
-                                        <i class="fas fa-check mr-1"></i> Daftarkan Akun Murid
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Form Pengaturan Jadwal Master & Batas Modul -->
-                            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                                <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                    <i class="fas fa-user-clock text-purple-600"></i> Konfigurasi Jadwal Master & Batas Bulan
-                                </h3>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3">
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Pilih Murid</label>
-                                        <select id="admin-sched-student" onchange="loadStudentScheduleForm()" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500"></select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-indigo-600 uppercase mb-1">Pilih Modul Bulan (Batas Akses)</label>
-                                        <select id="admin-sched-max-month" onchange="onAdminMonthSelectChange()" class="w-full bg-indigo-50/60 border border-indigo-200 p-2.5 rounded-xl text-xs font-extrabold text-indigo-900 outline-none focus:border-indigo-500"></select>
-                                    </div>
-                                    <div>
-                                        <label id="admin-sched-date-label" class="block text-[11px] font-bold text-emerald-700 uppercase mb-1">Batas Akhir Month 1 (Day 12)</label>
-                                        <input type="date" id="admin-sched-date" class="w-full bg-emerald-50/50 border border-emerald-200 p-2.5 rounded-xl text-xs font-bold outline-none focus:border-emerald-500 text-slate-700">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Jam Kelas Default</label>
-                                        <div class="flex items-center gap-1.5">
-                                            <input type="time" id="admin-sched-start" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-xs font-semibold outline-none">
-                                            <span class="text-slate-400 font-bold">-</span>
-                                            <input type="time" id="admin-sched-end" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-xs font-semibold outline-none">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Ringkasan Tanggal Batas per Bulan yang Sudah Tersimpan -->
-                                <div id="admin-saved-month-dates-box" class="mb-4 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px]"></div>
-
-                                <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">Hari Kelas Rutin</label>
-                                <div class="flex flex-wrap gap-2 mb-5">
-                                    <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:border-indigo-300"><input type="checkbox" value="Senin" class="admin-day-cb w-3.5 h-3.5"> Sen</label>
-                                    <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:border-indigo-300"><input type="checkbox" value="Selasa" class="admin-day-cb w-3.5 h-3.5"> Sel</label>
-                                    <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:border-indigo-300"><input type="checkbox" value="Rabu" class="admin-day-cb w-3.5 h-3.5"> Rab</label>
-                                    <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:border-indigo-300"><input type="checkbox" value="Kamis" class="admin-day-cb w-3.5 h-3.5"> Kam</label>
-                                    <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:border-indigo-300"><input type="checkbox" value="Jumat" class="admin-day-cb w-3.5 h-3.5"> Jum</label>
-                                    <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:border-indigo-300"><input type="checkbox" value="Sabtu" class="admin-day-cb w-3.5 h-3.5"> Sab</label>
-                                </div>
-
-                                <button onclick="saveStudentSchedule(event)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-bold shadow-sm transition">
-                                    <i class="fas fa-save mr-1"></i> Simpan Konfigurasi Jadwal & Tanggal Bulan
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Tabel Database Kredensial Murid -->
-                        <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                <i class="fas fa-database text-slate-500"></i> Database Kredensial & Status Murid
-                            </h3>
-                            <div class="overflow-x-auto rounded-xl border border-slate-200/80">
-                                <table class="w-full text-left border-collapse text-sm min-w-[560px]">
-                                    <thead>
-                                        <tr class="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
-                                            <th class="p-3.5">Nama Murid</th>
-                                            <th class="p-3.5">Email</th>
-                                            <th class="p-3.5">Jadwal & Batas Per-Bulan</th>
-                                            <th class="p-3.5">Kata Sandi</th>
-                                            <th class="p-3.5 text-right">Tindakan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="admin-students-table-body">
-                                        <!-- Diisi oleh js/admin.js -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- ========================================== -->
-                    <!-- TAB 3: MATERI PDF & KOSAKATA               -->
-                    <!-- ========================================== -->
-                    <section id="admin-panel-materials" class="hidden space-y-6">
-                        
-                        <!-- Upload Tautan PDF -->
-                        <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                <i class="fas fa-cloud-upload-alt text-blue-500"></i> Publikasi Modul Presentasi & Catatan Rangkuman (PDF)
-                            </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div class="md:col-span-1 border-b md:border-b-0 md:border-r border-slate-100 pb-4 md:pb-0 md:pr-6">
-                                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Target Penerima</label>
-                                    <select id="admin-target-student" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold mb-4 outline-none focus:border-indigo-500"></select>
-
-                                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Pilih Sesi Pertemuan</label>
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <select id="admin-month" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none"></select>
-                                        <select id="admin-week" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none">
-                                            <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
-                                        </select>
-                                        <select id="admin-day" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none">
-                                            <option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="md:col-span-2 space-y-3.5">
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1"><i class="fab fa-google-drive text-blue-500 mr-1"></i> Tautan Modul Presentasi (Google Drive)</label>
-                                        <input type="text" id="admin-link" placeholder="https://drive.google.com/file/d/.../view" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-500 transition">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1"><i class="fab fa-google-drive text-emerald-500 mr-1"></i> Tautan Catatan Rangkuman / Recap (Google Drive)</label>
-                                        <input type="text" id="admin-recap-pdf" placeholder="https://drive.google.com/file/d/.../view" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-500 transition">
-                                    </div>
-                                    <button onclick="saveMaterialData(event)" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-xs font-bold shadow-sm transition">
-                                        <i class="fas fa-save mr-1"></i> Simpan Tautan Dokumen
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- ========================================================= -->
-                        <!-- MASTER WORDBANK (INPUT RIBUAN KATA SEKALIGUS ANTI-DUPLIKAT) -->
-                        <!-- ========================================================= -->
-                        <div class="bg-gradient-to-br from-indigo-50/70 via-white to-emerald-50/40 p-5 md:p-6 rounded-2xl border-2 border-indigo-200/80 shadow-sm">
-                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-                                <div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-extrabold uppercase tracking-wider rounded">Auto-Distributor</span>
-                                        <h3 class="text-sm md:text-base font-extrabold text-slate-800">Master Wordbank Database (Ribuan Kosakata)</h3>
-                                    </div>
-                                    <p class="text-xs text-slate-500 mt-1">
-                                        Tempelkan ribuan kosakata di sini (1 baris = 1 pasang kata dengan tanda <code>=</code>). Sistem otomatis menyaring kata kembar dan membagikannya secara berurutan ke setiap pertemuan tanpa pernah berulang!
-                                    </p>
-                                </div>
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <span id="master-wordbank-stats-badge" class="px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-extrabold shadow-2xs">
-                                        0 Kata Unik
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-3">
-                                <div class="lg:col-span-3">
-                                    <textarea id="admin-master-wordbank" oninput="updateMasterWordbankCounter()" rows="7" placeholder="Tempelkan ribuan kosakata Anda di sini:&#10;Accomplish = Mencapai&#10;Resilient = Tangguh&#10;Determine = Menentukan&#10;Perspective = Sudut pandang" class="w-full bg-white border border-slate-200 p-3.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 transition custom-scrollbar"></textarea>
-                                </div>
-                                <div class="lg:col-span-1 flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-200/90">
-                                    <div class="space-y-3">
-                                        <div>
-                                            <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Jumlah Kata / Pertemuan</label>
-                                            <select id="admin-words-per-day" onchange="updateMasterWordbankCounter()" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:border-indigo-500">
-                                                <option value="5">5 Kata / Hari (60/Bulan)</option>
-                                                <option value="8">8 Kata / Hari (96/Bulan)</option>
-                                                <option value="10">10 Kata / Hari (120/Bulan)</option>
-                                                <option value="12">12 Kata / Hari (144/Bulan)</option>
-                                                <option value="15">15 Kata / Hari (180/Bulan)</option>
-                                            </select>
-                                        </div>
-                                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] space-y-1 text-slate-600">
-                                            <p class="font-bold text-slate-800"><i class="fas fa-calculator text-indigo-500 mr-1"></i> Kapasitas Kurikulum:</p>
-                                            <p id="master-wordbank-capacity-text" class="text-[11px] text-emerald-700 font-bold">Cukup untuk 0 Pertemuan (0 Bulan)</p>
-                                        </div>
-                                    </div>
-
-                                    <button onclick="saveMasterWordbank(event)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-xl text-xs font-extrabold shadow-sm transition mt-3">
-                                        <i class="fas fa-database mr-1.5"></i> Simpan & Bersihkan Duplikat
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Kosakata Harian (Override Manual) & Verifikasi Hafalan -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                                <div class="flex items-center justify-between mb-2">
-                                    <h3 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
-                                        <i class="fas fa-spell-check text-indigo-500"></i> Pratinjau / Override Kosakata Per Sesi
-                                    </h3>
-                                    <span id="admin-vocab-source-badge" class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">Otomatis Wordbank</span>
-                                </div>
-                                <p class="text-[11px] text-slate-500 mb-3">Jika dikosongkan, sesi ini otomatis mengambil jatah kata dari <strong>Master Wordbank</strong> di atas.</p>
-                                <div class="grid grid-cols-3 gap-2 mb-3">
-                                    <select id="admin-vocab-month" onchange="loadAdminVocabPreview()" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none"></select>
-                                    <select id="admin-vocab-week" onchange="loadAdminVocabPreview()" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none">
-                                        <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
-                                    </select>
-                                    <select id="admin-vocab-day" onchange="loadAdminVocabPreview()" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none">
-                                        <option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option>
-                                    </select>
-                                </div>
-                                <textarea id="admin-vocab-list" rows="5" placeholder="Kosongkan untuk memakai Master Wordbank otomatis..." class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs mb-3 outline-none focus:bg-white focus:border-indigo-500 transition"></textarea>
-                                <div class="flex gap-2">
-                                    <button onclick="saveVocabList(event)" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-sm transition">
-                                        <i class="fas fa-paper-plane mr-1"></i> Simpan Override Sesi Ini
-                                    </button>
-                                    <button onclick="clearManualVocabOverride(event)" class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition" title="Kembalikan ke Otomatis Wordbank">
-                                        <i class="fas fa-rotate-left"></i> Reset ke Wordbank
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                                <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                    <i class="fas fa-check-double text-emerald-500"></i> Verifikasi Setoran Hafalan Kosakata
-                                </h3>
-                                <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Pilih Murid & Sesi</label>
-                                <select id="admin-review-student" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold mb-3 outline-none"></select>
-                                <div class="grid grid-cols-3 gap-2 mb-3">
-                                    <select id="admin-review-month" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none"></select>
-                                    <select id="admin-review-week" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none">
-                                        <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
-                                    </select>
-                                    <select id="admin-review-day" class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold outline-none">
-                                        <option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option>
-                                    </select>
-                                </div>
-                                <button onclick="checkVocabStatus(this)" class="w-full bg-slate-800 hover:bg-slate-900 text-white py-3 rounded-xl text-xs font-bold shadow-sm transition">
-                                    <i class="fas fa-search mr-1"></i> Periksa Status Hafalan
-                                </button>
-                                <div id="vocab-review-result" class="mt-4"></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- ========================================== -->
-                    <!-- TAB 4: BUILDER & PENILAIAN UJIAN           -->
-                    <!-- ========================================== -->
-                    <section id="admin-panel-exam" class="hidden space-y-6">
-                        <div class="bg-white p-5 md:p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-                            <h3 class="text-sm md:text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                <i class="fas fa-file-signature text-amber-500"></i> Pusat Manajemen Ujian & Penilaian Akhir
-                            </h3>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-5 bg-slate-50 p-4 rounded-xl border border-slate-200/70">
-                                <div>
-                                    <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Target Murid</label>
-                                    <select id="admin-exam-student" class="w-full bg-white border border-slate-200 py-2.5 px-3 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500"></select>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Sesi Bulan</label>
-                                    <select id="admin-exam-month" class="w-full bg-white border border-slate-200 py-2.5 px-3 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500"></select>
-                                </div>
-                                <div class="sm:col-span-2 mt-1 flex flex-wrap gap-2.5">
-                                    <button onclick="loadAdminExamData()" class="flex-1 min-w-[160px] bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition">
-                                        <i class="fas fa-edit mr-1"></i> Buat / Edit Soal Ujian
-                                    </button>
-                                    <button onclick="loadStudentExamForGrading()" class="flex-1 min-w-[160px] bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition">
-                                        <i class="fas fa-check-double mr-1"></i> Nilai Jawaban Murid
-                                    </button>
-                                    <button onclick="resetStudentExam()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2.5 rounded-xl text-xs font-bold transition">
-                                        <i class="fas fa-undo mr-1"></i> Reset Ujian Murid
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-2xl overflow-hidden mb-6">
-                                <div class="flex overflow-x-auto border-b border-slate-200 bg-slate-50 custom-scrollbar">
-                                    <button onclick="switchExamTab('listening')" id="tab-listening" class="shrink-0 px-5 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Listening</button>
-                                    <button onclick="switchExamTab('speaking')" id="tab-speaking" class="shrink-0 px-5 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Speaking</button>
-                                    <button onclick="switchExamTab('reading')" id="tab-reading" class="shrink-0 px-5 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Reading</button>
-                                    <button onclick="switchExamTab('writing')" id="tab-writing" class="shrink-0 px-5 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 transition">Writing</button>
-                                </div>
-
-                                <div class="p-4 md:p-6 bg-slate-50/50">
-                                    <div id="admin-exam-questions-container" class="space-y-4 mb-5"></div>
-                                    <div class="flex flex-col sm:flex-row gap-3">
-                                        <button onclick="addExamQuestion('mcq')" class="flex-1 py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold shadow-xs transition">
-                                            <i class="fas fa-list-ul text-blue-500 mr-1.5"></i> Tambah Soal Pilihan Ganda
-                                        </button>
-                                        <button onclick="addExamQuestion('essay')" class="flex-1 py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold shadow-xs transition">
-                                            <i class="fas fa-align-left text-emerald-500 mr-1.5"></i> Tambah Soal Essay / Rekaman Suara
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
-                                    <span class="text-[11px] font-medium text-slate-400">Pastikan menekan tombol simpan setelah menambah/mengubah soal.</span>
-                                    <button onclick="saveAdminExamData(event)" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm transition">
-                                        <i class="fas fa-save mr-1"></i> Simpan Seluruh Soal
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div id="admin-grading-workspace" class="hidden border-t border-slate-200 pt-5 mt-2"></div>
-
-                        </div>
-                    </section>
-
+                    <button onclick="refreshAdminCloudData()" class="hes-btn-soft self-start sm:self-auto">
+                        <i class="fas fa-sync-alt"></i> Segarkan Data Cloud
+                    </button>
                 </div>
-            </div>
-        </main>
-    </div>
 
-    <!-- Library Supabase & Script Halaman -->
+                <!-- Navigasi Tab Admin -->
+                <div class="flex overflow-x-auto gap-1.5 bg-slate-200/60 p-1.5 rounded-2xl max-w-fit">
+                    <button onclick="switchAdminTab('overview')" id="adm-tab-overview" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
+                    <button onclick="switchAdminTab('users')" id="adm-tab-users" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
+                    <button onclick="switchAdminTab('materials')" id="adm-tab-materials" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
+                    <button onclick="switchAdminTab('exam')" id="adm-tab-exam" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
+                </div>
+
+                <!-- TAB 1: OVERVIEW -->
+                <section id="admin-panel-overview" class="space-y-6">
+                    <div class="hes-card">
+                        <h3 class="text-base font-extrabold text-slate-800 mb-4"><i class="fas fa-bell text-amber-500 mr-1.5"></i> Antrean Pengajuan Pindah Jadwal</h3>
+                        <div id="admin-pending-reschedules-list"></div>
+                    </div>
+                    <div class="hes-card flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-base font-extrabold text-slate-800">Tambah Modul Bulan Baru</h3>
+                            <p class="text-xs text-slate-500">Buat struktur bulan berikutnya (Minggu 1–4 & Final Exam) secara otomatis.</p>
+                        </div>
+                        <button onclick="addNewMonth()" class="hes-btn-primary shrink-0"><i class="fas fa-plus"></i> Tambah Bulan Baru</button>
+                    </div>
+                </section>
+
+                <!-- TAB 2: AKUN & JADWAL -->
+                <section id="admin-panel-users" class="hidden space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="hes-card space-y-3.5 h-fit">
+                            <h3 class="text-base font-extrabold text-slate-800"><i class="fas fa-user-plus text-emerald-500 mr-1.5"></i> Daftarkan Murid Baru</h3>
+                            <input type="text" id="new-stu-name" placeholder="Nama Lengkap Murid" class="hes-input">
+                            <input type="email" id="new-stu-email" placeholder="Alamat Email Login" class="hes-input">
+                            <input type="text" id="new-stu-pass" placeholder="Kata Sandi" class="hes-input">
+                            <button onclick="addNewStudent(event)" class="hes-btn-primary w-full"><i class="fas fa-check"></i> Daftarkan Akun</button>
+                        </div>
+
+                        <div class="hes-card space-y-3.5">
+                            <h3 class="text-base font-extrabold text-slate-800"><i class="fas fa-calendar-check text-indigo-600 mr-1.5"></i> Atur Jadwal & Batas Bulan</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Murid</label>
+                                    <select id="admin-sched-student" onchange="loadStudentScheduleForm()" class="hes-input mt-1"></select>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-indigo-600 uppercase">Batas Modul Bulan</label>
+                                    <select id="admin-sched-max-month" onchange="onAdminMonthSelectChange()" class="hes-input mt-1"></select>
+                                </div>
+                                <div>
+                                    <label id="admin-sched-date-label" class="text-[11px] font-bold text-emerald-700 uppercase">Tanggal Berakhir</label>
+                                    <input type="date" id="admin-sched-date" class="hes-input mt-1">
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 uppercase">Jam Kelas (Mulai - Selesai)</label>
+                                    <div class="flex items-center gap-1.5 mt-1">
+                                        <input type="time" id="admin-sched-start" class="hes-input !px-2">
+                                        <span>-</span>
+                                        <input type="time" id="admin-sched-end" class="hes-input !px-2">
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="admin-saved-month-dates-box" class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs"></div>
+                            <div class="flex flex-wrap gap-2">
+                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Senin" class="admin-day-cb"> Sen</label>
+                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Selasa" class="admin-day-cb"> Sel</label>
+                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Rabu" class="admin-day-cb"> Rab</label>
+                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Kamis" class="admin-day-cb"> Kam</label>
+                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Jumat" class="admin-day-cb"> Jum</label>
+                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Sabtu" class="admin-day-cb"> Sab</label>
+                            </div>
+                            <button onclick="saveStudentSchedule(event)" class="hes-btn-primary w-full"><i class="fas fa-save"></i> Simpan Jadwal Murid</button>
+                        </div>
+                    </div>
+
+                    <div class="hes-card overflow-x-auto">
+                        <h3 class="text-base font-extrabold text-slate-800 mb-4">Daftar Akun Murid</h3>
+                        <table class="w-full text-left text-xs min-w-[560px]">
+                            <thead>
+                                <tr class="border-b text-slate-400 uppercase">
+                                    <th class="p-3">Nama</th><th class="p-3">Email</th><th class="p-3">Jadwal & Batas Bulan</th><th class="p-3">Sandi</th><th class="p-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-students-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- TAB 3: MATERI & KOSAKATA -->
+                <section id="admin-panel-materials" class="hidden space-y-6">
+                    <div class="hes-card space-y-4">
+                        <h3 class="text-base font-extrabold text-slate-800"><i class="fas fa-file-pdf text-red-500 mr-1.5"></i> Upload Link Modul & Recap (Google Drive)</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <select id="admin-target-student" class="hes-input"></select>
+                            <select id="admin-month" class="hes-input"></select>
+                            <select id="admin-week" class="hes-input"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option></select>
+                            <select id="admin-day" class="hes-input"><option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option></select>
+                        </div>
+                        <input type="text" id="admin-link" placeholder="Link Google Drive Modul Presentasi" class="hes-input">
+                        <input type="text" id="admin-recap-pdf" placeholder="Link Google Drive Catatan Recap" class="hes-input">
+                        <button onclick="saveMaterialData(event)" class="hes-btn-primary"><i class="fas fa-save"></i> Simpan Link Materi</button>
+                    </div>
+
+                    <div class="hes-card space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <h3 class="text-base font-extrabold text-slate-800">Master Wordbank Database</h3>
+                                <p class="text-xs text-slate-500">Format: <code>Kata Inggris = Arti Indonesia</code> (1 pasang per baris).</p>
+                            </div>
+                            <span id="master-wordbank-stats-badge" class="hes-btn-soft">0 Kata Unik</span>
+                        </div>
+                        <textarea id="admin-master-wordbank" oninput="updateMasterWordbankCounter()" rows="6" class="hes-input font-mono text-xs"></textarea>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <select id="admin-words-per-day" onchange="updateMasterWordbankCounter()" class="hes-input !w-auto">
+                                    <option value="5">5 Kata / Hari</option><option value="8">8 Kata / Hari</option><option value="10">10 Kata / Hari</option><option value="12">12 Kata / Hari</option><option value="15">15 Kata / Hari</option>
+                                </select>
+                                <span id="master-wordbank-capacity-text" class="text-xs font-bold text-emerald-700"></span>
+                            </div>
+                            <button onclick="saveMasterWordbank(event)" class="hes-btn-primary"><i class="fas fa-database"></i> Simpan Master Wordbank</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="hes-card space-y-3">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-base font-extrabold text-slate-800">Override Kosakata Sesi</h3>
+                                <span id="admin-vocab-source-badge" class="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700">Otomatis</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <select id="admin-vocab-month" onchange="loadAdminVocabPreview()" class="hes-input"></select>
+                                <select id="admin-vocab-week" onchange="loadAdminVocabPreview()" class="hes-input"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option></select>
+                                <select id="admin-vocab-day" onchange="loadAdminVocabPreview()" class="hes-input"><option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option></select>
+                            </div>
+                            <textarea id="admin-vocab-list" rows="4" class="hes-input text-xs"></textarea>
+                            <div class="flex gap-2">
+                                <button onclick="saveVocabList(event)" class="hes-btn-primary flex-1">Simpan Override</button>
+                                <button onclick="clearManualVocabOverride(event)" class="hes-btn-soft">Reset Otomatis</button>
+                            </div>
+                        </div>
+
+                        <div class="hes-card space-y-3">
+                            <h3 class="text-base font-extrabold text-slate-800">Verifikasi Setoran Hafalan</h3>
+                            <select id="admin-review-student" class="hes-input"></select>
+                            <div class="grid grid-cols-3 gap-2">
+                                <select id="admin-review-month" class="hes-input"></select>
+                                <select id="admin-review-week" class="hes-input"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option></select>
+                                <select id="admin-review-day" class="hes-input"><option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option></select>
+                            </div>
+                            <button onclick="checkVocabStatus(this)" class="hes-btn-primary w-full !bg-slate-800">Periksa Status Hafalan</button>
+                            <div id="vocab-review-result"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 4: BUILDER & PENILAIAN UJIAN -->
+                <section id="admin-panel-exam" class="hidden space-y-6">
+                    <div class="hes-card space-y-5">
+                        <h3 class="text-base font-extrabold text-slate-800">Manajemen Soal & Penilaian Ujian</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <select id="admin-exam-student" class="hes-input"></select>
+                            <select id="admin-exam-month" class="hes-input"></select>
+                        </div>
+                        <div class="flex flex-wrap gap-2.5">
+                            <button onclick="loadAdminExamData()" class="hes-btn-primary flex-1"><i class="fas fa-edit"></i> Buat / Edit Soal</button>
+                            <button onclick="loadStudentExamForGrading()" class="hes-btn-primary !bg-emerald-600 flex-1"><i class="fas fa-check-double"></i> Nilai Jawaban Murid</button>
+                            <button onclick="resetStudentExam()" class="hes-btn-soft !bg-red-50 !text-red-600"><i class="fas fa-undo"></i> Reset Ujian</button>
+                        </div>
+
+                        <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-2xl overflow-hidden">
+                            <div class="flex border-b bg-slate-50">
+                                <button onclick="switchExamTab('listening')" id="tab-listening" class="px-5 py-3 text-xs font-bold border-b-2">Listening</button>
+                                <button onclick="switchExamTab('speaking')" id="tab-speaking" class="px-5 py-3 text-xs font-bold border-b-2">Speaking</button>
+                                <button onclick="switchExamTab('reading')" id="tab-reading" class="px-5 py-3 text-xs font-bold border-b-2">Reading</button>
+                                <button onclick="switchExamTab('writing')" id="tab-writing" class="px-5 py-3 text-xs font-bold border-b-2">Writing</button>
+                            </div>
+                            <div class="p-4 sm:p-6 space-y-4">
+                                <div id="admin-exam-questions-container" class="space-y-4"></div>
+                                <div class="flex flex-col sm:flex-row gap-3">
+                                    <button onclick="addExamQuestion('mcq')" class="hes-btn-soft flex-1">+ Soal Pilihan Ganda</button>
+                                    <button onclick="addExamQuestion('essay')" class="hes-btn-soft flex-1">+ Soal Essay / Rekaman Suara</button>
+                                </div>
+                                <button onclick="saveAdminExamData(event)" class="hes-btn-primary w-full"><i class="fas fa-save"></i> Simpan Seluruh Soal Ujian</button>
+                            </div>
+                        </div>
+
+                        <div id="admin-grading-workspace" class="hidden pt-4 border-t"></div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/wordbank.js"></script>
     <script src="js/config.js"></script>
