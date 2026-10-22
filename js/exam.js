@@ -4,7 +4,6 @@ let studentExamAnswers = {}, studentExamTranscripts = {}, currentExamSession = '
 let mediaRecorder = null, audioChunks = [], activeRecordingIndex = null, activeRecordingStopPromiseResolve = null, speechRecInstance = null;
 let activeStudentNaturalAudio = null, studentCachedVoices = [];
 
-// Izinkan streaming Cloud Neural Audio tanpa blokir referrer
 if (!document.getElementById('hes-no-referrer')) {
     const meta = document.createElement('meta');
     meta.id = 'hes-no-referrer';
@@ -22,7 +21,6 @@ function initStudentVoices() {
 }
 initStudentVoices();
 
-// Load Plus Jakarta Sans font for professional report card typography
 if (!document.getElementById('report-google-font')) {
     const link = document.createElement('link');
     link.id = 'report-google-font';
@@ -31,7 +29,6 @@ if (!document.getElementById('report-google-font')) {
     document.head.appendChild(link);
 }
 
-// Load jsPDF library for direct 1-page A4 PDF generation
 if (!document.getElementById('jspdf-lib')) {
     const script = document.createElement('script');
     script.id = 'jspdf-lib';
@@ -39,7 +36,6 @@ if (!document.getElementById('jspdf-lib')) {
     document.head.appendChild(script);
 }
 
-// Print CSS fallback (1-page strict A4)
 if (!document.getElementById('pdf-print-style')) {
     const style = document.createElement('style');
     style.id = 'pdf-print-style';
@@ -115,9 +111,10 @@ function computeExamSectionScore(cat, examData, examResult) {
     return Math.min(100, Math.round(totalPoints));
 }
 
-// CLOUD NEURAL & NATURAL VOICE ENGINE UNTUK LISTENING & SPEAKING (Anti-Robot)
+// 100% AMERICAN ENGLISH (en-US) NEURAL VOICE ENGINE UNTUK MURID
 function parseExamDialogueSegments(rawText) {
-    const lines = String(rawText || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const normalized = String(rawText || '').replace(/\s+\/\s+(?=[A-Za-z\s.]{1,20}:)/g, '\n').replace(/\s+\|\s+(?=[A-Za-z\s.]{1,20}:)/g, '\n');
+    const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
     const segments = [];
     let lastGender = 'female';
 
@@ -150,43 +147,44 @@ function parseExamDialogueSegments(rawText) {
     return segments;
 }
 
-function getStudentNaturalBrowserVoice(gender) {
+function getStudentPureAmericanVoice(gender) {
     const voices = (studentCachedVoices.length ? studentCachedVoices : window.speechSynthesis?.getVoices()) || [];
-    const nonRobotic = voices.filter(v =>
-        v.lang && v.lang.toLowerCase().startsWith('en') &&
-        !/david|zira|mark|hazel|george|susan|helena|espeak|desktop/i.test(v.name)
-    );
+    // Hanya izinkan suara en-US (American English)
+    const usVoices = voices.filter(v => {
+        const lang = String(v.lang || '').replace('_', '-').toLowerCase();
+        return lang === 'en-us' && !/david|zira|mark|hazel|george|susan|helena|espeak|desktop|uk|british|great britain/i.test(v.name);
+    });
 
-    const malePriority = [
-        'guy online (natural)', 'christopher online (natural)', 'ryan online (natural)', 'eric online (natural)',
-        'google uk english male', 'daniel (enhanced)', 'daniel'
+    const maleUSPriority = [
+        'guy online (natural)', 'christopher online (natural)', 'eric online (natural)', 'roger online (natural)',
+        'steffan online (natural)', 'andrew online (natural)', 'brian online (natural)'
     ];
-    const femalePriority = [
-        'aria online (natural)', 'jenny online (natural)', 'sonia online (natural)', 'michelle online (natural)',
-        'google us english', 'google uk english female', 'samantha (enhanced)', 'ava (enhanced)', 'samantha'
+    const femaleUSPriority = [
+        'aria online (natural)', 'jenny online (natural)', 'michelle online (natural)',
+        'ana online (natural)', 'ava online (natural)', 'emma online (natural)', 'google us english', 'samantha'
     ];
 
-    const targets = gender === 'male' ? malePriority : femalePriority;
+    const targets = gender === 'male' ? maleUSPriority : femaleUSPriority;
     for (const kw of targets) {
-        const match = nonRobotic.find(v => v.name.toLowerCase().includes(kw));
+        const match = usVoices.find(v => v.name.toLowerCase().includes(kw));
         if (match) return match;
     }
-    return nonRobotic.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')) || null;
+    return usVoices.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google us')) || null;
 }
 
-function playStudentCloudMP3(text, gender) {
+function playStudentUSCloudMP3(text, gender) {
     return new Promise((resolve, reject) => {
-        const pollyVoice = gender === 'male' ? 'Matthew' : 'Joanna';
-        const gtxLang = gender === 'male' ? 'en-GB' : 'en-US';
+        // 100% American English Neural Voices (Matthew = US Male, Joanna = US Female, fallback ke en-US)
+        const pollyUSVoice = gender === 'male' ? 'Matthew' : 'Joanna';
         const urls = [
-            `https://api.streamelements.com/kappa/v2/speech?voice=${pollyVoice}&text=${encodeURIComponent(text)}`,
-            `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gtxLang}&dt=t&q=${encodeURIComponent(text)}`
+            `https://api.streamelements.com/kappa/v2/speech?voice=${pollyUSVoice}&text=${encodeURIComponent(text)}`,
+            `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=en-US&dt=t&q=${encodeURIComponent(text)}`
         ];
 
         let idx = 0;
         const nextUrl = () => {
             if (idx >= urls.length) {
-                reject(new Error('Cloud MP3 failed'));
+                reject(new Error('Cloud US MP3 failed'));
                 return;
             }
             const audio = new Audio();
@@ -202,18 +200,18 @@ function playStudentCloudMP3(text, gender) {
     });
 }
 
-function playStudentPureBrowserVoice(text, gender) {
+function playStudentPureUSBrowserVoice(text, gender) {
     return new Promise((resolve, reject) => {
-        const v = getStudentNaturalBrowserVoice(gender);
+        const v = getStudentPureAmericanVoice(gender);
         if (!v || !('speechSynthesis' in window)) {
-            reject(new Error('No natural voice'));
+            reject(new Error('No US natural voice'));
             return;
         }
         window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
         u.voice = v;
-        u.lang = v.lang || 'en-US';
-        u.rate = 1.0;
+        u.lang = 'en-US';
+        u.rate = 0.96;
         u.pitch = 1.0;
         u.onend = () => resolve();
         u.onerror = () => reject(new Error('TTS failed'));
@@ -245,20 +243,20 @@ window.playNaturalExamAudio = async function(text, key = null, btnEl = null) {
     if (btnEl) {
         btnEl.disabled = true;
         btnEl.classList.add('speaking-pulse');
-        btnEl.innerHTML = `<i class="fas fa-volume-up mr-1.5"></i> Memutar Suara...`;
+        btnEl.innerHTML = `<i class="fas fa-volume-up mr-1.5"></i> Memutar Suara (US)...`;
     }
 
     for (const seg of segments) {
-        const bestLocal = getStudentNaturalBrowserVoice(seg.gender);
-        const hasAzureNatural = bestLocal && /online \(natural\)/i.test(bestLocal.name);
+        const bestLocalUS = getStudentPureAmericanVoice(seg.gender);
+        const hasAzureUSNatural = bestLocalUS && /online \(natural\)/i.test(bestLocalUS.name);
         try {
-            if (hasAzureNatural) {
-                await playStudentPureBrowserVoice(seg.text, seg.gender);
+            if (hasAzureUSNatural) {
+                await playStudentPureUSBrowserVoice(seg.text, seg.gender);
             } else {
                 try {
-                    await playStudentCloudMP3(seg.text, seg.gender);
+                    await playStudentUSCloudMP3(seg.text, seg.gender);
                 } catch (e) {
-                    await playStudentPureBrowserVoice(seg.text, seg.gender);
+                    await playStudentPureUSBrowserVoice(seg.text, seg.gender);
                 }
             }
             await new Promise(r => setTimeout(r, 220));
@@ -1081,8 +1079,8 @@ function renderStudentExamPage() {
                             <p class="text-sm font-bold text-slate-800">${(q.question || '').replace(/\n/g, '<br>')}</p>
                             ${cat === 'listening' && autoScript ? `
                                 <div class="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                                    <div><strong class="text-blue-800">Naskah Audio Listening:</strong> <span class="text-slate-700">${autoScript}</span></div>
-                                    <button type="button" onclick="playNaturalExamAudio('${safeScript}', null, this)" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold shrink-0 cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Putar Ulang</button>
+                                    <div><strong class="text-blue-800">Naskah Audio Listening (US):</strong> <span class="text-slate-700">${autoScript}</span></div>
+                                    <button type="button" onclick="playNaturalExamAudio('${safeScript}', null, this)" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold shrink-0 cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Putar Ulang (US)</button>
                                 </div>
                             ` : ''}
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -1092,8 +1090,8 @@ function renderStudentExamPage() {
                                 </div>
                                 <div class="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100">
                                     <div class="flex items-center justify-between">
-                                        <strong class="text-indigo-900 uppercase text-[10px]">Kunci / Contoh Pelafalan Benar:</strong>
-                                        ${cat === 'speaking' && q.answer ? `<button type="button" onclick="playNaturalExamAudio('${safeTargetSpeak}', null, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Dengar Cara Baca</button>` : ''}
+                                        <strong class="text-indigo-900 uppercase text-[10px]">Kunci / Contoh Pelafalan US:</strong>
+                                        ${cat === 'speaking' && q.answer ? `<button type="button" onclick="playNaturalExamAudio('${safeTargetSpeak}', null, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Dengar Cara Baca (US)</button>` : ''}
                                     </div>
                                     <div class="mt-1 font-bold text-indigo-700">${isMCQ ? `${['A','B','C','D'][q.answer] || ''}. ${q.options?.[q.answer] || ''}` : (q.answer || 'Dinilai oleh Tutor')}</div>
                                 </div>
@@ -1123,7 +1121,7 @@ function renderStudentExamPage() {
                     mediaHTML = sisa > 0 ? `
                         <div class="my-3 p-4 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                                <p class="text-xs font-extrabold text-blue-950"><i class="fas fa-headphones-alt text-blue-600 mr-1.5"></i> Audio Listening (Suara Natural)</p>
+                                <p class="text-xs font-extrabold text-blue-950"><i class="fas fa-headphones-alt text-blue-600 mr-1.5"></i> Audio Listening (American English)</p>
                                 <p class="text-[11px] font-bold text-amber-700 mt-0.5">Sisa kesempatan putar: <span id="audio-sisa-${key}">${sisa}</span>x</p>
                             </div>
                             <button type="button" onclick="playNaturalExamAudio('${safeScript}', '${key}', this)" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs transition shrink-0 cursor-pointer">
