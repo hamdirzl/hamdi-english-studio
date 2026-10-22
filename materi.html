@@ -6,119 +6,117 @@
     <title>Ruang Belajar | Hamdi English Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="h-screen flex overflow-hidden">
 
-    <header id="app-header"></header>
+    <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
 
-    <main class="flex-1 p-4 sm:p-6 md:p-8 pb-24">
-        <div class="max-w-5xl mx-auto fade-in space-y-5">
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+        <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
 
-            <!-- Bar Navigasi Pertemuan (Pindah Pertemuan Lalu / Selanjutnya dalam 1 Klik) -->
-            <div class="hes-card !p-4 sm:!p-5 space-y-4">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                        <select id="quick-month" class="hes-input !w-auto !py-2 !px-3.5 !bg-amber-50 !border-amber-200 !text-amber-900 cursor-pointer"></select>
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
+            <div class="max-w-4xl mx-auto fade-in pb-16 space-y-5">
+
+                <!-- Header Pertemuan + Tombol Prev / Next Pertemuan + Bar 12 Sesi -->
+                <div class="hes-card space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2 mb-1">
+                                <span id="materi-badge" class="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-black rounded-lg">Month 1</span>
+                                <span id="materi-subbadge" class="text-xs font-extrabold text-slate-400">Minggu 1 • Hari 1</span>
+                                <span id="materi-date-pill" class="hidden text-xs font-black px-2.5 py-0.5 rounded-lg"></span>
+                            </div>
+                            <h2 id="materi-title" class="text-lg sm:text-xl font-black text-slate-800">Pertemuan 1</h2>
+                        </div>
+
+                        <!-- Tombol 1-Klik Pertemuan Sebelumnya & Selanjutnya -->
+                        <div class="flex items-center gap-2">
+                            <button id="btn-prev-session" onclick="navigateAdjacentSession(-1)" class="hes-btn-soft !py-2 !px-3.5">
+                                <i class="fas fa-arrow-left"></i> <span>Sebelumnya</span>
+                            </button>
+                            <button id="btn-next-session" onclick="navigateAdjacentSession(1)" class="hes-btn-primary !py-2 !px-3.5">
+                                <span>Selanjutnya</span> <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bar Lompat Cepat Sesi 1 s/d 12 -->
+                    <div class="pt-3 border-t border-slate-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-black text-slate-400 uppercase">Pindah Cepat Pertemuan (Sesi 1–12):</span>
+                            <select id="quick-month" class="text-xs font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg outline-none cursor-pointer"></select>
+                        </div>
+                        <div id="session-stepping-stones" class="grid grid-cols-6 sm:grid-cols-12 gap-1.5"></div>
+                    </div>
+                </div>
+
+                <!-- 3 Tab Mode Belajar (Agar Tidak Perlu Scroll Panjang) -->
+                <div class="grid grid-cols-3 gap-2 sm:gap-3">
+                    <button onclick="switchMateriMode('vocab')" id="mode-btn-vocab" class="py-3 px-3 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2"></button>
+                    <button onclick="switchMateriMode('presentation')" id="mode-btn-presentation" class="py-3 px-3 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2"></button>
+                    <button onclick="switchMateriMode('recap')" id="mode-btn-recap" class="py-3 px-3 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2"></button>
+                </div>
+
+                <!-- PANEL 1: KOSAKATA (FLASHCARD 3D + KUIS TEBAK KATA) -->
+                <section id="panel-materi-vocab" class="hes-card">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
                         <div>
                             <div class="flex items-center gap-2">
-                                <span id="materi-subbadge" class="text-xs font-extrabold text-emerald-700">Minggu 1 • Hari 1</span>
-                                <span id="materi-date-pill" class="hidden text-xs font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-600"></span>
+                                <h3 class="text-base sm:text-lg font-black text-slate-800">🎯 Latihan Kosakata Harian</h3>
+                                <span id="vocab-count-badge" class="text-xs font-black bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full">0 Kata</span>
                             </div>
-                            <h2 id="materi-title" class="text-lg sm:text-xl font-extrabold text-stone-800">Pertemuan 1</h2>
+                            <p class="text-xs font-bold text-slate-400 mt-0.5">Hafalkan dengan kartu balik, lalu uji ingatanmu di mode kuis!</p>
+                        </div>
+
+                        <!-- Switcher Kartu Flip vs Mode Kuis -->
+                        <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+                            <button onclick="switchVocabSubmode('deck')" id="submode-deck" class="px-3 py-1.5 rounded-lg text-xs font-black transition">🃏 Kartu Hafalan</button>
+                            <button onclick="switchVocabSubmode('quiz')" id="submode-quiz" class="px-3 py-1.5 rounded-lg text-xs font-black transition">🎮 Kuis Tebak Arti</button>
                         </div>
                     </div>
 
-                    <!-- Tombol Prev & Next Sesi -->
-                    <div class="flex items-center gap-2">
-                        <button onclick="navigateAdjacentSession(-1)" class="hes-btn-soft !py-2.5 !px-4">
-                            <i class="fas fa-chevron-left"></i> <span>Pertemuan Lalu</span>
-                        </button>
-                        <button onclick="navigateAdjacentSession(1)" class="hes-btn-primary !py-2.5 !px-4">
-                            <span>Pertemuan Berikutnya</span> <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
+                    <div id="vocab-cards-container" class="py-2"></div>
+                    <div id="vocab-action-area" class="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3"></div>
+                </section>
 
-                <!-- Deretan Tombol Pertemuan 1 s/d 12 -->
-                <div id="session-stepping-stones" class="grid grid-cols-6 sm:grid-cols-12 gap-1.5 pt-3 border-t border-stone-100"></div>
+                <!-- PANEL 2: MODUL MATERI PDF -->
+                <section id="panel-materi-presentation" class="hidden hes-card">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-base sm:text-lg font-black text-slate-800">📖 Modul Bacaan & Presentasi Kelas</h3>
+                            <p class="text-xs font-bold text-slate-400">Pelajari materi utama untuk pertemuan ini.</p>
+                        </div>
+                        <a id="presentation-external-link" href="#" target="_blank" class="hidden hes-btn-soft">
+                            <i class="fas fa-expand"></i> Layar Penuh
+                        </a>
+                    </div>
+                    <div id="presentation-viewer-box"></div>
+                </section>
+
+                <!-- PANEL 3: CATATAN RECAP PDF -->
+                <section id="panel-materi-recap" class="hidden hes-card">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-base sm:text-lg font-black text-slate-800">📝 Catatan Rangkuman Kelas (Recap)</h3>
+                            <p class="text-xs font-bold text-slate-400">Ringkasan materi dan koreksi dari pengajar setelah sesi kelas.</p>
+                        </div>
+                        <a id="recap-external-link" href="#" target="_blank" class="hidden hes-btn-soft !bg-emerald-50 !text-emerald-700">
+                            <i class="fas fa-expand"></i> Layar Penuh
+                        </a>
+                    </div>
+                    <div id="recap-viewer-box"></div>
+                </section>
+
             </div>
-
-            <!-- 3 Tab Pilihan Materi -->
-            <div class="grid grid-cols-3 gap-2.5">
-                <button onclick="switchMateriMode('vocab')" id="mode-btn-vocab"></button>
-                <button onclick="switchMateriMode('presentation')" id="mode-btn-presentation"></button>
-                <button onclick="switchMateriMode('recap')" id="mode-btn-recap"></button>
-            </div>
-
-            <!-- PANEL 1: KOSAKATA (DAFTAR KATA + KARTU 3D + KUIS) -->
-            <section id="panel-materi-vocab" class="space-y-5">
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-                    
-                    <!-- Kolom Kiri (5 Kolom): Daftar Kata Sekilas (Mudah Dibaca Saat Mengulang!) -->
-                    <div class="lg:col-span-5 hes-card">
-                        <div class="flex items-center justify-between mb-3 pb-3 border-b border-stone-100">
-                            <div>
-                                <h3 class="text-base font-extrabold text-stone-800">📋 Daftar Kosakata</h3>
-                                <p class="text-xs text-stone-400 font-semibold">Klik ikon 🔊 untuk mendengar pengucapan</p>
-                            </div>
-                            <span id="vocab-count-badge" class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-extrabold">0 Kata</span>
-                        </div>
-                        <div id="vocab-list-sheet" class="space-y-2 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar"></div>
-                    </div>
-
-                    <!-- Kolom Kanan (7 Kolom): Kartu Latihan 3D & Kuis Interaktif -->
-                    <div class="lg:col-span-7 hes-card">
-                        <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-stone-100">
-                            <h3 class="text-base font-extrabold text-stone-800">🎯 Latihan Hafalan Interaktif</h3>
-                            <div class="flex gap-1.5 bg-[#FAF6F0] p-1 rounded-xl border border-stone-200">
-                                <button onclick="switchVocabSubmode('deck')" id="submode-deck" class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition">🃏 Kartu Balik</button>
-                                <button onclick="switchVocabSubmode('quiz')" id="submode-quiz" class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition">🎮 Kuis Tebak Kata</button>
-                            </div>
-                        </div>
-
-                        <div id="vocab-cards-container" class="py-1"></div>
-                        <div id="vocab-action-area" class="mt-5 pt-4 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-3"></div>
-                    </div>
-
-                </div>
-            </section>
-
-            <!-- PANEL 2: MODUL MATERI PDF -->
-            <section id="panel-materi-presentation" class="hidden hes-card">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h3 class="text-base sm:text-lg font-extrabold text-stone-800">📖 Slide & Modul Bacaan Kelas</h3>
-                        <p class="text-xs font-semibold text-stone-400">Materi utama untuk pertemuan ini.</p>
-                    </div>
-                    <a id="presentation-external-link" href="#" target="_blank" class="hidden hes-btn-soft">
-                        <i class="fas fa-expand"></i> Buka Layar Penuh
-                    </a>
-                </div>
-                <div id="presentation-viewer-box"></div>
-            </section>
-
-            <!-- PANEL 3: CATATAN RECAP PDF -->
-            <section id="panel-materi-recap" class="hidden hes-card">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h3 class="text-base sm:text-lg font-extrabold text-stone-800">📝 Catatan Rangkuman Guru (Recap)</h3>
-                        <p class="text-xs font-semibold text-stone-400">Ringkasan materi dan koreksi setelah sesi kelas selesai.</p>
-                    </div>
-                    <a id="recap-external-link" href="#" target="_blank" class="hidden hes-btn-soft">
-                        <i class="fas fa-expand"></i> Buka Layar Penuh
-                    </a>
-                </div>
-                <div id="recap-viewer-box"></div>
-            </section>
-
         </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/wordbank.js?v=3"></script>
-    <script src="js/config.js?v=3"></script>
-    <script src="js/layout.js?v=3"></script>
-    <script src="js/materi.js?v=3"></script>
+    <script src="js/wordbank.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/layout.js"></script>
+    <script src="js/materi.js"></script>
 </body>
 </html>
