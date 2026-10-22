@@ -3,6 +3,27 @@
 let currentAdminTab = 'overview';
 let adminExamState = { student: '', month: '', activeTab: 'listening', data: null };
 let currentAdminGradingTab = 'reading';
+let activeNaturalAudio = null;
+let cachedBrowserVoices = [];
+
+// Izinkan streaming Cloud Neural Audio tanpa blokir referrer
+if (!document.getElementById('hes-no-referrer')) {
+    const meta = document.createElement('meta');
+    meta.id = 'hes-no-referrer';
+    meta.name = 'referrer';
+    meta.content = 'no-referrer';
+    document.head.appendChild(meta);
+}
+
+// Preload daftar suara browser sejak awal
+function initBrowserVoices() {
+    if (!('speechSynthesis' in window)) return;
+    cachedBrowserVoices = window.speechSynthesis.getVoices() || [];
+    window.speechSynthesis.onvoiceschanged = () => {
+        cachedBrowserVoices = window.speechSynthesis.getVoices() || [];
+    };
+}
+initBrowserVoices();
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!requireAuth('admin')) return;
@@ -18,7 +39,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     switchAdminTab(currentAdminTab);
 });
 
-// Safe Atomic Save agar data ujian murid tidak pernah tertimpa oleh cache lama
 async function safeSaveMaterialsToCloud(mutatorFn) {
     updateCloudStatusUI('syncing');
     try {
@@ -34,60 +54,170 @@ async function safeSaveMaterialsToCloud(mutatorFn) {
     return { error: error || null };
 }
 
-// Natural TTS Engine untuk Tes Audio di Admin
-window.playNaturalEnglishTTS = function(text, btnEl = null) {
-    if (!('speechSynthesis' in window)) return showToast('Browser tidak mendukung suara otomatis.', 'error');
-    window.speechSynthesis.cancel();
+// CLOUD NEURAL & NATURAL VOICE ENGINE (Anti-Robot, Mendukung Dialog Pria & Wanita)
+function parseDialogueSegments(rawText) {
+    const lines = String(rawText || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const segments = [];
+    let lastGender = 'female';
+
+    lines.forEach(line => {
+        let gender = null;
+        let cleanLine = line;
+
+        const prefixMatch = line.match(/^([A-Za-z\s.]{1,22}):\s*(.+)$/);
+        if (prefixMatch) {
+            const speaker = prefixMatch[1].trim().toLowerCase();
+            cleanLine = prefixMatch[2].trim();
+            if (/^(man|male|boy|mr|father|dad|waiter|husband|son|brother|uncle|kevin|david|raka|budi|andi|john|tom|alex|speaker a|a)\b/.test(speaker)) {
+                gender = 'male';
+            } else if (/^(woman|female|girl|mrs|ms|miss|mother|mom|waitress|wife|daughter|sister|aunt|sarah|dina|nadia|sinta|rina|dinda|lisa|anna|speaker b|b)\b/.test(speaker)) {
+                gender = 'female';
+            } else {
+                gender = lastGender === 'male' ? 'female' : 'male';
+            }
+        } else {
+            gender = 'female';
+        }
+        lastGender = gender;
+
+        // Pecah per kalimat agar Cloud Neural MP3 tidak terpotong
+        const sentences = cleanLine.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanLine];
+        sentences.forEach(s => {
+            const txt = s.trim();
+            if (txt) segments.push({ text: txt, gender });
+        });
+    });
+    return segments;
+}
+
+function findPureNaturalVoice(gender) {
+    const voices = (cachedBrowserVoices.length ? cachedBrowserVoices : window.speechSynthesis?.getVoices()) || [];
+    // Blokir permanen suara robot bawaan Windows/OS
+    const nonRobotic = voices.filter(v =>
+        v.lang && v.lang.toLowerCase().startsWith('en') &&
+        !/david|zira|mark|hazel|george|susan|helena|espeak|desktop/i.test(v.name)
+    );
+
+    const malePriority = [
+        'guy online (natural)', 'christopher online (natural)', 'ryan online (natural)', 'eric online (natural)',
+        'google uk english male', 'daniel (enhanced)', 'daniel'
+    ];
+    const femalePriority = [
+        'aria online (natural)', 'jenny online (natural)', 'sonia online (natural)', 'michelle online (natural)',
+        'google us english', 'google uk english female', 'samantha (enhanced)', 'ava (enhanced)', 'samantha'
+    ];
+
+    const targets = gender === 'male' ? malePriority : femalePriority;
+    for (const kw of targets) {
+        const match = nonRobotic.find(v => v.name.toLowerCase().includes(kw));
+        if (match) return match;
+    }
+    return nonRobotic.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')) || null;
+}
+
+function playSegmentViaCloudMP3(text, gender) {
+    return new Promise((resolve, reject) => {
+        const pollyVoice = gender === 'male' ? 'Matthew' : 'Joanna';
+        const gtxLang = gender === 'male' ? 'en-GB' : 'en-US';
+        const urls = [
+            `https://api.streamelements.com/kappa/v2/speech?voice=${pollyVoice}&text=${encodeURIComponent(text)}`,
+            `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gtxLang}&dt=t&q=${encodeURIComponent(text)}`
+        ];
+
+        let urlIdx = 0;
+        const tryNextUrl = () => {
+            if (urlIdx >= urls.length) {
+                reject(new Error('Cloud MP3 unavailable'));
+                return;
+            }
+            const audio = new Audio();
+            audio.referrerPolicy = 'no-referrer';
+            audio.src = urls[urlIdx++];
+            activeNaturalAudio = audio;
+
+            audio.onended = () => { activeNaturalAudio = null; resolve(); };
+            audio.onerror = () => { activeNaturalAudio = null; tryNextUrl(); };
+            audio.play().catch(() => { activeNaturalAudio = null; tryNextUrl(); });
+        };
+        tryNextUrl();
+    });
+}
+
+function playSegmentViaNaturalVoice(text, gender) {
+    return new Promise((resolve, reject) => {
+        const v = findPureNaturalVoice(gender);
+        if (!v || !('speechSynthesis' in window)) {
+            reject(new Error('No natural voice'));
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.voice = v;
+        u.lang = v.lang || 'en-US';
+        u.rate = 1.0;  // Jangan diubah agar suara tetap jernih & natural
+        u.pitch = 1.0; // Jangan diubah agar tidak terdengar seperti robot
+        u.onend = () => resolve();
+        u.onerror = () => reject(new Error('SpeechSynthesis error'));
+        window.speechSynthesis.speak(u);
+    });
+}
+
+window.stopNaturalEnglishTTS = function() {
+    if (activeNaturalAudio) {
+        try { activeNaturalAudio.pause(); activeNaturalAudio.src = ''; } catch (e) {}
+        activeNaturalAudio = null;
+    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+};
+
+window.playNaturalEnglishTTS = async function(text, btnEl = null) {
     const cleanText = String(text || '').trim();
     if (!cleanText) return showToast('Tulis naskah audio terlebih dahulu.', 'error');
 
-    const voices = window.speechSynthesis.getVoices();
-    const pickVoice = (preferFemale = true) => {
-        const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-        const pool = enVoices.length ? enVoices : voices;
-        const naturalKeywords = preferFemale
-            ? ['natural', 'aria', 'jenny', 'sonia', 'samantha', 'google us english', 'zira', 'female']
-            : ['guy', 'christopher', 'eric', 'ryan', 'daniel', 'google uk english male', 'david', 'male'];
-        for (const kw of naturalKeywords) {
-            const found = pool.find(v => v.name.toLowerCase().includes(kw));
-            if (found) return found;
-        }
-        return pool[0] || null;
-    };
+    if (btnEl && btnEl.dataset.playing === '1') {
+        window.stopNaturalEnglishTTS();
+        btnEl.dataset.playing = '0';
+        btnEl.innerHTML = btnEl.dataset.origHtml || `<i class="fas fa-play mr-1"></i> Tes Suara Natural`;
+        return;
+    }
 
-    const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
-    let idx = 0;
+    window.stopNaturalEnglishTTS();
+    const segments = parseDialogueSegments(cleanText);
+    if (!segments.length) return;
+
     const origHTML = btnEl ? btnEl.innerHTML : '';
-    if (btnEl) btnEl.innerHTML = `<i class="fas fa-Stop"></i> Menghentikan...`;
+    if (btnEl) {
+        btnEl.dataset.origHtml = origHTML;
+        btnEl.dataset.playing = '1';
+        btnEl.innerHTML = `<i class="fas fa-stop mr-1"></i> Hentikan Suara`;
+    }
 
-    const speakNext = () => {
-        if (idx >= lines.length) {
-            if (btnEl) btnEl.innerHTML = origHTML;
-            return;
-        }
-        let line = lines[idx++];
-        let isMale = false;
-        if (/^(man|male|boy|mr|speaker a|a)\s*:/i.test(line)) {
-            isMale = true;
-            line = line.replace(/^(man|male|boy|mr|speaker a|a)\s*:\s*/i, '');
-        } else if (/^(woman|female|girl|mrs|ms|speaker b|b)\s*:/i.test(line)) {
-            isMale = false;
-            line = line.replace(/^(woman|female|girl|mrs|ms|speaker b|b)\s*:\s*/i, '');
-        }
-        const u = new SpeechSynthesisUtterance(line);
-        const v = pickVoice(!isMale);
-        if (v) u.voice = v;
-        u.lang = v?.lang || 'en-US';
-        u.rate = 0.92;
-        u.pitch = isMale ? 0.95 : 1.02;
-        u.onend = () => setTimeout(speakNext, 260);
-        u.onerror = () => { if (btnEl) btnEl.innerHTML = origHTML; };
-        window.speechSynthesis.speak(u);
-    };
+    for (const seg of segments) {
+        if (btnEl && btnEl.dataset.playing !== '1') break;
+        const bestLocal = findPureNaturalVoice(seg.gender);
+        const hasAzureNatural = bestLocal && /online \(natural\)/i.test(bestLocal.name);
 
-    if (voices.length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged = null; speakNext(); };
-    } else speakNext();
+        try {
+            if (hasAzureNatural) {
+                await playSegmentViaNaturalVoice(seg.text, seg.gender);
+            } else {
+                // Utamakan Cloud Neural MP3 (Polly / Google WaveNet) agar 100% natural di semua perangkat
+                try {
+                    await playSegmentViaCloudMP3(seg.text, seg.gender);
+                } catch (e) {
+                    await playSegmentViaNaturalVoice(seg.text, seg.gender);
+                }
+            }
+            await new Promise(r => setTimeout(r, 220));
+        } catch (err) {
+            break;
+        }
+    }
+
+    if (btnEl) {
+        btnEl.dataset.playing = '0';
+        btnEl.innerHTML = origHTML;
+    }
 };
 
 window.refreshAdminCloudData = async function() {
@@ -398,12 +528,12 @@ window.updateVocabStatus = async function(email, m, w, d, status) {
     showToast('Status hafalan diperbarui!', 'success');
 };
 
-// TAB 4: EXAM BUILDER & GRADING (Standar 10 Soal x 10 Poin = 100 Poin)
+// TAB 4: EXAM BUILDER & GRADING (10 Soal x 10 Poin = 100 Poin)
 function computeAccurateCategoryScore(cat, examData, examResult) {
     const list = examData?.[cat] || [];
     if (!list.length) return 0;
     let totalPoints = 0;
-    const maxPerQuestion = 100 / list.length; // 10 poin jika 10 soal
+    const maxPerQuestion = 100 / list.length;
 
     list.forEach((q, idx) => {
         const key = `${cat}_${idx}`;
@@ -417,12 +547,10 @@ function computeAccurateCategoryScore(cat, examData, examResult) {
         } else {
             if (manualPoint !== undefined && manualPoint !== null && manualPoint !== '') {
                 const num = parseFloat(manualPoint) || 0;
-                // Mendukung skala 0-10 maupun 0-100 jika data lama
                 totalPoints += (num <= 10 ? (num / 10) * maxPerQuestion : (num / 100) * maxPerQuestion);
             } else if (ans && String(ans).trim() !== '') {
-                // Auto-grading jika belum dinilai manual oleh Admin
                 if (cat === 'speaking' && String(ans).startsWith('data:audio')) {
-                    totalPoints += maxPerQuestion * 0.85; // Default 8.5/10 untuk rekaman yang masuk
+                    totalPoints += maxPerQuestion * 0.85;
                 } else {
                     const target = String(q.answer || '').trim().toLowerCase();
                     const studentStr = String(ans).trim().toLowerCase();
@@ -490,7 +618,6 @@ window.addExamQuestion = function(type) {
     switchExamTab(tab);
 };
 
-// Buat 10 Slot Soal Sekaligus (Standar 10 Soal x 10 Poin)
 window.generate10ExamSlots = function() {
     const tab = adminExamState.activeTab;
     const currentList = adminExamState.data[tab] || [];
@@ -501,7 +628,7 @@ window.generate10ExamSlots = function() {
         adminExamState.data[tab].push({
             id: `${Date.now()}_${num}`,
             type: defaultType,
-            question: tab === 'speaking' ? `Please read aloud or answer clearly (Question #${num}):` : '',
+            question: tab === 'speaking' ? `Please read aloud clearly (Question #${num}):` : '',
             audioScript: '',
             mediaUrl: '',
             options: defaultType === 'mcq' ? ['', '', '', ''] : [],
@@ -539,10 +666,10 @@ function renderExamQuestions() {
                 </h4>
                 <p class="text-xs text-slate-600 mt-0.5">
                     ${tab === 'listening'
-                        ? '💡 <strong>Audio Otomatis Natural:</strong> Cukup ketik kalimat bahasa Inggris di kolom <em>Naskah Suara</em> (bisa dialog <code>Man: ...</code> / <code>Woman: ...</code>), tanpa perlu upload MP3!'
+                        ? '🔊 <strong>Cloud Neural Audio (Bukan Robot):</strong> Ketik dialog dengan awalan <code>Man: ...</code> dan <code>Woman: ...</code>. Sistem otomatis memakai suara manusia pria & wanita tanpa membaca kata "Man/Woman".'
                         : tab === 'speaking'
-                        ? '🎤 <strong>Speaking Otomatis:</strong> Murid wajib merekam suara. Isi kalimat yang harus diucapkan murid dan kriteria pelafalannya.'
-                        : '✅ <strong>Penilaian Otomatis:</strong> Pilihan Ganda dinilai 10 poin otomatis. Soal Essay dinilai otomatis & bisa disesuaikan manual.'}
+                        ? '🎤 <strong>Speaking Otomatis:</strong> Murid merekam suara langsung di aplikasi. Isi kalimat yang harus dibaca murid.'
+                        : '✅ <strong>Penilaian Otomatis:</strong> Pilihan Ganda otomatis bernilai 10 poin per soal.'}
                 </p>
             </div>
             ${list.length < 10 ? `
@@ -576,19 +703,19 @@ function renderExamQuestions() {
             ${tab === 'listening' ? `
                 <div class="p-3.5 rounded-xl bg-white border border-indigo-200 space-y-2">
                     <div class="flex items-center justify-between">
-                        <label class="text-xs font-extrabold text-indigo-700"><i class="fas fa-volume-up mr-1"></i> Naskah Audio Listening Otomatis (Suara Natural)</label>
-                        <button type="button" onclick="playNaturalEnglishTTS(document.getElementById('script_${idx}').value, this)" class="px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-extrabold transition">
+                        <label class="text-xs font-extrabold text-indigo-700"><i class="fas fa-headphones-alt mr-1"></i> Naskah Audio Listening (Cloud Neural Voice)</label>
+                        <button type="button" onclick="playNaturalEnglishTTS(document.getElementById('script_${idx}').value, this)" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold transition cursor-pointer">
                             <i class="fas fa-play mr-1"></i> Tes Suara Natural
                         </button>
                     </div>
-                    <textarea id="script_${idx}" oninput="updateExamField(${idx},'audioScript',this.value)" rows="2" placeholder="Ketik naskah bahasa Inggris yang akan didengar murid (Contoh: Man: Where is the station? / Woman: It is next to the bank.)" class="hes-input !bg-slate-50 text-xs">${scriptVal}</textarea>
+                    <textarea id="script_${idx}" oninput="updateExamField(${idx},'audioScript',this.value)" rows="2" placeholder="Man: Do you want to watch the new movie tonight?&#10;Woman: I really want to go, but I have to finish my report." class="hes-input !bg-slate-50 text-xs">${scriptVal}</textarea>
                     <input type="text" onchange="updateExamField(${idx},'mediaUrl',this.value)" value="${mp3Val}" placeholder="Opsional: Kosongkan saja jika memakai suara otomatis di atas (Atau tempel link MP3 Drive)" class="hes-input !bg-slate-50 !py-1.5 text-[11px]">
                 </div>
             ` : ''}
 
             <div>
                 <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Pertanyaan / Instruksi Soal #${idx + 1}</label>
-                <textarea oninput="updateExamField(${idx},'question',this.value)" rows="2" placeholder="${tab === 'speaking' ? 'Contoh: Read the following paragraph aloud with clear pronunciation: ...' : 'Tulis pertanyaan soal di sini...'}" class="hes-input !bg-white">${q.question || ''}</textarea>
+                <textarea oninput="updateExamField(${idx},'question',this.value)" rows="2" placeholder="${tab === 'speaking' ? 'Contoh: Read the following sentence aloud with clear pronunciation: ...' : 'Tulis pertanyaan soal di sini...'}" class="hes-input !bg-white">${q.question || ''}</textarea>
             </div>
 
             ${q.type === 'mcq' ? `
@@ -605,13 +732,13 @@ function renderExamQuestions() {
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <label class="text-[11px] font-bold text-emerald-700 uppercase">${tab === 'speaking' ? 'Kalimat Target / Kunci Pelafalan (Bisa Didengar Murid Setelah Dinilai)' : 'Kunci Jawaban / Kata Kunci Penilaian Otomatis'}</label>
-                        ${tab === 'speaking' ? `<button type="button" onclick="playNaturalEnglishTTS(document.getElementById('ans_key_${idx}').value, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline"><i class="fas fa-volume-up mr-1"></i>Tes Pelafalan</button>` : ''}
+                        ${tab === 'speaking' ? `<button type="button" onclick="playNaturalEnglishTTS(document.getElementById('ans_key_${idx}').value, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Tes Pelafalan</button>` : ''}
                     </div>
                     <textarea id="ans_key_${idx}" oninput="updateExamField(${idx},'answer',this.value)" rows="2" placeholder="${tab === 'speaking' ? 'Tulis kalimat bahasa Inggris yang benar untuk contoh pelafalan bagi murid...' : 'Tulis jawaban benar / kata kunci agar bisa dinilai otomatis...'}" class="hes-input !bg-white">${q.answer || ''}</textarea>
                 </div>
             `}
 
-            <input type="text" oninput="updateExamField(${idx},'explanation',this.value)" value="${q.explanation || ''}" placeholder="Pembahasan / catatan evaluasi untuk soal ini (ditampilkan ke murid setelah selesai)..." class="hes-input !bg-white">
+            <input type="text" oninput="updateExamField(${idx},'explanation',this.value)" value="${q.explanation || ''}" placeholder="Pembahasan / catatan evaluasi untuk soal ini..." class="hes-input !bg-white">
         </div>`;
     }).join('');
 }
@@ -643,7 +770,6 @@ window.loadStudentExamForGrading = async function() {
     ws.classList.remove('hidden');
     ws.innerHTML = `<div class="p-8 text-center text-xs font-bold text-slate-500"><i class="fas fa-sync fa-spin mr-1.5"></i> Mengambil data ujian terbaru dari Cloud...</div>`;
 
-    // Paksa tarik langsung dari Supabase agar jawaban yang baru disubmit murid pasti masuk
     await syncFromCloud();
     renderAdminGradingView(s, m);
 };
@@ -718,7 +844,6 @@ window.renderAdminGradingView = function(email, monthId) {
                 const isMCQ = q.type === 'mcq';
                 const transcript = res.transcripts?.[key] || '';
 
-                // Hitung poin default (skala 0-10)
                 let currentPoint10 = 0;
                 if (isMCQ) {
                     currentPoint10 = (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) ? 10 : 0;
@@ -777,7 +902,6 @@ window.renderAdminGradingView = function(email, monthId) {
                     </div>`;
             }).join('')}
 
-            <!-- Pengaturan Rapor Manual: Level Kelas & Tutor's Note -->
             <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-3.5 mt-4">
                 <h4 class="text-xs font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
                     <i class="fas fa-file-signature text-indigo-600"></i> Pengaturan Rapor (Report Card)

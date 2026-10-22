@@ -2,6 +2,25 @@
 
 let studentExamAnswers = {}, studentExamTranscripts = {}, currentExamSession = 'm1', currentStudentExamTab = 'reading', audioPlayCounts = {};
 let mediaRecorder = null, audioChunks = [], activeRecordingIndex = null, activeRecordingStopPromiseResolve = null, speechRecInstance = null;
+let activeStudentNaturalAudio = null, studentCachedVoices = [];
+
+// Izinkan streaming Cloud Neural Audio tanpa blokir referrer
+if (!document.getElementById('hes-no-referrer')) {
+    const meta = document.createElement('meta');
+    meta.id = 'hes-no-referrer';
+    meta.name = 'referrer';
+    meta.content = 'no-referrer';
+    document.head.appendChild(meta);
+}
+
+function initStudentVoices() {
+    if (!('speechSynthesis' in window)) return;
+    studentCachedVoices = window.speechSynthesis.getVoices() || [];
+    window.speechSynthesis.onvoiceschanged = () => {
+        studentCachedVoices = window.speechSynthesis.getVoices() || [];
+    };
+}
+initStudentVoices();
 
 // Load Plus Jakarta Sans font for professional report card typography
 if (!document.getElementById('report-google-font')) {
@@ -56,7 +75,6 @@ function getSkillBandInfo(score) {
     return              { label: 'Keep Practicing', color: '#475569', bg: '#E2E8F0', bar: '#64748B' };
 }
 
-// Perhitungan Skor Presisi (Standar 10 Soal x 10 Poin = 100 Poin)
 function computeExamSectionScore(cat, examData, examResult) {
     const list = examData?.[cat] || [];
     if (!list.length) return 0;
@@ -97,9 +115,115 @@ function computeExamSectionScore(cat, examData, examResult) {
     return Math.min(100, Math.round(totalPoints));
 }
 
-// Natural Neural-like TTS Engine untuk Listening & Contoh Pelafalan Speaking
-window.playNaturalExamAudio = function(text, key = null, btnEl = null) {
-    if (!('speechSynthesis' in window)) return showToast('Browser kamu belum mendukung fitur suara otomatis.', 'error');
+// CLOUD NEURAL & NATURAL VOICE ENGINE UNTUK LISTENING & SPEAKING (Anti-Robot)
+function parseExamDialogueSegments(rawText) {
+    const lines = String(rawText || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const segments = [];
+    let lastGender = 'female';
+
+    lines.forEach(line => {
+        let gender = null;
+        let cleanLine = line;
+
+        const prefixMatch = line.match(/^([A-Za-z\s.]{1,22}):\s*(.+)$/);
+        if (prefixMatch) {
+            const speaker = prefixMatch[1].trim().toLowerCase();
+            cleanLine = prefixMatch[2].trim();
+            if (/^(man|male|boy|mr|father|dad|waiter|husband|son|brother|uncle|kevin|david|raka|budi|andi|john|tom|alex|speaker a|a)\b/.test(speaker)) {
+                gender = 'male';
+            } else if (/^(woman|female|girl|mrs|ms|miss|mother|mom|waitress|wife|daughter|sister|aunt|sarah|dina|nadia|sinta|rina|dinda|lisa|anna|speaker b|b)\b/.test(speaker)) {
+                gender = 'female';
+            } else {
+                gender = lastGender === 'male' ? 'female' : 'male';
+            }
+        } else {
+            gender = 'female';
+        }
+        lastGender = gender;
+
+        const sentences = cleanLine.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanLine];
+        sentences.forEach(s => {
+            const txt = s.trim();
+            if (txt) segments.push({ text: txt, gender });
+        });
+    });
+    return segments;
+}
+
+function getStudentNaturalBrowserVoice(gender) {
+    const voices = (studentCachedVoices.length ? studentCachedVoices : window.speechSynthesis?.getVoices()) || [];
+    const nonRobotic = voices.filter(v =>
+        v.lang && v.lang.toLowerCase().startsWith('en') &&
+        !/david|zira|mark|hazel|george|susan|helena|espeak|desktop/i.test(v.name)
+    );
+
+    const malePriority = [
+        'guy online (natural)', 'christopher online (natural)', 'ryan online (natural)', 'eric online (natural)',
+        'google uk english male', 'daniel (enhanced)', 'daniel'
+    ];
+    const femalePriority = [
+        'aria online (natural)', 'jenny online (natural)', 'sonia online (natural)', 'michelle online (natural)',
+        'google us english', 'google uk english female', 'samantha (enhanced)', 'ava (enhanced)', 'samantha'
+    ];
+
+    const targets = gender === 'male' ? malePriority : femalePriority;
+    for (const kw of targets) {
+        const match = nonRobotic.find(v => v.name.toLowerCase().includes(kw));
+        if (match) return match;
+    }
+    return nonRobotic.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')) || null;
+}
+
+function playStudentCloudMP3(text, gender) {
+    return new Promise((resolve, reject) => {
+        const pollyVoice = gender === 'male' ? 'Matthew' : 'Joanna';
+        const gtxLang = gender === 'male' ? 'en-GB' : 'en-US';
+        const urls = [
+            `https://api.streamelements.com/kappa/v2/speech?voice=${pollyVoice}&text=${encodeURIComponent(text)}`,
+            `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gtxLang}&dt=t&q=${encodeURIComponent(text)}`
+        ];
+
+        let idx = 0;
+        const nextUrl = () => {
+            if (idx >= urls.length) {
+                reject(new Error('Cloud MP3 failed'));
+                return;
+            }
+            const audio = new Audio();
+            audio.referrerPolicy = 'no-referrer';
+            audio.src = urls[idx++];
+            activeStudentNaturalAudio = audio;
+
+            audio.onended = () => { activeStudentNaturalAudio = null; resolve(); };
+            audio.onerror = () => { activeStudentNaturalAudio = null; nextUrl(); };
+            audio.play().catch(() => { activeStudentNaturalAudio = null; nextUrl(); });
+        };
+        nextUrl();
+    });
+}
+
+function playStudentPureBrowserVoice(text, gender) {
+    return new Promise((resolve, reject) => {
+        const v = getStudentNaturalBrowserVoice(gender);
+        if (!v || !('speechSynthesis' in window)) {
+            reject(new Error('No natural voice'));
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.voice = v;
+        u.lang = v.lang || 'en-US';
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        u.onend = () => resolve();
+        u.onerror = () => reject(new Error('TTS failed'));
+        window.speechSynthesis.speak(u);
+    });
+}
+
+window.playNaturalExamAudio = async function(text, key = null, btnEl = null) {
+    const cleanText = String(text || '').trim();
+    if (!cleanText) return;
 
     if (key) {
         const played = audioPlayCounts[key] || 0;
@@ -108,77 +232,53 @@ window.playNaturalExamAudio = function(text, key = null, btnEl = null) {
         const sisa = Math.max(0, 2 - audioPlayCounts[key]);
         const sisaEl = document.getElementById(`audio-sisa-${key}`);
         if (sisaEl) sisaEl.innerText = sisa;
-        if (sisa <= 0 && btnEl) {
-            setTimeout(() => {
-                btnEl.disabled = true;
-                btnEl.className = 'px-4 py-2.5 rounded-xl bg-slate-200 text-slate-400 text-xs font-extrabold cursor-not-allowed';
-                btnEl.innerHTML = '<i class="fas fa-lock mr-1.5"></i> Batas Putar Habis (2x)';
-            }, 300);
-        }
     }
 
-    window.speechSynthesis.cancel();
-    const cleanText = String(text || '').trim();
-    if (!cleanText) return;
+    if (activeStudentNaturalAudio) {
+        try { activeStudentNaturalAudio.pause(); activeStudentNaturalAudio.src = ''; } catch (e) {}
+        activeStudentNaturalAudio = null;
+    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
 
-    const voices = window.speechSynthesis.getVoices();
-    const pickNaturalVoice = (preferFemale = true) => {
-        const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-        const pool = enVoices.length ? enVoices : voices;
-        const keywords = preferFemale
-            ? ['natural', 'aria', 'jenny', 'sonia', 'samantha', 'google us english', 'zira', 'female']
-            : ['guy', 'christopher', 'eric', 'ryan', 'daniel', 'google uk english male', 'david', 'male'];
-        for (const kw of keywords) {
-            const found = pool.find(v => v.name.toLowerCase().includes(kw));
-            if (found) return found;
-        }
-        return pool[0] || null;
-    };
-
-    const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
-    let idx = 0;
+    const segments = parseExamDialogueSegments(cleanText);
     const origHTML = btnEl ? btnEl.innerHTML : '';
-    if (btnEl && !btnEl.disabled) {
+    if (btnEl) {
+        btnEl.disabled = true;
         btnEl.classList.add('speaking-pulse');
-        btnEl.innerHTML = `<i class="fas fa-volume-up mr-1.5"></i> Sedang Memutar Audio...`;
+        btnEl.innerHTML = `<i class="fas fa-volume-up mr-1.5"></i> Memutar Suara...`;
     }
 
-    const speakLine = () => {
-        if (idx >= lines.length) {
-            if (btnEl) {
-                btnEl.classList.remove('speaking-pulse');
-                if (!btnEl.disabled) btnEl.innerHTML = origHTML;
+    for (const seg of segments) {
+        const bestLocal = getStudentNaturalBrowserVoice(seg.gender);
+        const hasAzureNatural = bestLocal && /online \(natural\)/i.test(bestLocal.name);
+        try {
+            if (hasAzureNatural) {
+                await playStudentPureBrowserVoice(seg.text, seg.gender);
+            } else {
+                try {
+                    await playStudentCloudMP3(seg.text, seg.gender);
+                } catch (e) {
+                    await playStudentPureBrowserVoice(seg.text, seg.gender);
+                }
             }
-            return;
+            await new Promise(r => setTimeout(r, 220));
+        } catch (err) {
+            break;
         }
-        let line = lines[idx++];
-        let isMale = false;
-        if (/^(man|male|boy|mr|speaker a|a)\s*:/i.test(line)) {
-            isMale = true;
-            line = line.replace(/^(man|male|boy|mr|speaker a|a)\s*:\s*/i, '');
-        } else if (/^(woman|female|girl|mrs|ms|speaker b|b)\s*:/i.test(line)) {
-            isMale = false;
-            line = line.replace(/^(woman|female|girl|mrs|ms|speaker b|b)\s*:\s*/i, '');
-        }
-        const u = new SpeechSynthesisUtterance(line);
-        const v = pickNaturalVoice(!isMale);
-        if (v) u.voice = v;
-        u.lang = v?.lang || 'en-US';
-        u.rate = 0.92;
-        u.pitch = isMale ? 0.95 : 1.02;
-        u.onend = () => setTimeout(speakLine, 280);
-        u.onerror = () => {
-            if (btnEl) {
-                btnEl.classList.remove('speaking-pulse');
-                if (!btnEl.disabled) btnEl.innerHTML = origHTML;
-            }
-        };
-        window.speechSynthesis.speak(u);
-    };
+    }
 
-    if (voices.length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged = null; speakLine(); };
-    } else speakLine();
+    if (btnEl) {
+        btnEl.classList.remove('speaking-pulse');
+        const sisaNow = key ? Math.max(0, 2 - (audioPlayCounts[key] || 0)) : 99;
+        if (key && sisaNow <= 0) {
+            btnEl.disabled = true;
+            btnEl.className = 'px-4 py-2.5 rounded-xl bg-slate-200 text-slate-400 text-xs font-extrabold cursor-not-allowed';
+            btnEl.innerHTML = '<i class="fas fa-lock mr-1.5"></i> Batas Putar Habis (2x)';
+        } else {
+            btnEl.disabled = false;
+            btnEl.innerHTML = origHTML;
+        }
+    }
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -932,7 +1032,6 @@ function renderStudentExamPage() {
     const isSubmitted = examResult?.submittedTabs?.includes(cat) || (examResult?.status === 'submitted' && !examResult?.submittedTabs?.length);
     const maxPts = Math.round((100 / questions.length) * 10) / 10;
 
-    // TAMPILAN REVIEW SETELAH DIKUMPULKAN / DINILAI (Murid Masih Bisa Mendengar Rekamannya & Melihat Koreksi)
     if (isSubmitted) {
         const secScore = computeExamSectionScore(cat, examData, examResult);
         content.innerHTML = `
@@ -983,7 +1082,7 @@ function renderStudentExamPage() {
                             ${cat === 'listening' && autoScript ? `
                                 <div class="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                                     <div><strong class="text-blue-800">Naskah Audio Listening:</strong> <span class="text-slate-700">${autoScript}</span></div>
-                                    <button type="button" onclick="playNaturalExamAudio('${safeScript}', null, this)" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold shrink-0"><i class="fas fa-volume-up mr-1"></i> Putar Ulang</button>
+                                    <button type="button" onclick="playNaturalExamAudio('${safeScript}', null, this)" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold shrink-0 cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Putar Ulang</button>
                                 </div>
                             ` : ''}
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -994,7 +1093,7 @@ function renderStudentExamPage() {
                                 <div class="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100">
                                     <div class="flex items-center justify-between">
                                         <strong class="text-indigo-900 uppercase text-[10px]">Kunci / Contoh Pelafalan Benar:</strong>
-                                        ${cat === 'speaking' && q.answer ? `<button type="button" onclick="playNaturalExamAudio('${safeTargetSpeak}', null, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline"><i class="fas fa-volume-up mr-1"></i>Dengar Cara Baca</button>` : ''}
+                                        ${cat === 'speaking' && q.answer ? `<button type="button" onclick="playNaturalExamAudio('${safeTargetSpeak}', null, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Dengar Cara Baca</button>` : ''}
                                     </div>
                                     <div class="mt-1 font-bold text-indigo-700">${isMCQ ? `${['A','B','C','D'][q.answer] || ''}. ${q.options?.[q.answer] || ''}` : (q.answer || 'Dinilai oleh Tutor')}</div>
                                 </div>
@@ -1007,7 +1106,6 @@ function renderStudentExamPage() {
         return;
     }
 
-    // TAMPILAN PENGERJAAN UJIAN AKTIF (10 Soal x 10 Poin)
     content.innerHTML = `
         <div class="space-y-4">
             ${questions.map((q, idx) => {
@@ -1025,7 +1123,7 @@ function renderStudentExamPage() {
                     mediaHTML = sisa > 0 ? `
                         <div class="my-3 p-4 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                                <p class="text-xs font-extrabold text-blue-950"><i class="fas fa-headphones-alt text-blue-600 mr-1.5"></i> Audio Listening Otomatis (Suara Natural)</p>
+                                <p class="text-xs font-extrabold text-blue-950"><i class="fas fa-headphones-alt text-blue-600 mr-1.5"></i> Audio Listening (Suara Natural)</p>
                                 <p class="text-[11px] font-bold text-amber-700 mt-0.5">Sisa kesempatan putar: <span id="audio-sisa-${key}">${sisa}</span>x</p>
                             </div>
                             <button type="button" onclick="playNaturalExamAudio('${safeScript}', '${key}', this)" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs transition shrink-0 cursor-pointer">
@@ -1120,14 +1218,13 @@ window.startVoiceRecord = async function(qIndex) {
         }
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mimeType = getSupportedAudioMimeType();
-        const options = { audioBitsPerSecond: 24000 }; // Kompresi 24kbps agar ringan & 100% masuk Supabase
+        const options = { audioBitsPerSecond: 24000 };
         if (mimeType) options.mimeType = mimeType;
 
         mediaRecorder = new MediaRecorder(stream, options);
         audioChunks = [];
         activeRecordingIndex = qIndex;
 
-        // Jalankan pengenalan suara otomatis (opsional untuk membantu penilaian otomatis)
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRec) {
             try {
@@ -1205,7 +1302,6 @@ window.stopVoiceRecord = function(qIndex) {
 };
 
 window.submitStudentExam = async function(monthId, tab) {
-    // Jika murid masih merekam suara dan lupa klik tombol Stop, otomatis hentikan & simpan dulu
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         showToast('Menyelesaikan rekaman suara terlebih dahulu...', 'info');
         await stopVoiceRecord(activeRecordingIndex);
@@ -1221,7 +1317,6 @@ window.submitStudentExam = async function(monthId, tab) {
     }
 
     try {
-        // Tarik data terbaru langsung dari Supabase agar tidak gagal / tertimpa
         const { data: latestRow } = await window.supabaseClient.from('app_data').select('value').eq('key', 'hes_materials').maybeSingle();
         if (latestRow?.value) {
             window.HES.materials = Object.assign({}, window.HES.materials, latestRow.value);
@@ -1244,7 +1339,6 @@ window.submitStudentExam = async function(monthId, tab) {
             if (ans !== undefined) res.answers[key] = ans;
             if (studentExamTranscripts[key]) res.transcripts[key] = studentExamTranscripts[key];
 
-            // Isi skor awal otomatis (skala 0-10 poin per soal)
             if (q.type === 'mcq') {
                 res.scores[key] = (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) ? 10 : 0;
             } else if (res.scores[key] === undefined && res.answers[key]) {
