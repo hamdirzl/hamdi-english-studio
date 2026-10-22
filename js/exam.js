@@ -2,7 +2,10 @@
 
 let studentExamAnswers = {}, studentExamTranscripts = {}, currentExamSession = 'm1', currentStudentExamTab = 'reading', audioPlayCounts = {};
 let mediaRecorder = null, audioChunks = [], activeRecordingIndex = null, activeRecordingStopPromiseResolve = null, speechRecInstance = null;
-let activeStudentNaturalAudio = null, studentCachedVoices = [];
+let studentCachedVoices = [];
+let studentAudioSessionId = 0;
+let sharedStudentAudioEl = null;
+window._hesStudentUtterance = null;
 
 if (!document.getElementById('hes-no-referrer')) {
     const meta = document.createElement('meta');
@@ -111,9 +114,43 @@ function computeExamSectionScore(cat, examData, examResult) {
     return Math.min(100, Math.round(totalPoints));
 }
 
-// 100% AMERICAN ENGLISH (en-US) NEURAL VOICE ENGINE UNTUK MURID
+// ============================================================================
+// 100% AMERICAN ENGLISH (en-US) CONTINUOUS AUDIO ENGINE UNTUK MURID (ANTI-PUTUS)
+// ============================================================================
+function splitExamTextIntoSafeChunks(text, maxLen = 155) {
+    const safeText = String(text || '')
+        .replace(/\b(Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr)\.\s+/gi, '$1__DOT__ ');
+
+    const rawSentences = safeText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [safeText];
+    const chunks = [];
+
+    rawSentences.forEach(rawSent => {
+        const s = rawSent.replace(/__DOT__/g, '.').trim();
+        if (!s) return;
+        if (s.length <= maxLen) {
+            chunks.push(s);
+        } else {
+            const parts = s.split(/(?<=[,;:])\s+|\s+(?=(?:and|but|because|so|although|when|while|before|after)\b)/i);
+            let current = '';
+            parts.forEach(p => {
+                if ((current + ' ' + p).trim().length <= maxLen) {
+                    current = (current + ' ' + p).trim();
+                } else {
+                    if (current) chunks.push(current);
+                    current = p.trim();
+                }
+            });
+            if (current) chunks.push(current);
+        }
+    });
+    return chunks;
+}
+
 function parseExamDialogueSegments(rawText) {
-    const normalized = String(rawText || '').replace(/\s+\/\s+(?=[A-Za-z\s.]{1,20}:)/g, '\n').replace(/\s+\|\s+(?=[A-Za-z\s.]{1,20}:)/g, '\n');
+    const normalized = String(rawText || '')
+        .replace(/\s*[\/|]\s*(?=[A-Za-z\s.]{1,22}:)/g, '\n')
+        .replace(/([.!?])\s+(?=(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Customer|Waiter)\s*:)/gi, '$1\n');
+
     const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
     const segments = [];
     let lastGender = 'female';
@@ -134,14 +171,13 @@ function parseExamDialogueSegments(rawText) {
                 gender = lastGender === 'male' ? 'female' : 'male';
             }
         } else {
-            gender = 'female';
+            gender = lastGender;
         }
         lastGender = gender;
 
-        const sentences = cleanLine.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanLine];
-        sentences.forEach(s => {
-            const txt = s.trim();
-            if (txt) segments.push({ text: txt, gender });
+        const safeChunks = splitExamTextIntoSafeChunks(cleanLine, 155);
+        safeChunks.forEach(chunk => {
+            if (chunk) segments.push({ text: chunk, gender });
         });
     });
     return segments;
@@ -149,7 +185,6 @@ function parseExamDialogueSegments(rawText) {
 
 function getStudentPureAmericanVoice(gender) {
     const voices = (studentCachedVoices.length ? studentCachedVoices : window.speechSynthesis?.getVoices()) || [];
-    // Hanya izinkan suara en-US (American English)
     const usVoices = voices.filter(v => {
         const lang = String(v.lang || '').replace('_', '-').toLowerCase();
         return lang === 'en-us' && !/david|zira|mark|hazel|george|susan|helena|espeak|desktop|uk|british|great britain/i.test(v.name);
@@ -169,54 +204,127 @@ function getStudentPureAmericanVoice(gender) {
         const match = usVoices.find(v => v.name.toLowerCase().includes(kw));
         if (match) return match;
     }
-    return usVoices.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google us')) || null;
+    return usVoices.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google us')) || usVoices[0] || null;
 }
 
-function playStudentUSCloudMP3(text, gender) {
+function getSharedStudentAudio() {
+    if (!sharedStudentAudioEl) {
+        sharedStudentAudioEl = new Audio();
+        sharedStudentAudioEl.referrerPolicy = 'no-referrer';
+        sharedStudentAudioEl.preload = 'auto';
+    }
+    return sharedStudentAudioEl;
+}
+
+function playStudentChunkUSCloudMP3(text, gender, sessionId) {
     return new Promise((resolve, reject) => {
-        // 100% American English Neural Voices (Matthew = US Male, Joanna = US Female, fallback ke en-US)
+        if (sessionId !== studentAudioSessionId) return resolve();
         const pollyUSVoice = gender === 'male' ? 'Matthew' : 'Joanna';
         const urls = [
             `https://api.streamelements.com/kappa/v2/speech?voice=${pollyUSVoice}&text=${encodeURIComponent(text)}`,
             `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=en-US&dt=t&q=${encodeURIComponent(text)}`
         ];
 
-        let idx = 0;
-        const nextUrl = () => {
-            if (idx >= urls.length) {
-                reject(new Error('Cloud US MP3 failed'));
+        let urlIdx = 0;
+        const audio = getSharedStudentAudio();
+
+        const tryNextUrl = () => {
+            if (sessionId !== studentAudioSessionId) return resolve();
+            if (urlIdx >= urls.length) {
+                reject(new Error('Cloud US MP3 unavailable'));
                 return;
             }
-            const audio = new Audio();
-            audio.referrerPolicy = 'no-referrer';
-            audio.src = urls[idx++];
-            activeStudentNaturalAudio = audio;
+            const currentUrl = urls[urlIdx++];
+            let settled = false;
 
-            audio.onended = () => { activeStudentNaturalAudio = null; resolve(); };
-            audio.onerror = () => { activeStudentNaturalAudio = null; nextUrl(); };
-            audio.play().catch(() => { activeStudentNaturalAudio = null; nextUrl(); });
+            const cleanup = () => {
+                audio.onended = null;
+                audio.onerror = null;
+            };
+
+            audio.onended = () => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve();
+            };
+
+            audio.onerror = () => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                tryNextUrl();
+            };
+
+            audio.src = currentUrl;
+            audio.load();
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    if (settled) return;
+                    settled = true;
+                    cleanup();
+                    tryNextUrl();
+                });
+            }
         };
-        nextUrl();
+
+        tryNextUrl();
     });
 }
 
-function playStudentPureUSBrowserVoice(text, gender) {
-    return new Promise((resolve, reject) => {
+function playStudentChunkBrowserUS(text, gender, sessionId) {
+    return new Promise(resolve => {
+        if (sessionId !== studentAudioSessionId || !('speechSynthesis' in window)) return resolve();
         const v = getStudentPureAmericanVoice(gender);
-        if (!v || !('speechSynthesis' in window)) {
-            reject(new Error('No US natural voice'));
-            return;
-        }
-        window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
-        u.voice = v;
+        window._hesStudentUtterance = u;
+
+        if (v) u.voice = v;
         u.lang = 'en-US';
-        u.rate = 0.96;
-        u.pitch = 1.0;
-        u.onend = () => resolve();
-        u.onerror = () => reject(new Error('TTS failed'));
+        u.rate = 0.95;
+        u.pitch = gender === 'male' ? 0.94 : 1.02;
+
+        const keepAlive = setInterval(() => {
+            if (sessionId !== studentAudioSessionId) {
+                clearInterval(keepAlive);
+                return;
+            }
+            if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }
+        }, 5000);
+
+        u.onend = () => {
+            clearInterval(keepAlive);
+            window._hesStudentUtterance = null;
+            resolve();
+        };
+        u.onerror = () => {
+            clearInterval(keepAlive);
+            window._hesStudentUtterance = null;
+            resolve();
+        };
+
         window.speechSynthesis.speak(u);
     });
+}
+
+function stopStudentExamAudio() {
+    studentAudioSessionId++;
+    if (sharedStudentAudioEl) {
+        try {
+            sharedStudentAudioEl.onended = null;
+            sharedStudentAudioEl.onerror = null;
+            sharedStudentAudioEl.pause();
+            sharedStudentAudioEl.removeAttribute('src');
+        } catch (e) {}
+    }
+    if ('speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
+    window._hesStudentUtterance = null;
 }
 
 window.playNaturalExamAudio = async function(text, key = null, btnEl = null) {
@@ -232,11 +340,10 @@ window.playNaturalExamAudio = async function(text, key = null, btnEl = null) {
         if (sisaEl) sisaEl.innerText = sisa;
     }
 
-    if (activeStudentNaturalAudio) {
-        try { activeStudentNaturalAudio.pause(); activeStudentNaturalAudio.src = ''; } catch (e) {}
-        activeStudentNaturalAudio = null;
-    }
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    stopStudentExamAudio();
+    const currentSession = ++studentAudioSessionId;
+    // Unlock elemen Audio tunggal tepat saat tombol diklik
+    getSharedStudentAudio();
 
     const segments = parseExamDialogueSegments(cleanText);
     const origHTML = btnEl ? btnEl.innerHTML : '';
@@ -246,26 +353,27 @@ window.playNaturalExamAudio = async function(text, key = null, btnEl = null) {
         btnEl.innerHTML = `<i class="fas fa-volume-up mr-1.5"></i> Memutar Suara (US)...`;
     }
 
-    for (const seg of segments) {
+    for (let i = 0; i < segments.length; i++) {
+        if (currentSession !== studentAudioSessionId) break;
+        const seg = segments[i];
         const bestLocalUS = getStudentPureAmericanVoice(seg.gender);
         const hasAzureUSNatural = bestLocalUS && /online \(natural\)/i.test(bestLocalUS.name);
-        try {
-            if (hasAzureUSNatural) {
-                await playStudentPureUSBrowserVoice(seg.text, seg.gender);
-            } else {
-                try {
-                    await playStudentUSCloudMP3(seg.text, seg.gender);
-                } catch (e) {
-                    await playStudentPureUSBrowserVoice(seg.text, seg.gender);
-                }
+
+        if (hasAzureUSNatural) {
+            await playStudentChunkBrowserUS(seg.text, seg.gender, currentSession);
+        } else {
+            try {
+                await playStudentChunkUSCloudMP3(seg.text, seg.gender, currentSession);
+            } catch (e) {
+                await playStudentChunkBrowserUS(seg.text, seg.gender, currentSession);
             }
-            await new Promise(r => setTimeout(r, 220));
-        } catch (err) {
-            break;
         }
+
+        if (currentSession !== studentAudioSessionId) break;
+        await new Promise(r => setTimeout(r, 180));
     }
 
-    if (btnEl) {
+    if (btnEl && currentSession === studentAudioSessionId) {
         btnEl.classList.remove('speaking-pulse');
         const sisaNow = key ? Math.max(0, 2 - (audioPlayCounts[key] || 0)) : 99;
         if (key && sisaNow <= 0) {
@@ -326,6 +434,7 @@ function setupExamMonthSelector() {
 }
 
 window.switchStudentExamTab = function(tab) {
+    stopStudentExamAudio();
     currentStudentExamTab = tab;
     renderStudentExamPage();
 };
@@ -1300,6 +1409,7 @@ window.stopVoiceRecord = function(qIndex) {
 };
 
 window.submitStudentExam = async function(monthId, tab) {
+    stopStudentExamAudio();
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         showToast('Menyelesaikan rekaman suara terlebih dahulu...', 'info');
         await stopVoiceRecord(activeRecordingIndex);

@@ -3,8 +3,10 @@
 let currentAdminTab = 'overview';
 let adminExamState = { student: '', month: '', activeTab: 'listening', data: null };
 let currentAdminGradingTab = 'reading';
-let activeNaturalAudio = null;
 let cachedBrowserVoices = [];
+let adminAudioSessionId = 0;
+let sharedAdminAudioEl = null;
+window._hesAdminUtterance = null;
 
 // Izinkan streaming Cloud Neural Audio tanpa blokir referrer
 if (!document.getElementById('hes-no-referrer')) {
@@ -53,10 +55,46 @@ async function safeSaveMaterialsToCloud(mutatorFn) {
     return { error: error || null };
 }
 
-// 100% AMERICAN ENGLISH (en-US) NEURAL VOICE ENGINE (Konsisten US Male & US Female)
+// ============================================================================
+// 100% AMERICAN ENGLISH (en-US) CONTINUOUS AUDIO ENGINE (ANTI-PUTUS)
+// ============================================================================
+function splitTextIntoSafeChunks(text, maxLen = 155) {
+    // Lindungi singkatan Mr. Mrs. Ms. Dr. agar tidak dianggap titik akhir kalimat
+    const safeText = String(text || '')
+        .replace(/\b(Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr)\.\s+/gi, '$1__DOT__ ');
+
+    const rawSentences = safeText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [safeText];
+    const chunks = [];
+
+    rawSentences.forEach(rawSent => {
+        const s = rawSent.replace(/__DOT__/g, '.').trim();
+        if (!s) return;
+        if (s.length <= maxLen) {
+            chunks.push(s);
+        } else {
+            // Jika kalimat sangat panjang, potong halus di tanda koma atau kata hubung
+            const parts = s.split(/(?<=[,;:])\s+|\s+(?=(?:and|but|because|so|although|when|while|before|after)\b)/i);
+            let current = '';
+            parts.forEach(p => {
+                if ((current + ' ' + p).trim().length <= maxLen) {
+                    current = (current + ' ' + p).trim();
+                } else {
+                    if (current) chunks.push(current);
+                    current = p.trim();
+                }
+            });
+            if (current) chunks.push(current);
+        }
+    });
+    return chunks;
+}
+
 function parseDialogueSegments(rawText) {
-    // Mendukung pemisah baris baru maupun tanda garis miring " / " atau "|"
-    const normalized = String(rawText || '').replace(/\s+\/\s+(?=[A-Za-z\s.]{1,20}:)/g, '\n').replace(/\s+\|\s+(?=[A-Za-z\s.]{1,20}:)/g, '\n');
+    // Pisahkan otomatis setiap kali ada label pembicara seperti Man:, Woman:, Kevin:, Sarah: baik dengan "/" maupun sebaris
+    const normalized = String(rawText || '')
+        .replace(/\s*[\/|]\s*(?=[A-Za-z\s.]{1,22}:)/g, '\n')
+        .replace(/([.!?])\s+(?=(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Customer|Waiter)\s*:)/gi, '$1\n');
+
     const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
     const segments = [];
     let lastGender = 'female';
@@ -77,14 +115,13 @@ function parseDialogueSegments(rawText) {
                 gender = lastGender === 'male' ? 'female' : 'male';
             }
         } else {
-            gender = 'female';
+            gender = lastGender;
         }
         lastGender = gender;
 
-        const sentences = cleanLine.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanLine];
-        sentences.forEach(s => {
-            const txt = s.trim();
-            if (txt) segments.push({ text: txt, gender });
+        const safeChunks = splitTextIntoSafeChunks(cleanLine, 155);
+        safeChunks.forEach(chunk => {
+            if (chunk) segments.push({ text: chunk, gender });
         });
     });
     return segments;
@@ -92,7 +129,6 @@ function parseDialogueSegments(rawText) {
 
 function findPureAmericanVoice(gender) {
     const voices = (cachedBrowserVoices.length ? cachedBrowserVoices : window.speechSynthesis?.getVoices()) || [];
-    // Hanya izinkan suara American English (en-US) dan blokir suara robot/British
     const usVoices = voices.filter(v => {
         const lang = String(v.lang || '').replace('_', '-').toLowerCase();
         return lang === 'en-us' && !/david|zira|mark|hazel|george|susan|helena|espeak|desktop|uk|british|great britain/i.test(v.name);
@@ -103,7 +139,7 @@ function findPureAmericanVoice(gender) {
         'steffan online (natural)', 'andrew online (natural)', 'brian online (natural)'
     ];
     const femaleUSPriority = [
-        'aria online (natural)', 'jenny online (natural)', 'MICHELLE online (natural)'.toLowerCase(),
+        'aria online (natural)', 'jenny online (natural)', 'michelle online (natural)',
         'ana online (natural)', 'ava online (natural)', 'emma online (natural)', 'google us english', 'samantha'
     ];
 
@@ -112,12 +148,21 @@ function findPureAmericanVoice(gender) {
         const match = usVoices.find(v => v.name.toLowerCase().includes(kw));
         if (match) return match;
     }
-    return usVoices.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google us')) || null;
+    return usVoices.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google us')) || usVoices[0] || null;
 }
 
-function playSegmentViaUSCloudMP3(text, gender) {
+function getSharedAdminAudio() {
+    if (!sharedAdminAudioEl) {
+        sharedAdminAudioEl = new Audio();
+        sharedAdminAudioEl.referrerPolicy = 'no-referrer';
+        sharedAdminAudioEl.preload = 'auto';
+    }
+    return sharedAdminAudioEl;
+}
+
+function playSingleChunkCloudMP3(text, gender, sessionId) {
     return new Promise((resolve, reject) => {
-        // 100% American English Neural Voices (Matthew = US Male, Joanna = US Female, fallback ke en-US)
+        if (sessionId !== adminAudioSessionId) return resolve();
         const pollyUSVoice = gender === 'male' ? 'Matthew' : 'Joanna';
         const urls = [
             `https://api.streamelements.com/kappa/v2/speech?voice=${pollyUSVoice}&text=${encodeURIComponent(text)}`,
@@ -125,49 +170,107 @@ function playSegmentViaUSCloudMP3(text, gender) {
         ];
 
         let urlIdx = 0;
+        const audio = getSharedAdminAudio();
+
         const tryNextUrl = () => {
+            if (sessionId !== adminAudioSessionId) return resolve();
             if (urlIdx >= urls.length) {
                 reject(new Error('Cloud US MP3 unavailable'));
                 return;
             }
-            const audio = new Audio();
-            audio.referrerPolicy = 'no-referrer';
-            audio.src = urls[urlIdx++];
-            activeNaturalAudio = audio;
+            const currentUrl = urls[urlIdx++];
+            let settled = false;
 
-            audio.onended = () => { activeNaturalAudio = null; resolve(); };
-            audio.onerror = () => { activeNaturalAudio = null; tryNextUrl(); };
-            audio.play().catch(() => { activeNaturalAudio = null; tryNextUrl(); });
+            const cleanup = () => {
+                audio.onended = null;
+                audio.onerror = null;
+            };
+
+            audio.onended = () => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve();
+            };
+
+            audio.onerror = () => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                tryNextUrl();
+            };
+
+            audio.src = currentUrl;
+            audio.load();
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    if (settled) return;
+                    settled = true;
+                    cleanup();
+                    tryNextUrl();
+                });
+            }
         };
+
         tryNextUrl();
     });
 }
 
-function playSegmentViaUSBrowserVoice(text, gender) {
-    return new Promise((resolve, reject) => {
+function playSingleChunkBrowserUS(text, gender, sessionId) {
+    return new Promise(resolve => {
+        if (sessionId !== adminAudioSessionId || !('speechSynthesis' in window)) return resolve();
         const v = findPureAmericanVoice(gender);
-        if (!v || !('speechSynthesis' in window)) {
-            reject(new Error('No US natural voice'));
-            return;
-        }
-        window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
-        u.voice = v;
+        // Simpan di variabel global agar tidak dihapus Garbage Collector Chrome di tengah kalimat
+        window._hesAdminUtterance = u;
+
+        if (v) u.voice = v;
         u.lang = 'en-US';
-        u.rate = 0.96;
-        u.pitch = 1.0;
-        u.onend = () => resolve();
-        u.onerror = () => reject(new Error('SpeechSynthesis error'));
+        u.rate = 0.95;
+        u.pitch = gender === 'male' ? 0.94 : 1.02;
+
+        // Keep-alive timer untuk mencegah bug Chrome berhenti setelah 14 detik
+        const keepAlive = setInterval(() => {
+            if (sessionId !== adminAudioSessionId) {
+                clearInterval(keepAlive);
+                return;
+            }
+            if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }
+        }, 5000);
+
+        u.onend = () => {
+            clearInterval(keepAlive);
+            window._hesAdminUtterance = null;
+            resolve();
+        };
+        u.onerror = () => {
+            clearInterval(keepAlive);
+            window._hesAdminUtterance = null;
+            resolve();
+        };
+
         window.speechSynthesis.speak(u);
     });
 }
 
 window.stopNaturalEnglishTTS = function() {
-    if (activeNaturalAudio) {
-        try { activeNaturalAudio.pause(); activeNaturalAudio.src = ''; } catch (e) {}
-        activeNaturalAudio = null;
+    adminAudioSessionId++;
+    if (sharedAdminAudioEl) {
+        try {
+            sharedAdminAudioEl.onended = null;
+            sharedAdminAudioEl.onerror = null;
+            sharedAdminAudioEl.pause();
+            sharedAdminAudioEl.removeAttribute('src');
+        } catch (e) {}
     }
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if ('speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
+    window._hesAdminUtterance = null;
 };
 
 window.playNaturalEnglishTTS = async function(text, btnEl = null) {
@@ -182,6 +285,10 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
     }
 
     window.stopNaturalEnglishTTS();
+    const currentSession = ++adminAudioSessionId;
+    // Unlock elemen Audio tunggal tepat saat tombol diklik
+    getSharedAdminAudio();
+
     const segments = parseDialogueSegments(cleanText);
     if (!segments.length) return;
 
@@ -192,28 +299,28 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
         btnEl.innerHTML = `<i class="fas fa-stop mr-1"></i> Hentikan Suara`;
     }
 
-    for (const seg of segments) {
-        if (btnEl && btnEl.dataset.playing !== '1') break;
+    for (let i = 0; i < segments.length; i++) {
+        if (currentSession !== adminAudioSessionId) break;
+        const seg = segments[i];
         const bestLocalUS = findPureAmericanVoice(seg.gender);
         const hasAzureUSNatural = bestLocalUS && /online \(natural\)/i.test(bestLocalUS.name);
 
-        try {
-            if (hasAzureUSNatural) {
-                await playSegmentViaUSBrowserVoice(seg.text, seg.gender);
-            } else {
-                try {
-                    await playSegmentViaUSCloudMP3(seg.text, seg.gender);
-                } catch (e) {
-                    await playSegmentViaUSBrowserVoice(seg.text, seg.gender);
-                }
+        if (hasAzureUSNatural) {
+            await playSingleChunkBrowserUS(seg.text, seg.gender, currentSession);
+        } else {
+            try {
+                await playSingleChunkCloudMP3(seg.text, seg.gender, currentSession);
+            } catch (e) {
+                // Jika Cloud MP3 gagal pada potongan ini, lanjutkan dengan suara US Browser tanpa memutus sisa kalimat!
+                await playSingleChunkBrowserUS(seg.text, seg.gender, currentSession);
             }
-            await new Promise(r => setTimeout(r, 220));
-        } catch (err) {
-            break;
         }
+
+        if (currentSession !== adminAudioSessionId) break;
+        await new Promise(r => setTimeout(r, 180));
     }
 
-    if (btnEl) {
+    if (btnEl && currentSession === adminAudioSessionId) {
         btnEl.dataset.playing = '0';
         btnEl.innerHTML = origHTML;
     }
@@ -601,7 +708,6 @@ window.switchExamTab = function(tab) {
     renderExamQuestions();
 };
 
-// Copy Prompt Gemini Otomatis ke Clipboard
 window.copyGeminiExamPrompt = function() {
     const promptText = `Buatkan saya paket soal ujian bahasa Inggris tentang materi: [ISI TOPIK MATERI DI SINI].
 Buat masing-masing 10 soal untuk 4 bagian (Listening, Speaking, Reading, Writing) dalam 4 kotak code block terpisah dengan format persis seperti di bawah ini agar bisa langsung saya copy-paste ke sistem saya. Gunakan pemisah === antar soal.
@@ -651,13 +757,11 @@ window.toggleBulkImportBox = function() {
     if (box) box.classList.toggle('hidden');
 };
 
-// Smart Bulk Parser: Mendukung Format AUDIO/Q/A/B/C/D/KEY/TARGET/EXP maupun Format Angka 1:/2:/3:
 window.processBulkExamImport = async function(replaceExisting = true) {
     const raw = document.getElementById('bulk-import-textarea')?.value.trim();
     if (!raw) return showToast('Tempelkan teks daftar soal terlebih dahulu!', 'error');
 
     const tab = adminExamState.activeTab;
-    // Pisahkan antar blok soal menggunakan === atau --- atau baris kosong ganda sebelum AUDIO:/Q:/1:
     let blocks = raw.split(/\n\s*(?:===+|---+)\s*\n/).map(b => b.trim()).filter(Boolean);
     if (blocks.length === 1) {
         blocks = raw.split(/\n{2,}(?=(?:Soal\s*#?\d+|AUDIO\s*:|Q\s*:|1\s*:))/i).map(b => b.trim()).filter(Boolean);
@@ -805,7 +909,6 @@ function renderExamQuestions() {
                 </div>
             </div>
 
-            <!-- Kotak Smart Bulk Import -->
             <div id="bulk-import-box" class="hidden pt-3 border-t border-indigo-200/70 space-y-2.5">
                 <div class="flex items-center justify-between text-[11px] font-bold text-indigo-900">
                     <span>Tempelkan 10 soal untuk bagian <strong>${tab.toUpperCase()}</strong> di bawah ini (pisahkan antar soal dengan <code>===</code>):</span>
