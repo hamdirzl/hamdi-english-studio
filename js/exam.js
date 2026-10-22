@@ -3,21 +3,21 @@
 let studentExamAnswers = {}, currentExamSession = 'm1', currentStudentExamTab = 'reading', audioPlayCounts = {};
 let mediaRecorder = null, audioChunks = [];
 
-// Muat library html2pdf.js secara otomatis agar tombol Download PDF langsung mengunduh file .pdf 1 halaman
-if (!document.getElementById('html2pdf-lib')) {
+// Load jsPDF library for direct, crystal-clear 1-page A4 PDF generation (Zero cutoff / Zero html2canvas bugs)
+if (!document.getElementById('jspdf-lib')) {
     const script = document.createElement('script');
-    script.id = 'html2pdf-lib';
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    script.id = 'jspdf-lib';
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
     document.head.appendChild(script);
 }
 
-// CSS Cetak 1 Halaman Padat (Anti Terpotong 2 Halaman)
+// Print CSS fallback (1-page strict A4)
 if (!document.getElementById('pdf-print-style')) {
     const style = document.createElement('style');
     style.id = 'pdf-print-style';
     style.innerHTML = `
         @media print {
-            @page { size: A4 portrait; margin: 10mm; }
+            @page { size: A4 portrait; margin: 8mm; }
             html, body {
                 height: auto !important;
                 overflow: visible !important;
@@ -31,17 +31,13 @@ if (!document.getElementById('pdf-print-style')) {
                 visibility: visible;
             }
             #printable-report {
-                position: absolute !important;
+                position: fixed !important;
                 left: 0 !important;
                 top: 0 !important;
                 width: 100% !important;
-                max-width: 190mm !important;
-                height: auto !important;
-                min-height: 0 !important;
+                max-width: 194mm !important;
                 margin: 0 auto !important;
-                padding: 10mm !important;
                 box-shadow: none !important;
-                border: 1px solid #CBD5E1 !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
                 -webkit-print-color-adjust: exact !important;
@@ -50,6 +46,25 @@ if (!document.getElementById('pdf-print-style')) {
         }
     `;
     document.head.appendChild(style);
+}
+
+// Helper: Format Date in English (e.g., "October 23, 2026")
+function formatEnglishDate(dateInput) {
+    const d = dateInput instanceof Date && !isNaN(dateInput) ? dateInput : new Date();
+    const monthsEn = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return `${monthsEn[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+// Helper: Skill Descriptor in English
+function getSkillBandInfo(score) {
+    const s = Number(score) || 0;
+    if (s >= 90) return { label: 'Outstanding', color: '#10B981', bg: '#ECFDF5', bar: '#10B981' };
+    if (s >= 80) return { label: 'Very Good',   color: '#4F46E5', bg: '#EEF2FF', bar: '#4F46E5' };
+    if (s >= 70) return { label: 'Satisfactory', color: '#D97706', bg: '#FFFBEB', bar: '#F59E0B' };
+    return { label: 'Needs Practice', color: '#E11D48', bg: '#FFF1F2', bar: '#F43F5E' };
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -89,45 +104,445 @@ window.switchStudentExamTab = function(tab) {
     renderStudentExamPage();
 };
 
-// Fungsi Download PDF 1 Halaman Langsung
-window.downloadReportPDF = async function(studentName, monthTitle) {
-    const el = document.getElementById('printable-report');
-    const btn = document.getElementById('btn-download-pdf');
-    if (!el) return;
-
-    if (typeof html2pdf === 'undefined') {
-        window.print();
-        return;
+// Helper for Canvas Rounded Rectangles
+function drawRoundedRect(ctx, x, y, w, h, r, fillStyle, strokeStyle = null, lineWidth = 1) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    if (fillStyle) {
+        ctx.fillStyle = fillStyle;
+        ctx.fill();
     }
+    if (strokeStyle) {
+        ctx.lineWidth = lineWidth;
+        ctx.strokeStyle = strokeStyle;
+        ctx.stroke();
+    }
+}
 
-    const origText = btn ? btn.innerHTML : '';
+// Helper for Canvas Multiline Text Wrapping
+function wrapCanvasText(ctx, text, maxWidth) {
+    const paragraphs = String(text || '').split('\n');
+    const lines = [];
+    paragraphs.forEach(para => {
+        const words = para.trim().split(/\s+/);
+        if (!words[0]) {
+            lines.push('');
+            return;
+        }
+        let currentLine = words[0];
+        for (let i = 1; i < words.length; i++) {
+            const testLine = currentLine + ' ' + words[i];
+            if (ctx.measureText(testLine).width <= maxWidth) {
+                currentLine = testLine;
+            } else {
+                lines.push(currentLine);
+                currentLine = words[i];
+            }
+        }
+        lines.push(currentLine);
+    });
+    return lines;
+}
+
+// High-Resolution 1-Page A4 PDF Generator (Never Cut Off, Never 2 Pages)
+window.downloadReportPDF = async function() {
+    const btn = document.getElementById('btn-download-pdf');
+    const origHTML = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Menyiapkan PDF...`;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Generating PDF...`;
     }
 
-    const cleanName = (studentName || 'Siswa').replace(/[^a-zA-Z0-9]/g, '_');
-    const cleanMonth = (monthTitle || 'Report').replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `Report_Card_${cleanName}_${cleanMonth}.pdf`;
-
     try {
-        const opt = {
-            margin:       [8, 8, 8, 8],
-            filename:     fileName,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 900 },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak:    { mode: ['avoid-all'] }
-        };
-        await html2pdf().set(opt).from(el).save();
-        showToast('Report Card PDF berhasil diunduh!', 'success');
+        const monthId = currentExamSession;
+        const monthObj = window.HES.months.find(m => m.id === monthId) || { title: 'Month 1' };
+        const email = window.HES.currentUser.email;
+        const studentName = window.HES.currentUser.name || 'Student';
+        const examResult = window.HES.materials[`exam_result-${email}-${monthId}`] || {};
+
+        const sc = examResult.sectionScores || {};
+        const vReading = Number(sc.reading ?? 0);
+        const vWriting = Number(sc.writing ?? 0);
+        const vSpeaking = Number(sc.speaking ?? 0);
+        const vListening = Number(sc.listening ?? 0);
+
+        const avgRaw = (vReading + vWriting + vSpeaking + vListening) / 4;
+        const avgDisplay = Number.isInteger(avgRaw) ? String(avgRaw) : avgRaw.toFixed(1);
+        const isPassed = avgRaw >= 70;
+
+        let gradeLetter = 'D', gradeLabel = 'Needs Improvement';
+        if (avgRaw >= 90) { gradeLetter = 'A'; gradeLabel = 'Distinction'; }
+        else if (avgRaw >= 80) { gradeLetter = 'B'; gradeLabel = 'Merit'; }
+        else if (avgRaw >= 70) { gradeLetter = 'C'; gradeLabel = 'Pass'; }
+
+        const docDate = examResult.gradedAt ? new Date(examResult.gradedAt) : new Date();
+        const dateEn = formatEnglishDate(docDate);
+        const classLevel = (examResult.classLevel && examResult.classLevel.trim() !== '') ? examResult.classLevel.trim() : monthObj.title;
+        const tutorNote = (examResult.adminFeedback && examResult.adminFeedback.trim() !== '')
+            ? examResult.adminFeedback.trim()
+            : 'The student has demonstrated commendable dedication and progress throughout this learning module. Keep practicing consistently to further enhance your English fluency and confidence.';
+        const docId = `HES-${docDate.getFullYear()}${String(docDate.getMonth() + 1).padStart(2, '0')}-${monthId.toUpperCase()}`;
+
+        // Create High-Res A4 Canvas (1654 x 2339 px = exact 210:297 A4 aspect ratio)
+        const W = 1654, H = 2339;
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        // 1. Background & Outer Luxury Border
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, W, H);
+
+        // Outer Frame
+        drawRoundedRect(ctx, 48, 48, W - 96, H - 96, 28, '#FFFFFF', '#E2E8F0', 3);
+        drawRoundedRect(ctx, 62, 62, W - 124, H - 124, 22, null, '#C7D2FE', 1.5);
+
+        // 2. Executive Top Banner (Royal Navy -> Indigo Gradient)
+        const headerGrad = ctx.createLinearGradient(80, 80, W - 80, 360);
+        headerGrad.addColorStop(0, '#0F172A');
+        headerGrad.addColorStop(0.55, '#1E1B4B');
+        headerGrad.addColorStop(1, '#312E81');
+        drawRoundedRect(ctx, 84, 84, W - 168, 260, 22, headerGrad);
+
+        // Gold Accent Bar inside Banner
+        const goldGrad = ctx.createLinearGradient(84, 334, W - 84, 334);
+        goldGrad.addColorStop(0, '#F59E0B');
+        goldGrad.addColorStop(0.5, '#FDE68A');
+        goldGrad.addColorStop(1, '#D97706');
+        ctx.fillStyle = goldGrad;
+        ctx.fillRect(84, 334, W - 168, 10);
+
+        // Crest Icon Box
+        drawRoundedRect(ctx, 130, 134, 110, 110, 22, 'rgba(255,255,255,0.12)', 'rgba(253,230,138,0.45)', 2);
+        ctx.fillStyle = '#FDE68A';
+        ctx.font = '900 46px Nunito, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('HES', 185, 205);
+
+        // Header Titles
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#FCD34D';
+        ctx.font = '800 22px Nunito, sans-serif';
+        ctx.fillText('HAMDI ENGLISH STUDIO  •  OFFICIAL ACADEMIC RECORD', 270, 158);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '900 54px Nunito, sans-serif';
+        ctx.fillText('STUDENT REPORT CARD', 270, 220);
+
+        ctx.fillStyle = '#C7D2FE';
+        ctx.font = '600 24px Nunito, sans-serif';
+        ctx.fillText(`Document ID: ${docId}   |   Evaluation Period: ${monthObj.title}`, 270, 264);
+
+        // Status Pill on Top Right of Banner
+        const statusBg = isPassed ? '#059669' : '#E11D48';
+        const statusText = isPassed ? 'STATUS: PASSED' : 'NEEDS IMPROVEMENT';
+        drawRoundedRect(ctx, W - 430, 145, 290, 64, 32, statusBg, '#FFFFFF', 2);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '900 23px Nunito, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(statusText, W - 285, 185);
+
+        // 3. Student Information Section (3 Clean Columns: Student Name, Class / Level, Date of Issue)
+        const infoY = 390;
+        drawRoundedRect(ctx, 84, infoY, W - 168, 175, 20, '#F8FAFC', '#E2E8F0', 2);
+
+        // Dividers
+        ctx.strokeStyle = '#E2E8F0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(680, infoY + 28); ctx.lineTo(680, infoY + 147);
+        ctx.moveTo(1160, infoY + 28); ctx.lineTo(1160, infoY + 147);
+        ctx.stroke();
+
+        // Col 1: Student Name
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#64748B';
+        ctx.font = '800 20px Nunito, sans-serif';
+        ctx.fillText('STUDENT NAME', 124, infoY + 58);
+        ctx.fillStyle = '#0F172A';
+        ctx.font = '900 36px Nunito, sans-serif';
+        const dispName = studentName.length > 24 ? studentName.substring(0, 24) + '...' : studentName;
+        ctx.fillText(dispName, 124, infoY + 115);
+
+        // Col 2: Class / Level
+        ctx.fillStyle = '#64748B';
+        ctx.font = '800 20px Nunito, sans-serif';
+        ctx.fillText('CLASS / LEVEL', 720, infoY + 58);
+        ctx.fillStyle = '#4338CA';
+        ctx.font = '900 34px Nunito, sans-serif';
+        const dispLevel = classLevel.length > 20 ? classLevel.substring(0, 20) + '...' : classLevel;
+        ctx.fillText(dispLevel, 720, infoY + 115);
+
+        // Col 3: Date of Issue
+        ctx.fillStyle = '#64748B';
+        ctx.font = '800 20px Nunito, sans-serif';
+        ctx.fillText('DATE OF ISSUE', 1200, infoY + 58);
+        ctx.fillStyle = '#0F172A';
+        ctx.font = '800 32px Nunito, sans-serif';
+        ctx.fillText(dateEn, 1200, infoY + 115);
+
+        // 4. Section Title: Language Proficiency Breakdown
+        const secY = 625;
+        ctx.fillStyle = '#1E1B4B';
+        ctx.font = '900 28px Nunito, sans-serif';
+        ctx.fillText('LANGUAGE PROFICIENCY BREAKDOWN', 84, secY);
+        ctx.fillStyle = '#4F46E5';
+        ctx.fillRect(84, secY + 14, 110, 6);
+
+        // 5. Left: 4 Skill Cards (2x2 Grid) & Right: Final Average Showcase Card
+        const gridY = 668;
+        const skills = [
+            { title: 'READING',   sub: 'Reading Comprehension & Context', score: vReading },
+            { title: 'WRITING',   sub: 'Written Expression & Grammar',    score: vWriting },
+            { title: 'SPEAKING',  sub: 'Spoken Fluency & Pronunciation',  score: vSpeaking },
+            { title: 'LISTENING', sub: 'Auditory Comprehension & Detail', score: vListening }
+        ];
+
+        const cardW = 475, cardH = 225, gapX = 28, gapY = 28;
+        skills.forEach((sk, idx) => {
+            const col = idx % 2;
+            const row = Math.floor(idx / 2);
+            const x = 84 + col * (cardW + gapX);
+            const y = gridY + row * (cardH + gapY);
+            const band = getSkillBandInfo(sk.score);
+
+            drawRoundedRect(ctx, x, y, cardW, cardH, 20, '#FFFFFF', '#CBD5E1', 2);
+
+            // Skill Title & Subtitle
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#4F46E5';
+            ctx.font = '900 22px Nunito, sans-serif';
+            ctx.fillText(sk.title, x + 30, y + 48);
+
+            ctx.fillStyle = '#64748B';
+            ctx.font = '600 19px Nunito, sans-serif';
+            ctx.fillText(sk.sub, x + 30, y + 80);
+
+            // Score Number on Right
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#0F172A';
+            ctx.font = '900 54px Nunito, sans-serif';
+            ctx.fillText(`${sk.score}`, x + cardW - 30, y + 72);
+
+            // Band Badge & "/ 100"
+            drawRoundedRect(ctx, x + 30, y + 112, 175, 38, 10, band.bg);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = band.color;
+            ctx.font = '800 18px Nunito, sans-serif';
+            ctx.fillText(band.label.toUpperCase(), x + 117, y + 137);
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#94A3B8';
+            ctx.font = '800 20px Nunito, sans-serif';
+            ctx.fillText('Score / 100', x + cardW - 30, y + 137);
+
+            // Progress Bar Track & Fill
+            const barX = x + 30, barY = y + 172, barW = cardW - 60, barH = 16;
+            drawRoundedRect(ctx, barX, barY, barW, barH, 8, '#F1F5F9');
+            const fillW = Math.max(16, Math.min(barW, Math.round((sk.score / 100) * barW)));
+            drawRoundedRect(ctx, barX, barY, fillW, barH, 8, band.bar);
+        });
+
+        // Right Column: Overall Score & Grade Card
+        const sumX = 84 + (cardW * 2) + (gapX * 2);
+        const sumW = W - 84 - sumX;
+        const sumH = (cardH * 2) + gapY;
+        const sumGrad = ctx.createLinearGradient(sumX, gridY, sumX + sumW, gridY + sumH);
+        sumGrad.addColorStop(0, '#1E1B4B');
+        sumGrad.addColorStop(1, '#312E81');
+        drawRoundedRect(ctx, sumX, gridY, sumW, sumH, 24, sumGrad, '#4338CA', 2);
+
+        const sumCenterX = sumX + sumW / 2;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#FCD34D';
+        ctx.font = '800 21px Nunito, sans-serif';
+        ctx.fillText('OVERALL AVERAGE', sumCenterX, gridY + 62);
+
+        // Score Circle Ring
+        ctx.beginPath();
+        ctx.arc(sumCenterX, gridY + 215, 108, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.fill();
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = '#F59E0B';
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '900 84px Nunito, sans-serif';
+        ctx.fillText(avgDisplay, sumCenterX, gridY + 238);
+
+        ctx.fillStyle = '#C7D2FE';
+        ctx.font = '700 20px Nunito, sans-serif';
+        ctx.fillText('OUT OF 100', sumCenterX, gridY + 278);
+
+        // Grade Pill inside Overall Card
+        drawRoundedRect(ctx, sumX + 55, gridY + 365, sumW - 110, 68, 16, '#F59E0B');
+        ctx.fillStyle = '#0F172A';
+        ctx.font = '900 28px Nunito, sans-serif';
+        ctx.fillText(`GRADE ${gradeLetter}  •  ${gradeLabel.toUpperCase()}`, sumCenterX, gridY + 409);
+
+        // 6. Instructor's Evaluation & Feedback (Tutor's Note)
+        const noteY = 1210;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#1E1B4B';
+        ctx.font = '900 28px Nunito, sans-serif';
+        ctx.fillText("INSTRUCTOR'S EVALUATION & FEEDBACK", 84, noteY);
+        ctx.fillStyle = '#4F46E5';
+        ctx.fillRect(84, noteY + 14, 110, 6);
+
+        const noteBoxY = noteY + 42;
+        const noteBoxH = 490;
+        drawRoundedRect(ctx, 84, noteBoxY, W - 168, noteBoxH, 22, '#F8FAFC', '#CBD5E1', 2);
+        // Left Accent Stripe
+        drawRoundedRect(ctx, 84, noteBoxY, 14, noteBoxH, 6, '#4F46E5');
+
+        // Decorative Quote Icon
+        ctx.fillStyle = '#E0E7FF';
+        ctx.font = '900 120px Georgia, serif';
+        ctx.fillText('“', 125, noteBoxY + 115);
+
+        // Dynamic Font Size for Tutor's Note so it ALWAYS fits cleanly inside the box
+        let fontSize = 28, lineHeight = 44;
+        ctx.font = `600 ${fontSize}px Nunito, sans-serif`;
+        let wrappedLines = wrapCanvasText(ctx, tutorNote, W - 280);
+        if (wrappedLines.length > 8) {
+            fontSize = 24; lineHeight = 36;
+            ctx.font = `600 ${fontSize}px Nunito, sans-serif`;
+            wrappedLines = wrapCanvasText(ctx, tutorNote, W - 280);
+        }
+        if (wrappedLines.length > 11) {
+            fontSize = 20; lineHeight = 30;
+            ctx.font = `600 ${fontSize}px Nunito, sans-serif`;
+            wrappedLines = wrapCanvasText(ctx, tutorNote, W - 280);
+        }
+
+        ctx.fillStyle = '#1E293B';
+        wrappedLines.slice(0, 13).forEach((line, idx) => {
+            ctx.fillText(line, 140, noteBoxY + 85 + (idx * lineHeight));
+        });
+
+        // 7. Footer: Official Verification Badge (Left) & Signature Block (Right)
+        const footY = 1835;
+        ctx.strokeStyle = '#E2E8F0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(84, footY);
+        ctx.lineTo(W - 84, footY);
+        ctx.stroke();
+
+        // Official Seal Badge on Bottom Left
+        const sealX = 195, sealY = footY + 195;
+        ctx.beginPath();
+        ctx.arc(sealX, sealY, 86, 0, Math.PI * 2);
+        ctx.fillStyle = '#FEF3C7';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#D97706';
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(sealX, sealY, 72, 0, Math.PI * 2);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#B45309';
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#92400E';
+        ctx.font = '900 18px Nunito, sans-serif';
+        ctx.fillText('VERIFIED', sealX, sealY - 12);
+        ctx.font = '900 22px Nunito, sans-serif';
+        ctx.fillText('OFFICIAL', sealX, sealY + 14);
+        ctx.font = '800 15px Nunito, sans-serif';
+        ctx.fillText('HAMDI STUDIO', sealX, sealY + 38);
+
+        // Verification Text next to Seal
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#0F172A';
+        ctx.font = '900 26px Nunito, sans-serif';
+        ctx.fillText('Hamdi English Studio', 315, footY + 165);
+        ctx.fillStyle = '#64748B';
+        ctx.font = '600 21px Nunito, sans-serif';
+        ctx.fillText('Official Academic Proficiency & Evaluation Report', 315, footY + 200);
+        ctx.fillText(`Issued in Medan  •  ${dateEn}`, 315, footY + 234);
+
+        // Signature Block on Bottom Right
+        const sigCenterX = W - 290;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#475569';
+        ctx.font = '700 22px Nunito, sans-serif';
+        ctx.fillText(`Medan, ${dateEn}`, sigCenterX, footY + 75);
+
+        // Try loading signature.png if present
+        await new Promise(resolve => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const maxW = 280, maxH = 130;
+                const ratio = Math.min(maxW / img.width, maxH / img.height);
+                const w = img.width * ratio, h = img.height * ratio;
+                ctx.drawImage(img, sigCenterX - w / 2, footY + 95 + (maxH - h) / 2, w, h);
+                resolve();
+            };
+            img.onerror = () => {
+                // Stylized signature fallback if signature.png is missing
+                ctx.save();
+                ctx.fillStyle = '#1E1B4B';
+                ctx.font = 'italic 700 44px Georgia, serif';
+                ctx.fillText('Hamdi Rizal', sigCenterX, footY + 178);
+                ctx.restore();
+                resolve();
+            };
+            img.src = 'signature.png';
+        });
+
+        // Signature Line & Tutor Name
+        ctx.strokeStyle = '#0F172A';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(sigCenterX - 180, footY + 245);
+        ctx.lineTo(sigCenterX + 180, footY + 245);
+        ctx.stroke();
+
+        ctx.fillStyle = '#0F172A';
+        ctx.font = '900 28px Nunito, sans-serif';
+        ctx.fillText('HAMDI RIZAL', sigCenterX, footY + 285);
+
+        ctx.fillStyle = '#4F46E5';
+        ctx.font = '800 19px Nunito, sans-serif';
+        ctx.fillText('ENGLISH TUTOR & DIRECTOR', sigCenterX, footY + 316);
+
+        // Export Canvas to 1-Page A4 PDF using jsPDF
+        const imgData = canvas.toDataURL('image/jpeg', 0.96);
+        const cleanName = studentName.replace(/[^a-zA-Z0-9]/g, '_');
+        const cleanLevel = classLevel.replace(/[^a-zA-Z0-9]/g, '_');
+        const fileName = `Report_Card_${cleanName}_${cleanLevel}.pdf`;
+
+        if (window.jspdf && window.jspdf.jsPDF) {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+            pdf.save(fileName);
+            showToast('Report Card PDF downloaded successfully!', 'success');
+        } else {
+            window.print();
+        }
     } catch (err) {
-        console.error(err);
+        console.error('PDF generation error:', err);
         window.print();
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = origText;
+            btn.innerHTML = origHTML;
         }
     }
 };
@@ -136,7 +551,7 @@ function renderStudentExamPage() {
     const monthId = currentExamSession;
     const monthObj = window.HES.months.find(m => m.id === monthId) || { title: 'Month 1' };
     const email = window.HES.currentUser.email;
-    const studentName = window.HES.currentUser.name || 'Siswa';
+    const studentName = window.HES.currentUser.name || 'Student';
 
     document.getElementById('exam-header-title').innerText = `Evaluasi Akhir: ${monthObj.title}`;
     const reportBox = document.getElementById('exam-final-report-box');
@@ -176,165 +591,195 @@ function renderStudentExamPage() {
         btn.className = `py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center ${t === cat ? 'bg-white text-indigo-600 shadow-sm border border-indigo-200' : 'text-slate-500 hover:text-slate-800'}`;
     });
 
-    // Rapor Hasil Akhir: Desain 1 Halaman Padat, Modern, & Siap Download PDF
+    // REPORT CARD PREVIEW (100% English, Luxury Executive Certificate Aesthetic)
     if (examResult?.isGraded) {
         const sc = examResult.sectionScores || {};
-        const vReading = sc.reading ?? 0;
-        const vWriting = sc.writing ?? 0;
-        const vSpeaking = sc.speaking ?? 0;
-        const vListening = sc.listening ?? 0;
+        const vReading = Number(sc.reading ?? 0);
+        const vWriting = Number(sc.writing ?? 0);
+        const vSpeaking = Number(sc.speaking ?? 0);
+        const vListening = Number(sc.listening ?? 0);
 
-        const totalScore = vReading + vWriting + vSpeaking + vListening;
-        const avgScoreRaw = totalScore / 4;
-        const avgScore = Number.isInteger(avgScoreRaw) ? String(avgScoreRaw) : avgScoreRaw.toFixed(1).replace('.', ',');
+        const avgRaw = (vReading + vWriting + vSpeaking + vListening) / 4;
+        const avgDisplay = Number.isInteger(avgRaw) ? String(avgRaw) : avgRaw.toFixed(1);
+        const isPassed = avgRaw >= 70;
 
-        const isPassed = avgScoreRaw >= 70;
-        let gradeLetter = 'D', gradeBadgeCls = 'bg-red-50 text-red-600 border-red-200';
-        if (avgScoreRaw >= 90) { gradeLetter = 'A'; gradeBadgeCls = 'bg-emerald-50 text-emerald-700 border-emerald-200'; }
-        else if (avgScoreRaw >= 80) { gradeLetter = 'B'; gradeBadgeCls = 'bg-indigo-50 text-indigo-700 border-indigo-200'; }
-        else if (avgScoreRaw >= 70) { gradeLetter = 'C'; gradeBadgeCls = 'bg-amber-50 text-amber-700 border-amber-200'; }
+        let gradeLetter = 'D', gradeLabel = 'Needs Improvement';
+        if (avgRaw >= 90) { gradeLetter = 'A'; gradeLabel = 'Distinction'; }
+        else if (avgRaw >= 80) { gradeLetter = 'B'; gradeLabel = 'Merit'; }
+        else if (avgRaw >= 70) { gradeLetter = 'C'; gradeLabel = 'Pass'; }
 
         const docDate = examResult.gradedAt ? new Date(examResult.gradedAt) : new Date();
+        const dateEn = formatEnglishDate(docDate);
         const classLevelText = (examResult.classLevel && examResult.classLevel.trim() !== '') ? examResult.classLevel.trim() : monthObj.title;
         const tutorNoteText = (examResult.adminFeedback && examResult.adminFeedback.trim() !== '')
             ? examResult.adminFeedback.trim()
-            : 'Telah menyelesaikan evaluasi pembelajaran dengan baik. Teruslah berlatih dan tingkatkan kepercayaan dirimu dalam berbahasa Inggris!';
+            : 'The student has demonstrated commendable dedication and progress throughout this learning module. Keep practicing consistently to further enhance your English fluency and confidence.';
+        const docId = `HES-${docDate.getFullYear()}${String(docDate.getMonth() + 1).padStart(2, '0')}-${monthId.toUpperCase()}`;
 
-        const safeName = studentName.replace(/'/g, "\'");
-        const safeMonth = monthObj.title.replace(/'/g, "\'");
+        const skillCards = [
+            { title: 'READING',   sub: 'Reading Comprehension & Context', icon: 'fa-book-open',        score: vReading },
+            { title: 'WRITING',   sub: 'Written Expression & Grammar',    icon: 'fa-pen-nib',          score: vWriting },
+            { title: 'SPEAKING',  sub: 'Spoken Fluency & Pronunciation',  icon: 'fa-microphone-lines', score: vSpeaking },
+            { title: 'LISTENING', sub: 'Auditory Comprehension & Detail', icon: 'fa-headphones',       score: vListening }
+        ].map(sk => {
+            const b = getSkillBandInfo(sk.score);
+            return `
+                <div class="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-indigo-600">
+                                <i class="fas ${sk.icon}"></i> ${sk.title}
+                            </span>
+                            <p class="text-xs font-semibold text-slate-500 mt-0.5">${sk.sub}</p>
+                        </div>
+                        <span class="text-3xl font-black text-slate-900 leading-none">${sk.score}</span>
+                    </div>
+                    <div class="mt-3.5">
+                        <div class="flex items-center justify-between text-[10px] font-extrabold mb-1.5">
+                            <span class="px-2 py-0.5 rounded-md" style="background:${b.bg}; color:${b.color};">${b.label.toUpperCase()}</span>
+                            <span class="text-slate-400">Score / 100</span>
+                        </div>
+                        <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500" style="width:${Math.max(6, Math.min(100, sk.score))}%; background:${b.bar};"></div>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
 
         reportBox.classList.remove('hidden');
         reportBox.innerHTML = `
-            <div id="report-action-bar" class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-indigo-50/80 border border-indigo-100 px-4 py-3 rounded-2xl">
-                <div class="flex items-center gap-2.5">
-                    <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs">
+            <!-- Action Bar -->
+            <div id="report-action-bar" class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-400 text-slate-900 flex items-center justify-center text-sm font-black shrink-0">
                         <i class="fas fa-award"></i>
-                    </span>
+                    </div>
                     <div>
-                        <p class="text-xs font-extrabold text-slate-800">Rapor Evaluasi Telah Terbit!</p>
-                        <p class="text-[11px] font-semibold text-slate-500">Unduh sebagai PDF (1 Halaman A4 Padat).</p>
+                        <p class="text-xs sm:text-sm font-extrabold text-white">Official Student Report Card Ready</p>
+                        <p class="text-[11px] text-slate-300">High-resolution 1-Page A4 PDF (English Edition)</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="btn-download-pdf" onclick="downloadReportPDF('${safeName}', '${safeMonth}')" class="hes-btn-primary !bg-indigo-600 hover:!bg-indigo-700 !py-2.5 !px-4 !text-xs">
-                        <i class="fas fa-file-download"></i> Download PDF
+                    <button id="btn-download-pdf" onclick="downloadReportPDF()" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-sm transition inline-flex items-center gap-2 cursor-pointer">
+                        <i class="fas fa-file-pdf"></i> Download PDF (1 Page)
                     </button>
-                    <button onclick="window.print()" class="hes-btn-soft !bg-white !py-2.5 !px-3.5 !text-xs" title="Cetak langsung">
+                    <button onclick="window.print()" class="bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition cursor-pointer" title="Print Report">
                         <i class="fas fa-print"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- KARTU RAPOR 1 HALAMAN PADAT & RAPI -->
-            <div id="printable-report" class="bg-white mx-auto rounded-2xl shadow-lg border border-slate-200 text-slate-800 p-6 sm:p-9 max-w-[794px]">
+            <!-- LUXURY REPORT CARD PREVIEW -->
+            <div id="printable-report" class="bg-white mx-auto rounded-3xl shadow-xl border-2 border-slate-200/90 overflow-hidden text-slate-800 max-w-[820px]">
                 
-                <!-- Header Brand & Judul Report Card -->
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-5 border-b-2 border-indigo-900">
-                    <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 rounded-2xl bg-indigo-900 text-white flex items-center justify-center text-xl shadow-sm shrink-0">
-                            <i class="fas fa-graduation-cap"></i>
+                <!-- Executive Top Banner -->
+                <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-900 text-white p-6 sm:p-8 relative overflow-hidden">
+                    <div class="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-amber-400/10 blur-2xl pointer-events-none"></div>
+                    <div class="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-white/10 border border-amber-300/40 flex items-center justify-center text-amber-300 text-2xl font-black shrink-0 shadow-inner">
+                                <i class="fas fa-graduation-cap"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] sm:text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Hamdi English Studio • Official Academic Record</p>
+                                <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-white uppercase mt-0.5">Student Report Card</h1>
+                                <p class="text-xs font-semibold text-indigo-200 mt-0.5">Document ID: ${docId} &nbsp;|&nbsp; Evaluation Period: ${monthObj.title}</p>
+                            </div>
                         </div>
+                        <div class="self-start sm:self-center shrink-0">
+                            <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider border ${isPassed ? 'bg-emerald-500 text-white border-emerald-300' : 'bg-rose-600 text-white border-rose-300'} shadow-sm">
+                                <i class="fas ${isPassed ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                                ${isPassed ? 'Status: Passed' : 'Needs Improvement'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Gold Accent Divider -->
+                <div class="h-1.5 w-full bg-gradient-to-r from-amber-500 via-amber-300 to-amber-600"></div>
+
+                <!-- Report Body -->
+                <div class="p-6 sm:p-8 space-y-6">
+
+                    <!-- Student Metadata Bar (3 Clean Columns: Student Name, Class/Level, Date of Issue) -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80">
                         <div>
-                            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Hamdi English Studio</p>
-                            <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase leading-tight">Student Report Card</h1>
+                            <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Student Name</p>
+                            <p class="text-base sm:text-lg font-black text-slate-900 mt-0.5 truncate">${studentName}</p>
+                        </div>
+                        <div class="sm:border-l sm:border-slate-200 sm:pl-5">
+                            <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Class / Level</p>
+                            <p class="text-base sm:text-lg font-black text-indigo-700 mt-0.5 truncate">${classLevelText}</p>
+                        </div>
+                        <div class="sm:border-l sm:border-slate-200 sm:pl-5">
+                            <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Date of Issue</p>
+                            <p class="text-sm sm:text-base font-extrabold text-slate-800 mt-1">${dateEn}</p>
                         </div>
                     </div>
-                    <div class="sm:text-right">
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${isPassed ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-red-100 text-red-800 border border-red-300'}">
-                            <i class="fas ${isPassed ? 'fa-check-circle' : 'fa-info-circle'}"></i>
-                            ${isPassed ? 'PASSED / LULUS' : 'NEEDS IMPROVEMENT'}
-                        </span>
-                    </div>
-                </div>
 
-                <!-- Informasi Utama Siswa (Tanpa Email, Rapi & Padat) -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 bg-slate-50 p-4 rounded-xl border border-slate-200/90">
+                    <!-- Language Proficiency Breakdown -->
                     <div>
-                        <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Nama Siswa</p>
-                        <p class="text-sm sm:text-base font-black text-slate-900 mt-0.5 truncate">${studentName}</p>
-                    </div>
-                    <div class="sm:border-l sm:border-slate-200 sm:pl-4">
-                        <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Kelas / Level</p>
-                        <p class="text-sm sm:text-base font-black text-indigo-700 mt-0.5">${classLevelText}</p>
-                    </div>
-                    <div class="sm:border-l sm:border-slate-200 sm:pl-4">
-                        <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Tanggal Rilis</p>
-                        <p class="text-xs sm:text-sm font-extrabold text-slate-700 mt-1">${getDisplayDate(docDate)}</p>
-                    </div>
-                </div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="w-2 h-5 rounded-full bg-indigo-600"></span>
+                            <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900">Language Proficiency Breakdown</h3>
+                        </div>
 
-                <!-- Bagian Skor: 4 Skill + Rata-Rata Akhir (Tanpa Tabel Skala yang Memenuhi Halaman) -->
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-5 items-stretch">
-                    
-                    <!-- 4 Kartu Nilai Skill -->
-                    <div class="md:col-span-8 grid grid-cols-2 gap-2.5">
-                        <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
-                            <div>
-                                <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Reading</p>
-                                <p class="text-xs font-bold text-slate-500 mt-0.5">Pemahaman Bacaan</p>
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+                            <!-- 4 Skill Cards -->
+                            <div class="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                ${skillCards}
                             </div>
-                            <span class="text-2xl font-black text-slate-800">${vReading}</span>
-                        </div>
-                        <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
-                            <div>
-                                <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Writing</p>
-                                <p class="text-xs font-bold text-slate-500 mt-0.5">Penulisan & Tata Bahasa</p>
+
+                            <!-- Overall Average Card -->
+                            <div class="lg:col-span-4 rounded-2xl bg-gradient-to-b from-slate-900 via-indigo-950 to-indigo-900 text-white p-5 flex flex-col items-center justify-center text-center border border-indigo-800 shadow-md">
+                                <p class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-amber-300">Overall Average</p>
+                                <div class="w-28 h-28 rounded-full border-4 border-amber-400 bg-white/5 flex flex-col items-center justify-center my-3 shadow-inner">
+                                    <span class="text-4xl font-black text-white leading-none">${avgDisplay}</span>
+                                    <span class="text-[10px] font-bold text-indigo-200 mt-1">OUT OF 100</span>
+                                </div>
+                                <div class="w-full py-2 px-3 rounded-xl bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider">
+                                    Grade ${gradeLetter} &bull; ${gradeLabel}
+                                </div>
                             </div>
-                            <span class="text-2xl font-black text-slate-800">${vWriting}</span>
                         </div>
-                        <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
-                            <div>
-                                <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Speaking</p>
-                                <p class="text-xs font-bold text-slate-500 mt-0.5">Kelancaran & Pelafalan</p>
+                    </div>
+
+                    <!-- Instructor's Evaluation & Feedback -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-2.5">
+                            <span class="w-2 h-5 rounded-full bg-indigo-600"></span>
+                            <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900">Instructor's Evaluation & Feedback</h3>
+                        </div>
+                        <div class="relative rounded-2xl bg-slate-50 border border-slate-200 p-5 pl-6 border-l-4 border-l-indigo-600">
+                            <p class="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-line">${tutorNoteText}</p>
+                        </div>
+                    </div>
+
+                    <!-- Footer: Official Seal & Signature -->
+                    <div class="pt-5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+                        <div class="flex items-center gap-3.5">
+                            <div class="w-16 h-16 rounded-full bg-amber-50 border-2 border-amber-500 flex flex-col items-center justify-center text-center shrink-0 shadow-xs">
+                                <span class="text-[8px] font-black uppercase tracking-tighter text-amber-800">Verified</span>
+                                <span class="text-[10px] font-black uppercase text-amber-900 leading-none my-0.5">Official</span>
+                                <span class="text-[7px] font-bold uppercase text-amber-700">HES Record</span>
                             </div>
-                            <span class="text-2xl font-black text-slate-800">${vSpeaking}</span>
-                        </div>
-                        <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
-                            <div>
-                                <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Listening</p>
-                                <p class="text-xs font-bold text-slate-500 mt-0.5">Pemahaman Audio</p>
+                            <div class="text-xs text-slate-500 space-y-0.5">
+                                <p class="font-black text-slate-800 text-sm">Hamdi English Studio</p>
+                                <p class="font-semibold">Official Academic Proficiency & Evaluation Report</p>
+                                <p class="text-[11px] text-slate-400">Issued in Medan &bull; ${dateEn}</p>
                             </div>
-                            <span class="text-2xl font-black text-slate-800">${vListening}</span>
+                        </div>
+
+                        <div class="text-center sm:text-right shrink-0">
+                            <p class="text-xs font-bold text-slate-600 mb-1">Medan, ${dateEn}</p>
+                            <img src="signature.png" alt="Signature" class="h-14 sm:ml-auto mx-auto object-contain my-1" onerror="this.style.display='none'; this.insertAdjacentHTML('afterend', '<div class=\'py-2 font-serif italic text-xl font-bold text-indigo-950\'>Hamdi Rizal</div>');">
+                            <div class="border-t-2 border-slate-900 pt-1.5 min-w-[180px] inline-block text-center">
+                                <p class="text-xs sm:text-sm font-black text-slate-900 uppercase leading-none">Hamdi Rizal</p>
+                                <p class="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest mt-1">English Tutor & Director</p>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Kotak Nilai Rata-Rata Akhir & Grade -->
-                    <div class="md:col-span-4 rounded-xl bg-gradient-to-br from-indigo-900 to-indigo-800 text-white p-4 flex flex-col items-center justify-center text-center shadow-sm">
-                        <p class="text-[10px] font-extrabold uppercase tracking-widest text-indigo-200">Final Average</p>
-                        <p class="text-4xl font-black my-1 tracking-tight">${avgScore}</p>
-                        <span class="px-3 py-0.5 rounded-md text-xs font-black border ${gradeBadgeCls}">
-                            Grade ${gradeLetter}
-                        </span>
-                    </div>
                 </div>
-
-                <!-- Tutor's Note -->
-                <div class="mb-6">
-                    <div class="flex items-center gap-1.5 mb-2">
-                        <i class="fas fa-comment-dots text-indigo-600 text-xs"></i>
-                        <h3 class="text-xs font-black uppercase tracking-wider text-indigo-950">Tutor's Note & Evaluation</h3>
-                    </div>
-                    <div class="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-line">
-                        ${tutorNoteText}
-                    </div>
-                </div>
-
-                <!-- Footer & Tanda Tangan (Padat, Tidak Terlempar ke Halaman 2) -->
-                <div class="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-                    <div class="text-[11px] text-slate-400 font-semibold space-y-0.5">
-                        <p class="font-bold text-slate-600">Hamdi English Studio — Official Evaluation Report</p>
-                        <p>Periode Evaluasi: ${monthObj.title} • Dicetak pada ${getDisplayDate(docDate)}</p>
-                    </div>
-                    <div class="text-center sm:text-right shrink-0">
-                        <p class="text-xs font-bold text-slate-600 mb-1">Medan, ${getDisplayDate(docDate)}</p>
-                        <img src="signature.png" alt="Tanda Tangan" class="h-14 sm:ml-auto mx-auto object-contain my-1" onerror="this.style.display='none'; this.insertAdjacentHTML('afterend', '<div class=\'h-10\'></div>');">
-                        <div class="border-t-2 border-slate-800 pt-1 min-w-[160px] inline-block text-center">
-                            <p class="text-xs sm:text-sm font-black text-slate-900 uppercase leading-none">Hamdi Rizal</p>
-                            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mt-0.5">English Tutor</p>
-                        </div>
-                    </div>
-                </div>
-
             </div>`;
     } else {
         reportBox.classList.add('hidden');
