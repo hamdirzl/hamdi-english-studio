@@ -1,9 +1,9 @@
 // js/exam.js
 
-let studentExamAnswers = {}, currentExamSession = 'm1', currentStudentExamTab = 'reading', audioPlayCounts = {};
-let mediaRecorder = null, audioChunks = [];
+let studentExamAnswers = {}, studentExamTranscripts = {}, currentExamSession = 'm1', currentStudentExamTab = 'reading', audioPlayCounts = {};
+let mediaRecorder = null, audioChunks = [], activeRecordingIndex = null, activeRecordingStopPromiseResolve = null, speechRecInstance = null;
 
-// Load Plus Jakarta Sans font for professional, crisp report card typography
+// Load Plus Jakarta Sans font for professional report card typography
 if (!document.getElementById('report-google-font')) {
     const link = document.createElement('link');
     link.id = 'report-google-font';
@@ -12,7 +12,7 @@ if (!document.getElementById('report-google-font')) {
     document.head.appendChild(link);
 }
 
-// Load jsPDF library for direct, crystal-clear 1-page A4 PDF generation
+// Load jsPDF library for direct 1-page A4 PDF generation
 if (!document.getElementById('jspdf-lib')) {
     const script = document.createElement('script');
     script.id = 'jspdf-lib';
@@ -27,47 +27,27 @@ if (!document.getElementById('pdf-print-style')) {
     style.innerHTML = `
         @media print {
             @page { size: A4 portrait; margin: 8mm; }
-            html, body {
-                height: auto !important;
-                overflow: visible !important;
-                background: #FFFFFF !important;
-            }
+            html, body { height: auto !important; overflow: visible !important; background: #FFFFFF !important; }
             body * { visibility: hidden; }
-            #app-sidebar, #app-header, #report-action-bar, #exam-tabs-nav, #exam-content-area {
-                display: none !important;
-            }
-            #printable-report, #printable-report * {
-                visibility: visible;
-            }
+            #app-sidebar, #app-header, #report-action-bar, #exam-tabs-nav, #exam-content-area { display: none !important; }
+            #printable-report, #printable-report * { visibility: visible; }
             #printable-report {
-                position: fixed !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 100% !important;
-                max-width: 194mm !important;
-                margin: 0 auto !important;
-                box-shadow: none !important;
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
+                position: fixed !important; left: 0 !important; top: 0 !important;
+                width: 100% !important; max-width: 194mm !important; margin: 0 auto !important;
+                box-shadow: none !important; page-break-inside: avoid !important; break-inside: avoid !important;
+                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
             }
         }
     `;
     document.head.appendChild(style);
 }
 
-// Helper: Format Date in English (e.g., "October 23, 2026")
 function formatEnglishDate(dateInput) {
     const d = dateInput instanceof Date && !isNaN(dateInput) ? dateInput : new Date();
-    const monthsEn = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
-    ];
+    const monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     return `${monthsEn[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-// Helper: Skill Descriptor in Blue Theme
 function getSkillBandInfo(score) {
     const s = Number(score) || 0;
     if (s >= 90) return { label: 'Excellent',       color: '#1D4ED8', bg: '#DBEAFE', bar: '#2563EB' };
@@ -75,6 +55,131 @@ function getSkillBandInfo(score) {
     if (s >= 70) return { label: 'Good',            color: '#0F766E', bg: '#CCFBF1', bar: '#0D9488' };
     return              { label: 'Keep Practicing', color: '#475569', bg: '#E2E8F0', bar: '#64748B' };
 }
+
+// Perhitungan Skor Presisi (Standar 10 Soal x 10 Poin = 100 Poin)
+function computeExamSectionScore(cat, examData, examResult) {
+    const list = examData?.[cat] || [];
+    if (!list.length) return 0;
+    let totalPoints = 0;
+    const maxPerQ = 100 / list.length;
+
+    list.forEach((q, idx) => {
+        const key = `${cat}_${idx}`;
+        const ans = examResult?.answers?.[key];
+        const manualPoint = examResult?.scores?.[key];
+
+        if (q.type === 'mcq') {
+            if (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) {
+                totalPoints += maxPerQ;
+            }
+        } else {
+            if (manualPoint !== undefined && manualPoint !== null && manualPoint !== '') {
+                const num = parseFloat(manualPoint) || 0;
+                totalPoints += (num <= 10 ? (num / 10) * maxPerQ : (num / 100) * maxPerQ);
+            } else if (ans && String(ans).trim() !== '') {
+                if (cat === 'speaking' && String(ans).startsWith('data:audio')) {
+                    totalPoints += maxPerQ * 0.85;
+                } else {
+                    const target = String(q.answer || '').trim().toLowerCase();
+                    const studentStr = String(ans).trim().toLowerCase();
+                    if (target && studentStr === target) totalPoints += maxPerQ;
+                    else if (target) {
+                        const kws = target.split(/[,/|\s]+/).filter(w => w.length > 2);
+                        if (kws.length > 0) {
+                            const matched = kws.filter(kw => studentStr.includes(kw)).length;
+                            totalPoints += maxPerQ * Math.min(1, Math.max(0.5, matched / kws.length));
+                        } else totalPoints += maxPerQ * 0.8;
+                    } else totalPoints += maxPerQ * 0.85;
+                }
+            }
+        }
+    });
+    return Math.min(100, Math.round(totalPoints));
+}
+
+// Natural Neural-like TTS Engine untuk Listening & Contoh Pelafalan Speaking
+window.playNaturalExamAudio = function(text, key = null, btnEl = null) {
+    if (!('speechSynthesis' in window)) return showToast('Browser kamu belum mendukung fitur suara otomatis.', 'error');
+
+    if (key) {
+        const played = audioPlayCounts[key] || 0;
+        if (played >= 2) return showToast('Batas pemutaran audio (2x) untuk soal ini telah habis.', 'error');
+        audioPlayCounts[key] = played + 1;
+        const sisa = Math.max(0, 2 - audioPlayCounts[key]);
+        const sisaEl = document.getElementById(`audio-sisa-${key}`);
+        if (sisaEl) sisaEl.innerText = sisa;
+        if (sisa <= 0 && btnEl) {
+            setTimeout(() => {
+                btnEl.disabled = true;
+                btnEl.className = 'px-4 py-2.5 rounded-xl bg-slate-200 text-slate-400 text-xs font-extrabold cursor-not-allowed';
+                btnEl.innerHTML = '<i class="fas fa-lock mr-1.5"></i> Batas Putar Habis (2x)';
+            }, 300);
+        }
+    }
+
+    window.speechSynthesis.cancel();
+    const cleanText = String(text || '').trim();
+    if (!cleanText) return;
+
+    const voices = window.speechSynthesis.getVoices();
+    const pickNaturalVoice = (preferFemale = true) => {
+        const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+        const pool = enVoices.length ? enVoices : voices;
+        const keywords = preferFemale
+            ? ['natural', 'aria', 'jenny', 'sonia', 'samantha', 'google us english', 'zira', 'female']
+            : ['guy', 'christopher', 'eric', 'ryan', 'daniel', 'google uk english male', 'david', 'male'];
+        for (const kw of keywords) {
+            const found = pool.find(v => v.name.toLowerCase().includes(kw));
+            if (found) return found;
+        }
+        return pool[0] || null;
+    };
+
+    const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+    let idx = 0;
+    const origHTML = btnEl ? btnEl.innerHTML : '';
+    if (btnEl && !btnEl.disabled) {
+        btnEl.classList.add('speaking-pulse');
+        btnEl.innerHTML = `<i class="fas fa-volume-up mr-1.5"></i> Sedang Memutar Audio...`;
+    }
+
+    const speakLine = () => {
+        if (idx >= lines.length) {
+            if (btnEl) {
+                btnEl.classList.remove('speaking-pulse');
+                if (!btnEl.disabled) btnEl.innerHTML = origHTML;
+            }
+            return;
+        }
+        let line = lines[idx++];
+        let isMale = false;
+        if (/^(man|male|boy|mr|speaker a|a)\s*:/i.test(line)) {
+            isMale = true;
+            line = line.replace(/^(man|male|boy|mr|speaker a|a)\s*:\s*/i, '');
+        } else if (/^(woman|female|girl|mrs|ms|speaker b|b)\s*:/i.test(line)) {
+            isMale = false;
+            line = line.replace(/^(woman|female|girl|mrs|ms|speaker b|b)\s*:\s*/i, '');
+        }
+        const u = new SpeechSynthesisUtterance(line);
+        const v = pickNaturalVoice(!isMale);
+        if (v) u.voice = v;
+        u.lang = v?.lang || 'en-US';
+        u.rate = 0.92;
+        u.pitch = isMale ? 0.95 : 1.02;
+        u.onend = () => setTimeout(speakLine, 280);
+        u.onerror = () => {
+            if (btnEl) {
+                btnEl.classList.remove('speaking-pulse');
+                if (!btnEl.disabled) btnEl.innerHTML = origHTML;
+            }
+        };
+        window.speechSynthesis.speak(u);
+    };
+
+    if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged = null; speakLine(); };
+    } else speakLine();
+};
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!requireAuth()) return;
@@ -84,13 +189,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     initLayout('Ujian & Rapor');
     setupExamMonthSelector();
+    hydrateLocalExamAnswers();
     renderStudentExamPage();
 
     await syncFromCloud();
+    hydrateLocalExamAnswers();
     renderAppSidebar();
     setupExamMonthSelector();
     renderStudentExamPage();
 });
+
+function hydrateLocalExamAnswers() {
+    if (window.HES.userRole !== 'student') return;
+    const email = window.HES.currentUser?.email;
+    const res = window.HES.materials[`exam_result-${email}-${currentExamSession}`];
+    if (res?.answers) {
+        studentExamAnswers = Object.assign({}, res.answers, studentExamAnswers);
+    }
+    if (res?.transcripts) {
+        studentExamTranscripts = Object.assign({}, res.transcripts, studentExamTranscripts);
+    }
+}
 
 function setupExamMonthSelector() {
     const sel = document.getElementById('exam-month-selector');
@@ -113,7 +232,6 @@ window.switchStudentExamTab = function(tab) {
     renderStudentExamPage();
 };
 
-// Helper for Canvas Rounded Rectangles
 function drawRoundedRect(ctx, x, y, w, h, r, fillStyle, strokeStyle = null, lineWidth = 1) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -126,18 +244,10 @@ function drawRoundedRect(ctx, x, y, w, h, r, fillStyle, strokeStyle = null, line
     ctx.lineTo(x, y + r);
     ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
-    if (fillStyle) {
-        ctx.fillStyle = fillStyle;
-        ctx.fill();
-    }
-    if (strokeStyle) {
-        ctx.lineWidth = lineWidth;
-        ctx.strokeStyle = strokeStyle;
-        ctx.stroke();
-    }
+    if (fillStyle) { ctx.fillStyle = fillStyle; ctx.fill(); }
+    if (strokeStyle) { ctx.lineWidth = lineWidth; ctx.strokeStyle = strokeStyle; ctx.stroke(); }
 }
 
-// Helper: Draw Crisp Graduation Cap Icon on Canvas
 function drawGraduationCapIcon(ctx, cx, cy, scale = 1, color = '#FFFFFF') {
     ctx.save();
     ctx.translate(cx, cy);
@@ -145,70 +255,49 @@ function drawGraduationCapIcon(ctx, cx, cy, scale = 1, color = '#FFFFFF') {
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
 
-    // Mortarboard diamond top
     ctx.beginPath();
-    ctx.moveTo(0, -24);
-    ctx.lineTo(36, -6);
-    ctx.lineTo(0, 12);
-    ctx.lineTo(-36, -6);
+    ctx.moveTo(0, -24); ctx.lineTo(36, -6); ctx.lineTo(0, 12); ctx.lineTo(-36, -6);
     ctx.closePath();
     ctx.fill();
 
-    // Skullcap base
     ctx.beginPath();
-    ctx.moveTo(-20, 4);
-    ctx.lineTo(-20, 18);
+    ctx.moveTo(-20, 4); ctx.lineTo(-20, 18);
     ctx.quadraticCurveTo(0, 30, 20, 18);
-    ctx.lineTo(20, 4);
-    ctx.lineTo(0, 15);
+    ctx.lineTo(20, 4); ctx.lineTo(0, 15);
     ctx.closePath();
     ctx.fill();
 
-    // Tassel cord & tip
     ctx.lineWidth = 3.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(28, -2);
-    ctx.lineTo(31, 20);
+    ctx.moveTo(28, -2); ctx.lineTo(31, 20);
     ctx.stroke();
 
     ctx.beginPath();
     ctx.arc(31, 22, 3.8, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.restore();
 }
 
-// Helper for Canvas Multiline Text Wrapping
 function wrapCanvasText(ctx, text, maxWidth) {
     const paragraphs = String(text || '').split('\n');
     const lines = [];
     paragraphs.forEach(para => {
         const words = para.trim().split(/\s+/);
-        if (!words[0]) {
-            lines.push('');
-            return;
-        }
+        if (!words[0]) { lines.push(''); return; }
         let currentLine = words[0];
         for (let i = 1; i < words.length; i++) {
             const testLine = currentLine + ' ' + words[i];
-            if (ctx.measureText(testLine).width <= maxWidth) {
-                currentLine = testLine;
-            } else {
-                lines.push(currentLine);
-                currentLine = words[i];
-            }
+            if (ctx.measureText(testLine).width <= maxWidth) currentLine = testLine;
+            else { lines.push(currentLine); currentLine = words[i]; }
         }
         lines.push(currentLine);
     });
     return lines;
 }
 
-// Visible, Aesthetic Blue Background Artwork on the A4 Canvas
 function drawBlueBackgroundArtwork(ctx, W, H) {
     ctx.save();
-
-    // 1. Top-Right Layered Flowing Ribbon Waves (Clearly visible soft blue)
     ctx.beginPath();
     ctx.moveTo(W * 0.42, 0);
     ctx.bezierCurveTo(W * 0.62, 210, W * 0.82, 60, W, 290);
@@ -228,7 +317,6 @@ function drawBlueBackgroundArtwork(ctx, W, H) {
     ctx.fillStyle = 'rgba(29, 78, 216, 0.11)';
     ctx.fill();
 
-    // 2. Soft Ambient Glow Circles
     const glowTopRight = ctx.createRadialGradient(W - 140, 260, 20, W - 140, 260, 560);
     glowTopRight.addColorStop(0, 'rgba(59, 130, 246, 0.13)');
     glowTopRight.addColorStop(0.6, 'rgba(59, 130, 246, 0.05)');
@@ -247,7 +335,6 @@ function drawBlueBackgroundArtwork(ctx, W, H) {
     ctx.arc(180, H - 350, 680, 0, Math.PI * 2);
     ctx.fill();
 
-    // 3. Bottom Layered Wave Artwork
     ctx.beginPath();
     ctx.moveTo(0, H - 290);
     ctx.bezierCurveTo(W * 0.32, H - 410, W * 0.65, H - 140, W, H - 300);
@@ -270,7 +357,6 @@ function drawBlueBackgroundArtwork(ctx, W, H) {
     ctx.fillStyle = 'rgba(29, 78, 216, 0.11)';
     ctx.fill();
 
-    // 4. Decorative Geometric Rings (Middle-Right & Top-Left)
     ctx.strokeStyle = 'rgba(37, 99, 235, 0.11)';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -283,7 +369,6 @@ function drawBlueBackgroundArtwork(ctx, W, H) {
     ctx.arc(W - 90, H * 0.48, 400, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 5. Dot Matrix Accent Pattern (Top-Right & Bottom-Left)
     ctx.fillStyle = 'rgba(37, 99, 235, 0.16)';
     for (let gx = 95; gx <= 315; gx += 32) {
         for (let gy = H - 360; gy <= H - 190; gy += 32) {
@@ -293,13 +378,10 @@ function drawBlueBackgroundArtwork(ctx, W, H) {
         }
     }
 
-    // 6. Subtle Graduation Cap Watermark in Background
     drawGraduationCapIcon(ctx, W - 260, H - 560, 4.2, 'rgba(37, 99, 235, 0.055)');
-
     ctx.restore();
 }
 
-// 1-Page A4 PDF Generator (Compact, Balanced Proportions, Professional Typography, Real signature.png)
 window.downloadReportPDF = async function() {
     const btn = document.getElementById('btn-download-pdf');
     const origHTML = btn ? btn.innerHTML : '';
@@ -309,9 +391,7 @@ window.downloadReportPDF = async function() {
     }
 
     try {
-        if (document.fonts && document.fonts.ready) {
-            await document.fonts.ready;
-        }
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
 
         const monthId = currentExamSession;
         const monthObj = window.HES.months.find(m => m.id === monthId) || { title: 'Month 1' };
@@ -342,20 +422,15 @@ window.downloadReportPDF = async function() {
             : 'Great effort and steady progress throughout this level. Keep practicing regularly to build even stronger fluency and confidence in English.';
 
         const fontStack = '"Plus Jakarta Sans", "Nunito", sans-serif';
-
-        // Create High-Res A4 Canvas (1654 x 2339 px = exact A4 aspect ratio)
         const W = 1654, H = 2339;
         const canvas = document.createElement('canvas');
-        canvas.width = W;
-        canvas.height = H;
+        canvas.width = W; canvas.height = H;
         const ctx = canvas.getContext('2d');
 
-        // 1. Base + Visible Blue Background Design
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, W, H);
         drawBlueBackgroundArtwork(ctx, W, H);
 
-        // Top Accent Strip
         const topBarGrad = ctx.createLinearGradient(0, 0, W, 0);
         topBarGrad.addColorStop(0, '#1E3A8A');
         topBarGrad.addColorStop(0.5, '#2563EB');
@@ -365,18 +440,14 @@ window.downloadReportPDF = async function() {
 
         const padX = 115;
         const contentW = W - (padX * 2);
-
-        // 2. Header Section (Properly spaced from top edge + Graduation Cap Logo Badge)
         const headerY = 145;
 
-        // Graduation Cap Badge on Left
         const logoGrad = ctx.createLinearGradient(padX, headerY, padX + 118, headerY + 118);
         logoGrad.addColorStop(0, '#1D4ED8');
         logoGrad.addColorStop(1, '#2563EB');
         drawRoundedRect(ctx, padX, headerY, 118, 118, 28, logoGrad);
         drawGraduationCapIcon(ctx, padX + 59, headerY + 57, 1.35, '#FFFFFF');
 
-        // Studio Name & Report Title next to Logo
         ctx.textAlign = 'left';
         ctx.fillStyle = '#2563EB';
         ctx.font = `800 24px ${fontStack}`;
@@ -386,7 +457,6 @@ window.downloadReportPDF = async function() {
         ctx.font = `800 58px ${fontStack}`;
         ctx.fillText('Student Report Card', padX + 146, headerY + 104);
 
-        // Status Pill on Right
         const statusBg = isPassed ? '#DBEAFE' : '#FFE4E6';
         const statusColor = isPassed ? '#1D4ED8' : '#E11D48';
         const statusLabel = isPassed ? 'PASSED' : 'NEEDS IMPROVEMENT';
@@ -397,39 +467,31 @@ window.downloadReportPDF = async function() {
         ctx.font = `800 24px ${fontStack}`;
         ctx.fillText(statusLabel, W - padX - (pillW / 2), headerY + 69);
 
-        // 3. Student Information Banner (Rich, Dense, Proportional)
-        const infoY = 320;
-        const infoH = 195;
+        const infoY = 320, infoH = 195;
         drawRoundedRect(ctx, padX, infoY, contentW, infoH, 30, '#EFF6FF');
-        // Left Blue Accent Pill inside Info Banner
         drawRoundedRect(ctx, padX, infoY, 14, infoH, 7, '#2563EB');
 
-        // Student Name
         ctx.textAlign = 'left';
         ctx.fillStyle = '#3B82F6';
         ctx.font = `800 20px ${fontStack}`;
         ctx.fillText('STUDENT NAME', padX + 52, infoY + 58);
         ctx.fillStyle = '#0F172A';
         ctx.font = `800 38px ${fontStack}`;
-        const dispName = studentName.length > 22 ? studentName.substring(0, 22) + '...' : studentName;
-        ctx.fillText(dispName, padX + 52, infoY + 114);
+        ctx.fillText(studentName.length > 22 ? studentName.substring(0, 22) + '...' : studentName, padX + 52, infoY + 114);
         ctx.fillStyle = '#64748B';
         ctx.font = `600 22px ${fontStack}`;
         ctx.fillText(`Evaluation Period: ${monthObj.title}`, padX + 52, infoY + 154);
 
-        // Class / Level
         ctx.fillStyle = '#3B82F6';
         ctx.font = `800 20px ${fontStack}`;
         ctx.fillText('CLASS / LEVEL', padX + 610, infoY + 58);
         ctx.fillStyle = '#1D4ED8';
         ctx.font = `800 38px ${fontStack}`;
-        const dispLevel = classLevel.length > 18 ? classLevel.substring(0, 18) + '...' : classLevel;
-        ctx.fillText(dispLevel, padX + 610, infoY + 114);
+        ctx.fillText(classLevel.length > 18 ? classLevel.substring(0, 18) + '...' : classLevel, padX + 610, infoY + 114);
         ctx.fillStyle = '#64748B';
         ctx.font = `600 22px ${fontStack}`;
         ctx.fillText('English Language Program', padX + 610, infoY + 154);
 
-        // Date
         ctx.fillStyle = '#3B82F6';
         ctx.font = `800 20px ${fontStack}`;
         ctx.fillText('RELEASE DATE', padX + 1065, infoY + 58);
@@ -440,7 +502,6 @@ window.downloadReportPDF = async function() {
         ctx.font = `600 22px ${fontStack}`;
         ctx.fillText('Medan, Indonesia', padX + 1065, infoY + 154);
 
-        // 4. Language Skills Section (Larger, Denser Cards + Hero Final Score Card)
         const secY = 585;
         drawRoundedRect(ctx, padX, secY - 26, 10, 32, 5, '#2563EB');
         ctx.textAlign = 'left';
@@ -458,16 +519,11 @@ window.downloadReportPDF = async function() {
 
         const cardW = 460, cardH = 265, gapX = 28, gapY = 28;
         skills.forEach((sk, idx) => {
-            const col = idx % 2;
-            const row = Math.floor(idx / 2);
-            const x = padX + col * (cardW + gapX);
-            const y = gridY + row * (cardH + gapY);
+            const col = idx % 2, row = Math.floor(idx / 2);
+            const x = padX + col * (cardW + gapX), y = gridY + row * (cardH + gapY);
             const band = getSkillBandInfo(sk.score);
 
-            // Soft Tinted Card Surface
             drawRoundedRect(ctx, x, y, cardW, cardH, 28, '#F4F8FD');
-
-            // Title & Subtitle
             ctx.textAlign = 'left';
             ctx.fillStyle = '#0F172A';
             ctx.font = `800 34px ${fontStack}`;
@@ -477,13 +533,11 @@ window.downloadReportPDF = async function() {
             ctx.font = `600 21px ${fontStack}`;
             ctx.fillText(sk.sub, x + 36, y + 102);
 
-            // Big Score on Right
             ctx.textAlign = 'right';
             ctx.fillStyle = '#1D4ED8';
             ctx.font = `800 66px ${fontStack}`;
             ctx.fillText(`${sk.score}`, x + cardW - 36, y + 88);
 
-            // Band Pill & Score Label
             drawRoundedRect(ctx, x + 36, y + 138, 175, 42, 21, band.bg);
             ctx.textAlign = 'center';
             ctx.fillStyle = band.color;
@@ -495,14 +549,12 @@ window.downloadReportPDF = async function() {
             ctx.font = `700 20px ${fontStack}`;
             ctx.fillText(`${sk.score} / 100`, x + cardW - 36, y + 166);
 
-            // Thick Modern Progress Bar
             const barX = x + 36, barY = y + 206, barW = cardW - 72, barH = 18;
             drawRoundedRect(ctx, barX, barY, barW, barH, 9, '#DCE7F7');
             const fillW = Math.max(18, Math.min(barW, Math.round((sk.score / 100) * barW)));
             drawRoundedRect(ctx, barX, barY, fillW, barH, 9, band.bar);
         });
 
-        // Right Hero Card: Final Score
         const sumX = padX + (cardW * 2) + (gapX * 2);
         const sumW = W - padX - sumX;
         const sumH = (cardH * 2) + gapY;
@@ -513,8 +565,6 @@ window.downloadReportPDF = async function() {
         drawRoundedRect(ctx, sumX, gridY, sumW, sumH, 32, blueGrad);
 
         const sumCenterX = sumX + sumW / 2;
-
-        // Decorative translucent circles inside Final Score card
         ctx.save();
         ctx.beginPath();
         ctx.arc(sumCenterX, gridY + 245, 138, 0, Math.PI * 2);
@@ -538,13 +588,11 @@ window.downloadReportPDF = async function() {
         ctx.font = `700 22px ${fontStack}`;
         ctx.fillText('OUT OF 100', sumCenterX, gridY + 318);
 
-        // Grade Pill at bottom of Final Score card
         drawRoundedRect(ctx, sumX + 44, gridY + 432, sumW - 88, 76, 38, '#FFFFFF');
         ctx.fillStyle = '#1D4ED8';
         ctx.font = `800 28px ${fontStack}`;
         ctx.fillText(`Grade ${gradeLetter}  •  ${gradeWord}`, sumCenterX, gridY + 480);
 
-        // 5. Tutor's Note Section (Well-Proportioned, Adaptive Typography, Zero Empty Feel)
         const noteTitleY = 1255;
         drawRoundedRect(ctx, padX, noteTitleY - 26, 10, 32, 5, '#2563EB');
         ctx.textAlign = 'left';
@@ -552,8 +600,7 @@ window.downloadReportPDF = async function() {
         ctx.font = `800 32px ${fontStack}`;
         ctx.fillText("Tutor's Note & Evaluation", padX + 24, noteTitleY);
 
-        const noteBoxY = 1290;
-        const noteBoxH = 440;
+        const noteBoxY = 1290, noteBoxH = 440;
         drawRoundedRect(ctx, padX, noteBoxY, contentW, noteBoxH, 30, '#EFF6FF');
         drawRoundedRect(ctx, padX, noteBoxY, 14, noteBoxH, 7, '#2563EB');
 
@@ -573,7 +620,6 @@ window.downloadReportPDF = async function() {
             wrappedLines = wrapCanvasText(ctx, tutorNote, textMaxW);
         }
 
-        // Center text vertically inside the Tutor's Note box if it's short, so there's no awkward empty gap
         const visibleLines = wrappedLines.slice(0, 10);
         const totalTextH = visibleLines.length * lineHeight;
         const startTextY = noteBoxY + Math.max(78, Math.round((noteBoxH - totalTextH) / 2) + 28);
@@ -583,10 +629,7 @@ window.downloadReportPDF = async function() {
             ctx.fillText(line, padX + 64, startTextY + (idx * lineHeight));
         });
 
-        // 6. Balanced Footer: Studio Info on Left + Real Signature on Right (Fills bottom harmoniously)
         const footY = 1815;
-
-        // Left Footer: Brand & Course Summary (Prevents bottom-left from looking empty)
         drawRoundedRect(ctx, padX, footY + 95, 76, 76, 20, '#DBEAFE');
         drawGraduationCapIcon(ctx, padX + 38, footY + 131, 0.85, '#1D4ED8');
 
@@ -604,7 +647,6 @@ window.downloadReportPDF = async function() {
         ctx.font = `700 21px ${fontStack}`;
         ctx.fillText(`Completed Level: ${classLevel} (${monthObj.title})`, padX + 28, footY + 234);
 
-        // Right Footer: Date + Real signature.png + Tutor Name
         const sigCenterX = W - padX - 210;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#475569';
@@ -620,14 +662,10 @@ window.downloadReportPDF = async function() {
                 ctx.drawImage(img, sigCenterX - w / 2, footY + 62 + (maxH - h) / 2, w, h);
                 resolve();
             };
-            img.onerror = () => {
-                // Keep clean space if signature.png is not found
-                resolve();
-            };
+            img.onerror = () => resolve();
             img.src = 'signature.png';
         });
 
-        // Signature Line
         ctx.strokeStyle = '#94A3B8';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
@@ -643,7 +681,6 @@ window.downloadReportPDF = async function() {
         ctx.font = `800 21px ${fontStack}`;
         ctx.fillText('English Tutor', sigCenterX, footY + 330);
 
-        // Export Canvas to 1-Page A4 PDF
         const imgData = canvas.toDataURL('image/jpeg', 0.96);
         const cleanName = studentName.replace(/[^a-zA-Z0-9]/g, '_');
         const cleanLevel = classLevel.replace(/[^a-zA-Z0-9]/g, '_');
@@ -655,17 +692,12 @@ window.downloadReportPDF = async function() {
             pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
             pdf.save(fileName);
             showToast('Report Card PDF downloaded!', 'success');
-        } else {
-            window.print();
-        }
+        } else window.print();
     } catch (err) {
         console.error('PDF generation error:', err);
         window.print();
     } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = origHTML;
-        }
+        if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     }
 };
 
@@ -713,7 +745,6 @@ function renderStudentExamPage() {
         btn.className = `py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center ${t === cat ? 'bg-white text-blue-600 shadow-sm border border-blue-200' : 'text-slate-500 hover:text-slate-800'}`;
     });
 
-    // REPORT CARD PREVIEW (Matches the new Blue, Compact, Well-Proportioned PDF)
     if (examResult?.isGraded) {
         const sc = examResult.sectionScores || {};
         const vReading = Number(sc.reading ?? 0);
@@ -767,7 +798,6 @@ function renderStudentExamPage() {
 
         reportBox.classList.remove('hidden');
         reportBox.innerHTML = `
-            <!-- Action Bar -->
             <div id="report-action-bar" class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-blue-600 text-white px-5 py-3.5 rounded-2xl shadow-sm">
                 <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-white/20 text-white flex items-center justify-center text-sm font-black shrink-0">
@@ -788,20 +818,13 @@ function renderStudentExamPage() {
                 </div>
             </div>
 
-            <!-- CLEAN BLUE REPORT CARD PREVIEW -->
             <div id="printable-report" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;" class="bg-white mx-auto rounded-3xl shadow-md overflow-hidden text-slate-800 max-w-[840px] relative">
-                
-                <!-- Top Blue Accent Bar -->
                 <div class="h-2.5 w-full bg-gradient-to-r from-blue-900 via-blue-600 to-sky-400"></div>
-
-                <!-- Clearly Visible Soft Blue Background Shapes -->
                 <div class="absolute -top-20 -right-16 w-80 h-80 rounded-full bg-blue-500/[0.10] pointer-events-none"></div>
                 <div class="absolute top-12 right-16 w-44 h-44 rounded-full border-[3px] border-blue-500/[0.10] pointer-events-none"></div>
                 <div class="absolute -bottom-24 -left-20 w-96 h-96 rounded-full bg-sky-500/[0.10] pointer-events-none"></div>
 
                 <div class="relative z-10 p-6 sm:p-10 pt-8 sm:pt-11 space-y-7">
-
-                    <!-- Header with Graduation Cap Logo next to Hamdi English Studio -->
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div class="flex items-center gap-4">
                             <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-700 to-blue-600 text-white flex items-center justify-center text-2xl shadow-sm shrink-0">
@@ -819,7 +842,6 @@ function renderStudentExamPage() {
                         </div>
                     </div>
 
-                    <!-- Student Info Banner -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 bg-[#EFF6FF] p-5 sm:p-6 rounded-2xl border-l-4 border-l-blue-600">
                         <div>
                             <p class="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">Student Name</p>
@@ -838,7 +860,6 @@ function renderStudentExamPage() {
                         </div>
                     </div>
 
-                    <!-- Language Skills & Final Score -->
                     <div>
                         <div class="flex items-center gap-2.5 mb-3.5">
                             <span class="w-1.5 h-5 rounded-full bg-blue-600"></span>
@@ -861,7 +882,6 @@ function renderStudentExamPage() {
                         </div>
                     </div>
 
-                    <!-- Tutor's Note -->
                     <div>
                         <div class="flex items-center gap-2.5 mb-3">
                             <span class="w-1.5 h-5 rounded-full bg-blue-600"></span>
@@ -872,7 +892,6 @@ function renderStudentExamPage() {
                         </div>
                     </div>
 
-                    <!-- Balanced Footer: Studio Info Left + Real Signature Right -->
                     <div class="pt-4 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                         <div class="space-y-2.5">
                             <div class="flex items-center gap-3">
@@ -891,14 +910,13 @@ function renderStudentExamPage() {
 
                         <div class="text-center min-w-[210px]">
                             <p class="text-xs sm:text-sm font-bold text-slate-600 mb-2">Medan, ${dateEn}</p>
-                            <img src="signature.png" alt="Signature" class="h-16 mx-auto object-contain my-1" onerror="this.style.display='none'; this.insertAdjacentHTML('afterend', '<div class=\'h-16\'></div>');">
+                            <img src="signature.png" alt="Signature" class="h-16 mx-auto object-contain my-1" onerror="this.style.display='none'; this.insertAdjacentHTML('afterend', '<div class=\\'h-16\\'></div>');">
                             <div class="border-t border-slate-300 pt-2 mt-1">
                                 <p class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Hamdi Rizal</p>
                                 <p class="text-xs font-bold text-blue-600 mt-0.5">English Tutor</p>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>`;
     } else {
@@ -912,88 +930,164 @@ function renderStudentExamPage() {
     }
 
     const isSubmitted = examResult?.submittedTabs?.includes(cat) || (examResult?.status === 'submitted' && !examResult?.submittedTabs?.length);
+    const maxPts = Math.round((100 / questions.length) * 10) / 10;
 
+    // TAMPILAN REVIEW SETELAH DIKUMPULKAN / DINILAI (Murid Masih Bisa Mendengar Rekamannya & Melihat Koreksi)
     if (isSubmitted) {
+        const secScore = computeExamSectionScore(cat, examData, examResult);
         content.innerHTML = `
-            <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex justify-between items-center">
-                <span><i class="fas fa-check-circle mr-1.5"></i> Bagian ${cat.toUpperCase()} sudah kamu kumpulkan.</span>
-                <span class="opacity-70"><i class="fas fa-lock"></i> Terkunci</span>
+            <div class="mb-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex flex-wrap justify-between items-center gap-2">
+                <span><i class="fas fa-check-circle text-emerald-600 mr-1.5"></i> Bagian <strong>${cat.toUpperCase()}</strong> telah dikumpulkan. Kamu dapat meninjau jawaban dan rekamanmu di bawah ini.</span>
+                <span class="px-3 py-1 rounded-full bg-white text-emerald-700 font-extrabold border border-emerald-200">Skor Bagian: ${secScore} / 100</span>
             </div>
             <div class="space-y-4">
                 ${questions.map((q, idx) => {
-                    const sAns = examResult.answers?.[`${cat}_${idx}`] ?? '';
+                    const key = `${cat}_${idx}`;
+                    const sAns = examResult.answers?.[key] ?? '';
                     const isMCQ = q.type === 'mcq';
-                    const isCorrect = isMCQ ? (sAns !== '' && sAns == q.answer) : true;
-                    let dispAns = isMCQ && sAns !== '' ? q.options[sAns] : (sAns || 'Tidak dijawab');
-                    if (!isMCQ && String(sAns).startsWith('data:audio')) dispAns = `<audio controls class="w-full h-9 mt-1 outline-none" src="${sAns}"></audio>`;
+                    const isCorrect = isMCQ ? (sAns !== '' && Number(sAns) === Number(q.answer)) : true;
+                    const qNote = examResult.questionNotes?.[key] || '';
+                    const autoScript = q.audioScript || (!String(q.mediaUrl || '').startsWith('http') ? (q.mediaUrl || '') : '');
+                    const safeScript = autoScript.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+                    const safeTargetSpeak = String(q.answer || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+
+                    let earnedPts = 0;
+                    if (isMCQ) earnedPts = isCorrect ? maxPts : 0;
+                    else if (examResult.scores?.[key] !== undefined) {
+                        const raw = parseFloat(examResult.scores[key]) || 0;
+                        earnedPts = raw <= 10 ? raw : Math.round((raw / 100) * 10 * 10) / 10;
+                    } else if (sAns) earnedPts = 8.5;
+
+                    let dispAns = '';
+                    if (isMCQ) {
+                        dispAns = sAns !== '' ? `<strong>${['A','B','C','D'][sAns] || ''}.</strong> ${q.options?.[sAns] || ''}` : 'Tidak dijawab';
+                    } else if (String(sAns).startsWith('data:audio')) {
+                        dispAns = `
+                            <div class="space-y-2 mt-1">
+                                <p class="text-[11px] font-bold text-indigo-700"><i class="fas fa-headphones mr-1"></i> Putar Rekaman Suaramu Kemarin:</p>
+                                <audio controls preload="metadata" class="w-full h-10 outline-none rounded-lg" src="${sAns}"></audio>
+                            </div>`;
+                    } else {
+                        dispAns = sAns || 'Tidak dijawab';
+                    }
+
                     return `
-                        <div class="hes-card">
-                            <p class="text-xs font-extrabold text-slate-400 mb-1">Soal #${idx + 1}</p>
-                            <p class="text-sm font-bold text-slate-800 mb-3">${q.question.replace(/\n/g, '<br>')}</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><strong>Jawabanmu:</strong><div class="mt-1 font-bold ${isMCQ ? (isCorrect ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700'}">${dispAns}</div></div>
-                                <div class="p-3 rounded-lg bg-indigo-50/50 border border-indigo-100"><strong>Kunci / Kriteria:</strong><div class="mt-1 font-bold text-indigo-700">${isMCQ ? q.options[q.answer] : (q.answer || 'Dinilai Admin')}</div></div>
+                        <div class="hes-card space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-extrabold text-slate-500">Soal #${idx + 1}</span>
+                                <span class="px-2.5 py-0.5 rounded-lg text-xs font-extrabold ${earnedPts >= 7 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">
+                                    Poin: ${earnedPts} / ${maxPts}
+                                </span>
                             </div>
-                            ${q.explanation ? `<p class="mt-3 p-3 rounded-lg bg-amber-50 text-amber-900 text-xs border border-amber-100"><strong><i class="fas fa-lightbulb text-amber-500 mr-1"></i> Pembahasan:</strong> ${q.explanation}</p>` : ''}
+                            <p class="text-sm font-bold text-slate-800">${(q.question || '').replace(/\n/g, '<br>')}</p>
+                            ${cat === 'listening' && autoScript ? `
+                                <div class="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                    <div><strong class="text-blue-800">Naskah Audio Listening:</strong> <span class="text-slate-700">${autoScript}</span></div>
+                                    <button type="button" onclick="playNaturalExamAudio('${safeScript}', null, this)" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold shrink-0"><i class="fas fa-volume-up mr-1"></i> Putar Ulang</button>
+                                </div>
+                            ` : ''}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                                    <strong class="text-slate-500 uppercase text-[10px]">Jawaban / Rekamanmu:</strong>
+                                    <div class="mt-1 font-bold ${isMCQ ? (isCorrect ? 'text-emerald-600' : 'text-red-600') : 'text-slate-800'}">${dispAns}</div>
+                                </div>
+                                <div class="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                                    <div class="flex items-center justify-between">
+                                        <strong class="text-indigo-900 uppercase text-[10px]">Kunci / Contoh Pelafalan Benar:</strong>
+                                        ${cat === 'speaking' && q.answer ? `<button type="button" onclick="playNaturalExamAudio('${safeTargetSpeak}', null, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline"><i class="fas fa-volume-up mr-1"></i>Dengar Cara Baca</button>` : ''}
+                                    </div>
+                                    <div class="mt-1 font-bold text-indigo-700">${isMCQ ? `${['A','B','C','D'][q.answer] || ''}. ${q.options?.[q.answer] || ''}` : (q.answer || 'Dinilai oleh Tutor')}</div>
+                                </div>
+                            </div>
+                            ${qNote ? `<p class="p-3 rounded-xl bg-rose-50 text-rose-900 text-xs border border-rose-200"><strong><i class="fas fa-user-check text-rose-600 mr-1"></i> Koreksi Tutor:</strong> ${qNote}</p>` : ''}
+                            ${q.explanation ? `<p class="p-3 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-100"><strong><i class="fas fa-lightbulb text-amber-500 mr-1"></i> Pembahasan:</strong> ${q.explanation}</p>` : ''}
                         </div>`;
                 }).join('')}
             </div>`;
         return;
     }
 
+    // TAMPILAN PENGERJAAN UJIAN AKTIF (10 Soal x 10 Poin)
     content.innerHTML = `
         <div class="space-y-4">
             ${questions.map((q, idx) => {
                 const isMCQ = q.type === 'mcq';
-                const saved = studentExamAnswers[`${cat}_${idx}`] ?? '';
                 const key = `${cat}_${idx}`;
-                const sisa = 2 - (audioPlayCounts[key] || 0);
+                const saved = studentExamAnswers[key] ?? '';
+                const sisa = Math.max(0, 2 - (audioPlayCounts[key] || 0));
 
-                const mediaHTML = q.mediaUrl ? (sisa > 0 ? `
-                    <div class="my-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                        <audio controls class="w-full h-10 outline-none" onplay="if((audioPlayCounts['${key}']||0)>=2){this.pause();this.removeAttribute('controls');}" onended="onAudioEnded(this, '${key}')">
-                            <source src="${getDriveDirectStreamLink(q.mediaUrl)}">
-                        </audio>
-                        <p id="audio-warn-${key}" class="text-xs font-bold text-amber-600 mt-1.5"><i class="fas fa-exclamation-circle mr-1"></i> Sisa kesempatan putar audio: <span id="audio-sisa-${key}">${sisa}</span>x</p>
-                    </div>` : `<p class="my-3 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-200"><i class="fas fa-times-circle mr-1"></i> Batas putar audio (2x) telah habis.</p>`) : '';
+                const autoScript = q.audioScript || (!String(q.mediaUrl || '').startsWith('http') ? (q.mediaUrl || '') : '');
+                const mp3Url = String(q.mediaUrl || '').startsWith('http') ? q.mediaUrl : '';
+                const safeScript = autoScript.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+
+                let mediaHTML = '';
+                if (cat === 'listening' && autoScript) {
+                    mediaHTML = sisa > 0 ? `
+                        <div class="my-3 p-4 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <p class="text-xs font-extrabold text-blue-950"><i class="fas fa-headphones-alt text-blue-600 mr-1.5"></i> Audio Listening Otomatis (Suara Natural)</p>
+                                <p class="text-[11px] font-bold text-amber-700 mt-0.5">Sisa kesempatan putar: <span id="audio-sisa-${key}">${sisa}</span>x</p>
+                            </div>
+                            <button type="button" onclick="playNaturalExamAudio('${safeScript}', '${key}', this)" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs transition shrink-0 cursor-pointer">
+                                <i class="fas fa-play mr-1.5"></i> Putar Audio Listening
+                            </button>
+                        </div>` : `<p class="my-3 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-200"><i class="fas fa-lock mr-1"></i> Batas putar audio (2x) telah habis.</p>`;
+                } else if (mp3Url) {
+                    mediaHTML = sisa > 0 ? `
+                        <div class="my-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                            <audio controls class="w-full h-10 outline-none" onplay="if((audioPlayCounts['${key}']||0)>=2){this.pause();this.removeAttribute('controls');}" onended="onAudioEnded(this, '${key}')">
+                                <source src="${getDriveDirectStreamLink(mp3Url)}">
+                            </audio>
+                            <p id="audio-warn-${key}" class="text-xs font-bold text-amber-600 mt-1.5"><i class="fas fa-exclamation-circle mr-1"></i> Sisa kesempatan putar audio: <span id="audio-sisa-${key}">${sisa}</span>x</p>
+                        </div>` : `<p class="my-3 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-200"><i class="fas fa-times-circle mr-1"></i> Batas putar audio (2x) telah habis.</p>`;
+                }
 
                 let inputHTML = '';
                 if (isMCQ) {
                     inputHTML = ['A', 'B', 'C', 'D'].map((lbl, oIdx) => `
-                        <label class="flex items-center gap-3 p-3.5 border border-slate-200 rounded-lg cursor-pointer hover:bg-indigo-50/40 hover:border-indigo-300 transition mb-2">
-                            <input type="radio" name="ans_${key}" value="${oIdx}" ${saved !== '' && saved == oIdx ? 'checked' : ''} onchange="studentExamAnswers['${key}']=${oIdx}" class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                            <span class="text-xs sm:text-sm font-semibold text-slate-700"><strong>${lbl}.</strong> ${q.options[oIdx]}</span>
+                        <label class="flex items-center gap-3 p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-blue-50/40 hover:border-blue-300 transition mb-2">
+                            <input type="radio" name="ans_${key}" value="${oIdx}" ${saved !== '' && Number(saved) === oIdx ? 'checked' : ''} onchange="studentExamAnswers['${key}']=${oIdx}" class="w-4 h-4 text-blue-600">
+                            <span class="text-xs sm:text-sm font-semibold text-slate-700"><strong>${lbl}.</strong> ${q.options?.[oIdx] || ''}</span>
                         </label>`).join('');
                 } else if (cat === 'speaking') {
                     const hasAud = String(saved).startsWith('data:audio');
                     inputHTML = `
-                        <div class="p-4 rounded-xl bg-indigo-50/60 border border-indigo-100 mt-2">
-                            <div class="flex flex-wrap items-center gap-3">
-                                <button type="button" id="btn-record-${idx}" onclick="startVoiceRecord(${idx})" class="hes-btn-primary !py-2.5 !px-4 !text-xs">
-                                    <i class="fas fa-microphone"></i> ${hasAud ? 'Rekam Ulang' : 'Mulai Rekam Suara'}
-                                </button>
-                                <button type="button" id="btn-stop-${idx}" onclick="stopVoiceRecord(${idx})" class="hidden bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition animate-pulse">
-                                    <i class="fas fa-stop mr-1"></i> Hentikan Rekaman
-                                </button>
-                                <audio id="audio-playback-${idx}" controls src="${hasAud ? saved : ''}" class="${hasAud ? '' : 'hidden'} h-9 w-full max-w-xs outline-none"></audio>
+                        <div class="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 mt-2 space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center gap-2.5">
+                                    <button type="button" id="btn-record-${idx}" onclick="startVoiceRecord(${idx})" class="hes-btn-primary !bg-blue-600 hover:!bg-blue-700 !py-2.5 !px-4 !text-xs cursor-pointer">
+                                        <i class="fas fa-microphone"></i> ${hasAud ? 'Rekam Ulang Suara' : 'Mulai Rekam Suara'}
+                                    </button>
+                                    <button type="button" id="btn-stop-${idx}" onclick="stopVoiceRecord(${idx})" class="hidden bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-sm transition animate-pulse cursor-pointer">
+                                        <i class="fas fa-stop mr-1"></i> Selesai & Simpan Rekaman
+                                    </button>
+                                </div>
+                                <span id="rec-status-${idx}" class="text-xs font-extrabold ${hasAud ? 'text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full' : 'text-slate-400'}">
+                                    ${hasAud ? '✓ Rekaman Tersimpan (Bisa Diputar di Bawah)' : 'Belum ada rekaman'}
+                                </span>
                             </div>
+                            <audio id="audio-playback-${idx}" controls preload="metadata" src="${hasAud ? saved : ''}" class="${hasAud ? '' : 'hidden'} h-10 w-full outline-none rounded-lg"></audio>
                         </div>`;
                 } else {
-                    inputHTML = `<textarea oninput="studentExamAnswers['${key}']=this.value" rows="4" class="hes-input mt-2" placeholder="Ketik jawabanmu secara detail di sini...">${saved}</textarea>`;
+                    inputHTML = `<textarea oninput="studentExamAnswers['${key}']=this.value" rows="3" class="hes-input mt-2" placeholder="Ketik jawabanmu di sini...">${saved}</textarea>`;
                 }
 
                 return `
                     <div class="hes-card">
-                        <span class="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md">Soal #${idx + 1}</span>
-                        <p class="font-bold text-slate-800 text-sm mt-3 leading-relaxed">${q.question.replace(/\n/g, '<br>')}</p>${mediaHTML}
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-extrabold text-blue-700 uppercase tracking-wider bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg">Soal #${idx + 1}</span>
+                            <span class="text-xs font-extrabold text-slate-400">${maxPts} Poin</span>
+                        </div>
+                        <p class="font-bold text-slate-800 text-sm mt-3 leading-relaxed">${(q.question || '').replace(/\n/g, '<br>')}</p>
+                        ${mediaHTML}
                         <div class="mt-4">${inputHTML}</div>
                     </div>`;
             }).join('')}
         </div>
-        <div class="hes-card !bg-indigo-600 text-white text-center mt-6 border-none shadow-md">
+        <div class="hes-card !bg-blue-600 text-white text-center mt-6 border-none shadow-md">
             <h4 class="font-extrabold text-base mb-1">Selesai Mengerjakan Bagian ${cat.toUpperCase()}?</h4>
-            <p class="text-xs text-indigo-100 mb-5">Periksa kembali jawabanmu sebelum diserahkan untuk dinilai.</p>
-            <button onclick="submitStudentExam('${monthId}', '${cat}')" class="bg-white text-indigo-700 hover:bg-indigo-50 px-6 py-3 rounded-xl text-sm font-extrabold shadow-sm transition inline-flex items-center gap-2">
+            <p class="text-xs text-blue-100 mb-5">Pastikan seluruh ${questions.length} soal sudah terjawab sebelum dikumpulkan.</p>
+            <button id="btn-submit-exam-tab" onclick="submitStudentExam('${monthId}', '${cat}')" class="bg-white text-blue-700 hover:bg-blue-50 px-6 py-3 rounded-xl text-sm font-extrabold shadow-sm transition inline-flex items-center gap-2 cursor-pointer">
                 <i class="fas fa-paper-plane"></i> Kumpulkan Bagian ${cat.toUpperCase()}
             </button>
         </div>`;
@@ -1011,69 +1105,178 @@ window.onAudioEnded = function(el, key) {
     }
 };
 
+function getSupportedAudioMimeType() {
+    const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
+    for (const t of types) {
+        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return '';
+}
+
 window.startVoiceRecord = async function(qIndex) {
     try {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            await stopVoiceRecord(activeRecordingIndex);
+        }
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        const mimeType = getSupportedAudioMimeType();
+        const options = { audioBitsPerSecond: 24000 }; // Kompresi 24kbps agar ringan & 100% masuk Supabase
+        if (mimeType) options.mimeType = mimeType;
+
+        mediaRecorder = new MediaRecorder(stream, options);
         audioChunks = [];
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        activeRecordingIndex = qIndex;
+
+        // Jalankan pengenalan suara otomatis (opsional untuk membantu penilaian otomatis)
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRec) {
+            try {
+                speechRecInstance = new SpeechRec();
+                speechRecInstance.lang = 'en-US';
+                speechRecInstance.continuous = true;
+                speechRecInstance.interimResults = false;
+                let spokenText = '';
+                speechRecInstance.onresult = ev => {
+                    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+                        if (ev.results[i].isFinal) spokenText += ev.results[i][0].transcript + ' ';
+                    }
+                    if (spokenText.trim()) studentExamTranscripts[`speaking_${qIndex}`] = spokenText.trim();
+                };
+                speechRecInstance.start();
+            } catch (e) {}
+        }
+
+        mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) audioChunks.push(e.data); };
         mediaRecorder.onstop = () => {
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            const finalMime = mediaRecorder.mimeType || mimeType || 'audio/webm';
+            const blob = new Blob(audioChunks, { type: finalMime });
             const reader = new FileReader();
-            reader.readAsDataURL(blob);
             reader.onloadend = () => {
                 studentExamAnswers[`speaking_${qIndex}`] = reader.result;
-                showToast('Rekaman suara berhasil disimpan!', 'info');
+                const pb = document.getElementById(`audio-playback-${qIndex}`);
+                if (pb) { pb.src = reader.result; pb.classList.remove('hidden'); }
+                const st = document.getElementById(`rec-status-${qIndex}`);
+                if (st) {
+                    st.className = 'text-xs font-extrabold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full';
+                    st.innerText = '✓ Rekaman Tersimpan (Bisa Diputar di Bawah)';
+                }
+                showToast(`Rekaman Soal #${qIndex + 1} berhasil disimpan!`, 'success');
+                if (activeRecordingStopPromiseResolve) {
+                    activeRecordingStopPromiseResolve();
+                    activeRecordingStopPromiseResolve = null;
+                }
             };
-            const pb = document.getElementById(`audio-playback-${qIndex}`);
-            if (pb) { pb.src = URL.createObjectURL(blob); pb.classList.remove('hidden'); }
+            reader.readAsDataURL(blob);
             stream.getTracks().forEach(t => t.stop());
         };
-        mediaRecorder.start();
-        document.getElementById(`btn-record-${qIndex}`).classList.add('hidden');
-        document.getElementById(`btn-stop-${qIndex}`).classList.remove('hidden');
+
+        mediaRecorder.start(250);
+        document.getElementById(`btn-record-${qIndex}`)?.classList.add('hidden');
+        document.getElementById(`btn-stop-${qIndex}`)?.classList.remove('hidden');
+        const st = document.getElementById(`rec-status-${qIndex}`);
+        if (st) {
+            st.className = 'text-xs font-extrabold text-red-600 animate-pulse';
+            st.innerText = '● Sedang Merekam Suara...';
+        }
     } catch (e) {
         showToast('Aktifkan izin mikrofon di browser kamu ya.', 'error');
     }
 };
 
 window.stopVoiceRecord = function(qIndex) {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-        document.getElementById(`btn-stop-${qIndex}`).classList.add('hidden');
-        const btn = document.getElementById(`btn-record-${qIndex}`);
-        btn.classList.remove('hidden');
-        btn.innerHTML = '<i class="fas fa-redo mr-1.5"></i> Rekam Ulang';
-    }
+    return new Promise(resolve => {
+        if (speechRecInstance) {
+            try { speechRecInstance.stop(); } catch (e) {}
+            speechRecInstance = null;
+        }
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            activeRecordingStopPromiseResolve = resolve;
+            mediaRecorder.stop();
+            document.getElementById(`btn-stop-${qIndex}`)?.classList.add('hidden');
+            const btn = document.getElementById(`btn-record-${qIndex}`);
+            if (btn) {
+                btn.classList.remove('hidden');
+                btn.innerHTML = '<i class="fas fa-redo mr-1.5"></i> Rekam Ulang Suara';
+            }
+        } else {
+            resolve();
+        }
+    });
 };
 
 window.submitStudentExam = async function(monthId, tab) {
+    // Jika murid masih merekam suara dan lupa klik tombol Stop, otomatis hentikan & simpan dulu
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        showToast('Menyelesaikan rekaman suara terlebih dahulu...', 'info');
+        await stopVoiceRecord(activeRecordingIndex);
+    }
+
     if (!confirm(`Kumpulkan jawaban bagian ${tab.toUpperCase()} sekarang?`)) return;
-    await syncFromCloud();
-    const email = window.HES.currentUser.email;
-    const examData = window.HES.materials[`exam-${email}-${monthId}`];
-    const rKey = `exam_result-${email}-${monthId}`;
-    const res = window.HES.materials[rKey] || { status: 'partial', answers: {}, scores: {}, sectionScores: {}, submittedTabs: [] };
 
-    res.answers = res.answers || {};
-    res.sectionScores = res.sectionScores || {};
-    res.submittedTabs = res.submittedTabs || [];
+    const submitBtn = document.getElementById('btn-submit-exam-tab');
+    const origBtnHTML = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Menyimpan Jawaban ke Cloud...`;
+    }
 
-    (examData?.[tab] || []).forEach((_, idx) => {
-        const ans = studentExamAnswers[`${tab}_${idx}`];
-        if (ans !== undefined) res.answers[`${tab}_${idx}`] = ans;
-    });
+    try {
+        // Tarik data terbaru langsung dari Supabase agar tidak gagal / tertimpa
+        const { data: latestRow } = await window.supabaseClient.from('app_data').select('value').eq('key', 'hes_materials').maybeSingle();
+        if (latestRow?.value) {
+            window.HES.materials = Object.assign({}, window.HES.materials, latestRow.value);
+        }
 
-    ['reading', 'writing', 'speaking', 'listening'].forEach(c => {
-        res.sectionScores[c] = calculateCategoryScore(c, examData, res);
-    });
-    if (!res.submittedTabs.includes(tab)) res.submittedTabs.push(tab);
+        const email = window.HES.currentUser.email;
+        const examData = window.HES.materials[`exam-${email}-${monthId}`];
+        const rKey = `exam_result-${email}-${monthId}`;
+        const res = window.HES.materials[rKey] || { status: 'partial', answers: {}, scores: {}, sectionScores: {}, transcripts: {}, submittedTabs: [] };
 
-    window.HES.materials[rKey] = res;
-    const { error } = await saveToCloud('hes_materials', window.HES.materials);
-    if (!error) {
-        showToast(`Bagian ${tab.toUpperCase()} berhasil dikumpulkan!`, 'success');
-        sendTelegramNotification(`📝 *Ujian Disubmit (${tab.toUpperCase()})*\nMurid: ${window.HES.currentUser.name}\nSkor: ${res.sectionScores[tab]}/100`);
-        renderStudentExamPage();
-    } else showToast('Gagal menyimpan: ' + error.message, 'error');
+        res.answers = res.answers || {};
+        res.scores = res.scores || {};
+        res.transcripts = res.transcripts || {};
+        res.sectionScores = res.sectionScores || {};
+        res.submittedTabs = res.submittedTabs || [];
+
+        (examData?.[tab] || []).forEach((q, idx) => {
+            const key = `${tab}_${idx}`;
+            const ans = studentExamAnswers[key];
+            if (ans !== undefined) res.answers[key] = ans;
+            if (studentExamTranscripts[key]) res.transcripts[key] = studentExamTranscripts[key];
+
+            // Isi skor awal otomatis (skala 0-10 poin per soal)
+            if (q.type === 'mcq') {
+                res.scores[key] = (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) ? 10 : 0;
+            } else if (res.scores[key] === undefined && res.answers[key]) {
+                res.scores[key] = 8.5;
+            }
+        });
+
+        ['reading', 'writing', 'speaking', 'listening'].forEach(c => {
+            res.sectionScores[c] = computeExamSectionScore(c, examData, res);
+        });
+
+        if (!res.submittedTabs.includes(tab)) res.submittedTabs.push(tab);
+        if (res.submittedTabs.length >= 4) res.status = 'submitted';
+
+        window.HES.materials[rKey] = res;
+        try { localStorage.setItem('hes_cache_materials', JSON.stringify(window.HES.materials)); } catch (e) {}
+
+        const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: window.HES.materials }]);
+        if (!error) {
+            updateCloudStatusUI('online');
+            showToast(`Bagian ${tab.toUpperCase()} berhasil dikumpulkan!`, 'success');
+            sendTelegramNotification(`📝 *Ujian Disubmit (${tab.toUpperCase()})*\nMurid: ${window.HES.currentUser.name}\nSkor Otomatis: ${res.sectionScores[tab]}/100`);
+            renderStudentExamPage();
+        } else {
+            throw error;
+        }
+    } catch (err) {
+        updateCloudStatusUI('offline');
+        showToast('Gagal menyimpan ke Cloud: ' + (err?.message || 'Periksa koneksi internet'), 'error');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnHTML;
+        }
+    }
 };
