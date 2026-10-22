@@ -403,7 +403,10 @@ window.renderAdminGradingView = function(email, monthId) {
     const ws = document.getElementById('admin-grading-workspace');
     const examData = window.HES.materials[`exam-${email}-${monthId}`];
     const res = window.HES.materials[`exam_result-${email}-${monthId}`];
-    if (!examData || !res?.answers) { ws.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Murid belum mengumpulkan jawaban ujian.</p>`; return; }
+    if (!examData || !res?.answers) {
+        ws.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Murid belum mengumpulkan jawaban ujian.</p>`;
+        return;
+    }
 
     res.scores = res.scores || {};
     res.sectionScores = res.sectionScores || {};
@@ -425,23 +428,43 @@ window.renderAdminGradingView = function(email, monthId) {
                 if (!isMCQ && String(ans).startsWith('data:audio')) disp = `<audio controls class="h-9 w-full max-w-sm mt-1" src="${ans}"></audio>`;
                 return `
                     <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                        <p class="font-extrabold text-slate-800">Soal #${idx + 1}:${q.question}</p>
-                        <div class="p-3 rounded-xl bg-white border"><strong>Jawaban Murid:</strong><div class="mt-1">${disp}</div></div>${!isMCQ ? `
+                        <p class="font-extrabold text-slate-800">Soal #${idx + 1}: ${q.question}</p>
+                        <div class="p-3 rounded-xl bg-white border"><strong>Jawaban Murid:</strong><div class="mt-1">${disp}</div></div>
+                        ${!isMCQ ? `
                             <div class="flex items-center justify-between pt-2">
                                 <span class="font-bold text-emerald-700">Nilai Manual (0-100):</span>
                                 <input type="number" min="0" max="100" value="${res.scores[`${cat}_${idx}`] || 0}" oninput="window.HES.materials['exam_result-${email}-${monthId}'].scores['${cat}_${idx}']=parseFloat(this.value)||0" class="hes-input !w-28 !bg-white text-center">
                             </div>` : `<p class="font-bold ${ans == q.answer ? 'text-emerald-600' : 'text-red-600'}">${ans == q.answer ? '✓ Benar (+100)' : '✗ Salah (0)'}</p>`}
                     </div>`;
             }).join('')}
-            <textarea id="admin-exam-feedback" rows="3" placeholder="Catatan feedback untuk rapor murid..." class="hes-input">${res.adminFeedback || ''}</textarea>
-            <button onclick="saveExamGrades('${email}','${monthId}')" class="hes-btn-primary !bg-emerald-600 w-full">Simpan Nilai & Terbitkan Rapor</button>
+
+            <!-- Pengaturan Rapor Manual: Level Kelas & Tutor's Note -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-3.5 mt-4">
+                <h4 class="text-xs font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fas fa-file-signature text-indigo-600"></i> Pengaturan Rapor (Report Card)
+                </h4>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Kelas / Level Program (Ditulis Manual)</label>
+                    <input type="text" id="admin-exam-level" value="${res.classLevel || ''}" oninput="window.HES.materials['exam_result-${email}-${monthId}'].classLevel=this.value" placeholder="Contoh: Beginner / Intermediate / Advanced / Conversation" class="hes-input !bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Tutor's Note (Catatan Evaluasi Pengajar)</label>
+                    <textarea id="admin-exam-feedback" rows="3" oninput="window.HES.materials['exam_result-${email}-${monthId}'].adminFeedback=this.value" placeholder="Tulis catatan evaluasi perkembangan murid untuk ditampilkan di rapor..." class="hes-input !bg-white">${res.adminFeedback || ''}</textarea>
+                </div>
+            </div>
+
+            <button onclick="saveExamGrades('${email}','${monthId}')" class="hes-btn-primary !bg-emerald-600 w-full">
+                <i class="fas fa-check-circle"></i> Simpan Nilai & Terbitkan Rapor
+            </button>
         </div>`;
 };
 
 window.saveExamGrades = async function(email, monthId) {
     const examData = window.HES.materials[`exam-${email}-${monthId}`];
     const res = window.HES.materials[`exam_result-${email}-${monthId}`];
-    res.adminFeedback = document.getElementById('admin-exam-feedback')?.value || '';
+    res.classLevel = document.getElementById('admin-exam-level')?.value.trim() || '';
+    res.adminFeedback = document.getElementById('admin-exam-feedback')?.value.trim() || '';
+    res.gradedAt = new Date().toISOString();
     ['reading', 'writing', 'speaking', 'listening'].forEach(c => res.sectionScores[c] = calculateCategoryScore(c, examData, res));
     res.isGraded = true;
     await saveToCloud('hes_materials', window.HES.materials);
