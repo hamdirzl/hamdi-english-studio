@@ -1,9 +1,9 @@
 /* css/style.css */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap');
 
 body {
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-    background-color: #F4F7FE;
+    font-family: 'Nunito', sans-serif;
+    background-color: #F7F5FF;
     color: #1E293B;
 }
 
@@ -12,58 +12,63 @@ body {
 }
 
 /* ==========================================
-   REUSABLE UI COMPONENTS (Penghemat Kode)
+   FRIENDLY EDTECH UI COMPONENTS
    ========================================== */
 .hes-card {
     background: #FFFFFF;
-    border-radius: 1.5rem;
-    border: 1px solid #E2E8F0;
+    border-radius: 1.75rem;
+    border: 2px solid #E9E6F7;
     padding: 1.5rem;
-    box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.03);
+    box-shadow: 0 6px 0 #E9E6F7;
     transition: all 0.2s ease;
 }
 
 .hover-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 24px -6px rgba(79, 70, 229, 0.08);
-    border-color: #C7D2FE;
+    transform: translateY(-3px);
+    border-color: #A5B4FC;
+    box-shadow: 0 9px 0 #C7D2FE;
 }
 
 .hes-input {
     width: 100%;
     background-color: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    border-radius: 0.875rem;
-    padding: 0.75rem 1rem;
+    border: 2px solid #E2E8F0;
+    border-radius: 1rem;
+    padding: 0.7rem 1rem;
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 700;
     color: #1E293B;
     outline: none;
     transition: all 0.2s ease;
 }
 .hes-input:focus {
     background-color: #FFFFFF;
-    border-color: #4F46E5;
-    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+    border-color: #6366F1;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
 
+/* Tombol 3D Ramah ala Duolingo */
 .hes-btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background-color: #4F46E5;
+    background-color: #5850EC;
     color: #FFFFFF;
-    font-weight: 700;
+    font-weight: 800;
     font-size: 0.875rem;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0.875rem;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
-    transition: all 0.2s ease;
+    padding: 0.75rem 1.35rem;
+    border-radius: 1rem;
+    border-bottom: 4px solid #3E36C9;
+    transition: all 0.15s ease;
 }
 .hes-btn-primary:hover {
-    background-color: #4338CA;
+    background-color: #4E46E5;
     transform: translateY(-1px);
+}
+.hes-btn-primary:active {
+    transform: translateY(2px);
+    border-bottom-width: 2px;
 }
 
 .hes-btn-soft {
@@ -73,21 +78,26 @@ body {
     gap: 0.5rem;
     background-color: #EEF2FF;
     color: #4F46E5;
-    font-weight: 700;
+    font-weight: 800;
     font-size: 0.8125rem;
-    padding: 0.625rem 1rem;
-    border-radius: 0.75rem;
-    transition: all 0.2s ease;
+    padding: 0.65rem 1.1rem;
+    border-radius: 1rem;
+    border: 2px solid #E0E7FF;
+    border-bottom-width: 4px;
+    transition: all 0.15s ease;
 }
 .hes-btn-soft:hover {
     background-color: #E0E7FF;
 }
+.hes-btn-soft:active {
+    transform: translateY(2px);
+    border-bottom-width: 2px;
+}
 
-/* Scrollbar & Animasi Halus */
+/* Scrollbar & Animasi */
 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
 
 .fade-in { animation: fadeIn 0.3s ease-out forwards; }
 @keyframes fadeIn {
@@ -104,16 +114,16 @@ body {
 }
 
 /* ==========================================
-   3D FLASHCARD DECK (Tetap Kompatibel)
+   3D FLASHCARD DECK
    ========================================== */
 .perspective-1000 { perspective: 1200px !important; -webkit-perspective: 1200px !important; }
-.flashcard-deck-stage { position: relative !important; z-index: 10; height: 18rem !important; }
+.flashcard-deck-stage { position: relative !important; z-index: 10; height: 18.5rem !important; }
 .flashcard-deck-stage::before, .flashcard-deck-stage::after {
     content: ''; position: absolute; left: 50%; transform: translateX(-50%);
     border-radius: 1.75rem; pointer-events: none;
 }
-.flashcard-deck-stage::before { bottom: -10px; width: 92%; height: 100%; background: #EEF2FF; border: 1px solid #C7D2FE; z-index: -1; }
-.flashcard-deck-stage::after { bottom: -18px; width: 84%; height: 100%; background: #F8FAFC; border: 1px solid #E2E8F0; z-index: -2; }
+.flashcard-deck-stage::before { bottom: -10px; width: 92%; height: 100%; background: #EEF2FF; border: 2px solid #C7D2FE; z-index: -1; }
+.flashcard-deck-stage::after { bottom: -18px; width: 84%; height: 100%; background: #FFFFFF; border: 2px solid #E2E8F0; z-index: -2; }
 
 .flip-card { position: relative !important; width: 100% !important; height: 100% !important; touch-action: pan-y; }
 .flip-card-inner {
