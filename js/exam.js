@@ -3,22 +3,32 @@
 let studentExamAnswers = {}, currentExamSession = 'm1', currentStudentExamTab = 'reading', audioPlayCounts = {};
 let mediaRecorder = null, audioChunks = [];
 
-// Menyuntikkan CSS khusus untuk konversi PDF A4 saat dicetak
+// Menyuntikkan CSS khusus untuk konversi PDF A4 presisi (Dijamin 1 Halaman)
 if (!document.getElementById('pdf-print-style')) {
     const style = document.createElement('style');
     style.id = 'pdf-print-style';
     style.innerHTML = `
         @media print {
+            @page { size: A4; margin: 0; }
+            body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             body * { visibility: hidden; }
             #app-sidebar, #app-header, .hes-btn-primary, .hes-btn-soft { display: none !important; }
             #printable-report, #printable-report * { visibility: visible; }
             #printable-report { 
-                position: absolute; left: 0; top: 0; 
-                width: 210mm; height: 297mm; 
-                margin: 0; padding: 15mm; 
+                position: absolute !important; left: 0 !important; top: 0 !important; 
+                width: 210mm !important; height: 297mm !important; 
+                margin: 0 !important; padding: 40px 50px !important; 
+                box-sizing: border-box !important;
                 box-shadow: none !important; border: none !important; 
+                overflow: hidden !important;
+                page-break-after: avoid; page-break-inside: avoid;
             }
-            @page { size: A4; margin: 0; }
+        }
+        .a4-container {
+            width: 100%; max-width: 210mm; min-height: 297mm;
+            padding: 40px 50px; box-sizing: border-box;
+            background-color: white; position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
         }
     `;
     document.head.appendChild(style);
@@ -105,7 +115,7 @@ function renderStudentExamPage() {
         btn.className = `py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center ${t === cat ? 'bg-white text-indigo-600 shadow-sm border border-indigo-200' : 'text-slate-500 hover:text-slate-800'}`;
     });
 
-    // Rapor Hasil Akhir: Format A4 Profesional & Siap Download PDF
+    // Desain Report Card A4 (Padat, English, 1 Halaman)
     if (examResult?.isGraded) {
         const sc = examResult.sectionScores || {};
         const vReading = sc.reading ?? 0;
@@ -117,18 +127,16 @@ function renderStudentExamPage() {
         const avgScoreRaw = totalScore / 4;
         const avgScore = parseFloat(avgScoreRaw.toFixed(2)).toString().replace('.', ',');
         
-        // Logika Kelulusan
-        const isPassed = avgScoreRaw >= 70;
-        let gradeLetter = 'D', gradeColor = 'text-red-600';
-        if (avgScoreRaw >= 90) { gradeLetter = 'A'; gradeColor = 'text-emerald-600'; }
-        else if (avgScoreRaw >= 80) { gradeLetter = 'B'; gradeColor = 'text-indigo-600'; }
-        else if (avgScoreRaw >= 70) { gradeLetter = 'C'; gradeColor = 'text-amber-500'; }
+        // Logika Status Kelulusan (Bisa disesuaikan minimal skornya)
+        const isPassed = avgScoreRaw >= 70; 
 
-        // Memprioritaskan data tanggal penilaian dari sistem (jika belum ada, cadangan ke hari ini)
+        // Memprioritaskan data tanggal penilaian (gradedAt)
         const docDate = examResult.gradedAt ? new Date(examResult.gradedAt) : new Date();
+        const formattedDate = docDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
         const docNumber = `RP/STD/${docDate.getFullYear()}${(docDate.getMonth()+1).toString().padStart(2,'0')}/${monthObj.id.toUpperCase()}/${studentName.substring(0, 3).toUpperCase()}`;
-        const formattedFeedback = (examResult.adminFeedback || 'Telah menyelesaikan program dengan baik. Terus tingkatkan keterampilan bahasa Inggrismu.')
-                                  .split('\n').map(p => p.trim() ? `<p class="mb-2">${p}</p>` : '').join('');
+        
+        const formattedFeedback = (examResult.adminFeedback || 'Has completed the program well. Keep improving your English skills.')
+                                  .split('\n').map(p => p.trim() ? `<p class="mb-2 text-justify">${p}</p>` : '').join('');
 
         reportBox.classList.remove('hidden');
         reportBox.innerHTML = `
@@ -138,96 +146,115 @@ function renderStudentExamPage() {
                 </button>
             </div>
             
-            <div id="printable-report" class="bg-white mx-auto shadow-xl border border-slate-200 relative text-slate-900 flex flex-col" style="max-width: 210mm; min-height: 297mm; padding: 15mm;">
+            <div id="printable-report" class="mx-auto shadow-xl border border-slate-200 a4-container">
                 
-                <!-- Header Dokumen -->
-                <div class="flex justify-between items-end border-b-4 border-indigo-900 pb-4 mb-6">
-                    <div>
-                        <h1 class="text-3xl font-black text-indigo-900 tracking-tight uppercase">Report Card</h1>
-                        <p class="text-sm font-bold text-slate-500 tracking-widest uppercase mt-0.5">Hamdi English Studio</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs font-mono font-bold text-slate-500">${docNumber}</p>
-                    </div>
-                </div>
+                <!-- Elemen Ornamen Abstrak (Blob Kanan Atas) -->
+                <svg class="absolute top-0 right-0 w-80 h-80 text-blue-600 opacity-90 -mt-12 -mr-12 z-0 pointer-events-none" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="currentColor" d="M45.7,-76.3C58.9,-69.3,69.1,-55.3,77.5,-40.8C85.9,-26.3,92.5,-11.3,91.8,3.2C91.1,17.7,83.1,31.7,73.5,43.8C63.9,55.9,52.7,66.1,39.6,73.1C26.5,80.1,11.5,83.8,-3.7,89.5C-18.9,95.2,-34.3,102.9,-46.8,96.6C-59.3,90.3,-68.9,70.1,-75.4,51.8C-81.9,33.5,-85.3,17,-86.1,-0.1C-86.9,-17.2,-85.1,-33.5,-77.7,-47.5C-70.3,-61.5,-57.3,-73.2,-43.1,-79.6C-28.9,-86,-13.4,-87.1,1.5,-89.4C16.4,-91.7,32.5,-83.3,45.7,-76.3Z" transform="translate(100 100)" />
+                </svg>
 
-                <!-- Informasi Siswa & Status -->
-                <div class="flex flex-row justify-between mb-8 gap-4">
-                    <div class="w-2/3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <table class="text-sm w-full font-semibold">
-                            <tr><td class="py-1 text-slate-500 w-28">Nama Siswa</td><td class="py-1 font-black text-slate-800 uppercase">: ${studentName}</td></tr>
-                            <tr><td class="py-1 text-slate-500">Alamat Email</td><td class="py-1 text-slate-800">: ${email}</td></tr>
-                            <tr><td class="py-1 text-slate-500">Program Kelas</td><td class="py-1 text-slate-800">: ${monthObj.title}</td></tr>
-                            <tr><td class="py-1 text-slate-500">Tanggal Rilis</td><td class="py-1 text-slate-800">: ${getDisplayDate(docDate)}</td></tr>
-                        </table>
-                    </div>
-                    <div class="w-1/3 flex flex-col items-center justify-center ${isPassed ? 'bg-indigo-900' : 'bg-red-900'} text-white rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-widest text-white/70 mb-1 font-bold">Status Akhir</p>
-                        <p class="text-xl font-black tracking-widest">${isPassed ? 'LULUS' : 'TIDAK LULUS'}</p>
-                    </div>
-                </div>
-
-                <!-- Tabel Detail Penilaian -->
-                <div class="mb-6">
-                    <h3 class="text-base font-black text-indigo-900 mb-3 border-b-2 border-slate-100 pb-1">Detail Penilaian (Score Details)</h3>
-                    <table class="w-full text-center border-collapse">
-                        <thead>
-                            <tr class="bg-indigo-50 text-indigo-900 text-xs font-black uppercase tracking-wider">
-                                <th class="py-3 border border-indigo-200 w-1/4">Reading</th>
-                                <th class="py-3 border border-indigo-200 w-1/4">Writing</th>
-                                <th class="py-3 border border-indigo-200 w-1/4">Speaking</th>
-                                <th class="py-3 border border-indigo-200 w-1/4">Listening</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr class="text-2xl font-black text-slate-800 bg-white">
-                                <td class="py-5 border border-indigo-200">${vReading}</td>
-                                <td class="py-5 border border-indigo-200">${vWriting}</td>
-                                <td class="py-5 border border-indigo-200">${vSpeaking}</td>
-                                <td class="py-5 border border-indigo-200">${vListening}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Rata-rata dan Skala Penilaian -->
-                <div class="flex gap-4 mb-8">
-                    <!-- Skor Akhir -->
-                    <div class="w-1/3 border-2 border-indigo-900 rounded-xl flex flex-col items-center justify-center p-4 bg-white">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Final Average</p>
-                        <p class="text-5xl font-black text-indigo-900 my-1">${avgScore}</p>
-                        <p class="text-lg font-black ${gradeColor} bg-slate-50 px-4 py-0.5 rounded-md border border-slate-200 mt-1">Grade: ${gradeLetter}</p>
-                    </div>
-                    <!-- Skala Nilai -->
-                    <div class="w-2/3 bg-slate-50 border border-slate-200 rounded-xl p-5 text-xs text-slate-600 flex flex-col justify-center">
-                        <p class="font-black text-slate-800 mb-2.5 uppercase tracking-wider border-b border-slate-200 pb-1.5">Grading Scale (Skala Nilai)</p>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-2.5 font-bold">
-                            <div><span class="font-black text-emerald-600 w-6 inline-block">A</span> (90 - 100) : Sangat Baik</div>
-                            <div><span class="font-black text-indigo-600 w-6 inline-block">B</span> (80 - 89) : Baik</div>
-                            <div><span class="font-black text-amber-500 w-6 inline-block">C</span> (70 - 79) : Cukup</div>
-                            <div><span class="font-black text-red-600 w-6 inline-block">D</span> (< 70) : Kurang</div>
+                <div class="relative z-10 flex-1 flex flex-col h-full">
+                    
+                    <!-- Header Dokumen -->
+                    <div class="flex justify-between items-start mb-10">
+                        <div>
+                            <h1 class="text-2xl font-black text-slate-900 flex items-center gap-2">
+                                <span class="text-blue-600 text-3xl"><i class="fas fa-graduation-cap"></i></span> Hamdi Studio
+                            </h1>
                         </div>
-                        <p class="mt-4 italic text-slate-400 text-[10px] font-semibold">*Syarat kelulusan program minimal mencapai Grade C (Average 70.00).</p>
+                        <div class="text-right mt-2">
+                            <h2 class="text-3xl font-black text-white drop-shadow-md tracking-tight">Report Card</h2>
+                            <p class="text-xs font-bold text-white drop-shadow-md mt-1">No: ${docNumber}</p>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Catatan Tutor -->
-                <div class="mb-8 flex-1">
-                    <h3 class="text-base font-black text-indigo-900 mb-3 border-b-2 border-slate-100 pb-1">Tutor's Note</h3>
-                    <div class="bg-indigo-50/40 p-5 rounded-xl border border-indigo-100 text-sm font-semibold text-slate-700 leading-relaxed min-h-[120px]">
-                        ${formattedFeedback}
+                    <!-- Informasi Identitas Siswa -->
+                    <div class="mb-8">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Name</p>
+                        <h3 class="text-3xl font-black text-blue-600 mb-5 tracking-tight">${studentName}</h3>
+                        
+                        <div class="flex gap-14 border-t border-slate-200 pt-4">
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Teacher</p>
+                                <p class="text-sm font-black text-slate-800">Hamdi Rizal</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Class</p>
+                                <p class="text-sm font-black text-slate-800">${monthObj.title}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Sessions</p>
+                                <p class="text-sm font-black text-slate-800">12 Sessions</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Kolom Tanda Tangan -->
-                <div class="flex justify-end mt-auto pt-6">
-                    <div class="text-center w-56">
-                        <p class="text-sm font-bold text-slate-600 mb-2">Medan, ${getDisplayDate(docDate)}</p>
-                        <!-- Pastikan file gambar "signature.png" berada di dalam folder yang sama dengan exam.html -->
-                        <img src="signature.png" alt="Tanda Tangan" class="h-20 mx-auto object-contain" onerror="this.style.display='none'; this.insertAdjacentHTML('afterend', '<div class=\\'h-20 flex items-center justify-center italic text-xs text-slate-300\\'>[Tanda Tangan]</div>');">
-                        <div class="border-t-2 border-slate-900 mt-2 pt-1.5">
-                            <p class="text-base font-black text-slate-900 uppercase">Hamdi Rizal</p>
-                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Tutor</p>
+                    <!-- Status Kelulusan Dinamis -->
+                    <div class="flex justify-center mb-8">
+                        <div class="border-[3px] border-blue-600 rounded-full px-10 py-3 text-xl font-black tracking-widest bg-white z-10 shadow-sm relative">
+                            <!-- Garis coretan jika salah satu status aktif -->
+                            <div class="absolute left-1/2 top-1/2 w-[120px] h-[3px] ${isPassed ? 'bg-emerald-500 translate-x-[15px]' : 'bg-red-500 -translate-x-[135px]'} -translate-y-1/2 z-20"></div>
+                            
+                            <span class="${isPassed ? 'text-blue-600' : 'text-slate-300'} relative z-10">PASSED</span> 
+                            <span class="text-slate-400 mx-3">/</span> 
+                            <span class="${!isPassed ? 'text-red-600' : 'text-slate-300'} relative z-10">FAILED</span>
+                        </div>
+                    </div>
+
+                    <!-- Kotak Skor (Score Box) -->
+                    <div class="border-[3px] border-blue-600 rounded-3xl p-6 mb-8 bg-white z-10 relative shadow-sm">
+                        <h4 class="text-center text-lg font-black text-slate-900 mb-6 tracking-wide">Score</h4>
+                        
+                        <!-- 4 Kemampuan -->
+                        <div class="grid grid-cols-4 text-center border-b-2 border-slate-100 pb-5 mb-5">
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Reading</p>
+                                <p class="text-3xl font-black text-blue-600">${vReading}</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Writing</p>
+                                <p class="text-3xl font-black text-blue-600">${vWriting}</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Speaking</p>
+                                <p class="text-3xl font-black text-blue-600">${vSpeaking}</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Listening</p>
+                                <p class="text-3xl font-black text-blue-600">${vListening}</p>
+                            </div>
+                        </div>
+
+                        <!-- Total & Rata-rata -->
+                        <div class="flex justify-around items-center text-center">
+                            <div>
+                                <p class="text-sm font-black text-slate-800 mb-1 uppercase tracking-wider">Total</p>
+                                <p class="text-5xl font-black text-blue-600">${totalScore}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm font-black text-slate-800 mb-1 uppercase tracking-wider">Average</p>
+                                <p class="text-5xl font-black text-blue-600">${avgScore}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Catatan / Feedback Tutor (Mengisi ruang kosong sisa) -->
+                    <div class="flex-1 flex flex-col justify-start">
+                        <h4 class="text-base font-black text-slate-900 mb-2">Feedback</h4>
+                        <div class="text-[13px] font-semibold text-slate-700 leading-relaxed pr-6">
+                            ${formattedFeedback}
+                        </div>
+                    </div>
+
+                    <!-- Tanda Tangan Mengunci di Bawah -->
+                    <div class="flex justify-end mt-auto pt-4 relative z-20">
+                        <div class="text-center w-52">
+                            <p class="text-[11px] font-bold text-slate-500 mb-2">Medan, ${formattedDate}</p>
+                            <img src="signature.png" alt="Signature" class="h-16 mx-auto object-contain" onerror="this.style.display='none'; this.insertAdjacentHTML('afterend', '<div class=\\'h-16 flex items-center justify-center italic text-xs text-slate-300\\'>[Signature Placeholder]</div>');">
+                            <div class="border-t-[3px] border-slate-900 mt-2 pt-1.5">
+                                <p class="text-base font-black text-slate-900">Hamdi Rizal</p>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Tutor</p>
+                            </div>
                         </div>
                     </div>
                 </div>
