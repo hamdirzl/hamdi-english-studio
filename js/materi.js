@@ -12,7 +12,7 @@ if (!document.getElementById('handout-google-font')) {
     const link = document.createElement('link');
     link.id = 'handout-google-font';
     link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,700&display=swap';
     document.head.appendChild(link);
 }
 
@@ -196,7 +196,7 @@ function renderMateriContent() {
 }
 
 // ============================================================================
-// DYNAMIC MAGAZINE & EDITORIAL HANDOUT PARSER (MENGALIR, SANTAI & VARIATIF)
+// DYNAMIC MAGAZINE & EDITORIAL HANDOUT PARSER
 // ============================================================================
 function escapeHtmlStr(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -204,7 +204,7 @@ function escapeHtmlStr(str) {
 
 function formatRichEnglishText(text) {
     return escapeHtmlStr(text)
-        .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-extrabold text-slate-900 bg-amber-100/60 px-1 rounded">$1</strong>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-extrabold text-slate-900 bg-amber-100/70 px-1.5 py-0.5 rounded-md">$1</strong>')
         .replace(/\*([^*]+)\*/g, '<em class="italic text-slate-800 font-semibold">$1</em>')
         .replace(/"([^"]+)"/g, '<span class="font-bold text-indigo-700">"$1"</span>')
         .replace(/->|→/g, '<i class="fas fa-arrow-right text-indigo-400 mx-1.5 text-xs"></i>');
@@ -222,8 +222,10 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             accentBg: 'bg-emerald-600',
             pdfPrimary: '#047857',
             pdfSecondary: '#0D9488',
+            pdfDark: '#064E3B',
             pdfSoft: '#ECFDF5',
-            pdfBorder: '#A7F3D0'
+            pdfBorder: '#A7F3D0',
+            pdfHighlight: '#FEF3C7'
         };
     }
 
@@ -238,8 +240,10 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             accentBg: 'bg-blue-600',
             pdfPrimary: '#1D4ED8',
             pdfSecondary: '#0284C7',
+            pdfDark: '#0F172A',
             pdfSoft: '#EFF6FF',
-            pdfBorder: '#BFDBFE'
+            pdfBorder: '#BFDBFE',
+            pdfHighlight: '#FEF3C7'
         },
         {
             name: 'indigo',
@@ -251,8 +255,10 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             accentBg: 'bg-indigo-600',
             pdfPrimary: '#4338CA',
             pdfSecondary: '#7C3AED',
+            pdfDark: '#1E1B4B',
             pdfSoft: '#EEF2FF',
-            pdfBorder: '#C7D2FE'
+            pdfBorder: '#C7D2FE',
+            pdfHighlight: '#FEF3C7'
         },
         {
             name: 'teal',
@@ -264,8 +270,10 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             accentBg: 'bg-teal-600',
             pdfPrimary: '#0F766E',
             pdfSecondary: '#059669',
+            pdfDark: '#134E4A',
             pdfSoft: '#F0FDFA',
-            pdfBorder: '#99F6E4'
+            pdfBorder: '#99F6E4',
+            pdfHighlight: '#FEF3C7'
         },
         {
             name: 'amber',
@@ -277,8 +285,10 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             accentBg: 'bg-amber-600',
             pdfPrimary: '#B45309',
             pdfSecondary: '#EA580C',
+            pdfDark: '#451A03',
             pdfSoft: '#FFFBEB',
-            pdfBorder: '#FDE68A'
+            pdfBorder: '#FDE68A',
+            pdfHighlight: '#E0F2FE'
         }
     ];
 
@@ -357,7 +367,6 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         const line = rawLine.trim();
         if (!line || /^SESSION\s*:\s*\d+/i.test(line)) return;
 
-        // Metadata
         if (/^TITLE\s*:/i.test(line)) {
             data.title = line.replace(/^TITLE\s*:\s*/i, '').trim() || data.title;
             return;
@@ -375,7 +384,6 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             return;
         }
 
-        // Markdown / Custom Dynamic Headings (# or ## or SECTION:)
         if (/^#{1,3}\s+(.+)$/.test(line) || /^SECTION\s*:\s*(.+)$/i.test(line)) {
             const customTitle = line.replace(/^#{1,3}\s+|^SECTION\s*:\s*/i, '').trim();
             const lower = customTitle.toLowerCase();
@@ -392,7 +400,6 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             return;
         }
 
-        // Standard Tag Headers (Supports inline content too!)
         if (/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO)\s*:\s*/i, '').trim();
             const sec = startNewSection('story', 'The Story & Real-Life Context', 'fa-book-open-reader');
@@ -401,7 +408,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         }
         if (/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER)\s*:\s*/i, '').trim();
-            const sec = startNewSection('warmup', 'Let\'s Warm Up!', 'fa-mug-hot');
+            const sec = startNewSection('warmup', 'Warm-Up & Ice Breaker', 'fa-mug-hot');
             if (rest) sec.items.push(rest);
             return;
         }
@@ -413,25 +420,25 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         }
         if (/^(?:FORMULAS?|PATTERNS?|GRAMMAR|KEY\s*POINTS?|RULES?)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:FORMULAS?|PATTERNS?|GRAMMAR|KEY\s*POINTS?|RULES?)\s*:\s*/i, '').trim();
-            const sec = startNewSection('formulas', 'Natural Sentence Patterns', 'fa-shapes');
+            const sec = startNewSection('formulas', 'Visual Sentence Patterns', 'fa-shapes');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
         if (/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY)\s*:\s*/i, '').trim();
-            const sec = startNewSection('phrases', 'Expressions Native Speakers Love', 'fa-comment-dots');
+            const sec = startNewSection('phrases', 'Natural Expressions & Phrases', 'fa-comment-dots');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
         if (/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION)\s*:\s*/i, '').trim();
-            const sec = startNewSection('examples', 'Real-Life Examples in Context', 'fa-bolt');
+            const sec = startNewSection('examples', 'Everyday Examples in Context', 'fa-bolt');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
         if (/^(?:MISTAKES?|COMMON\s*MISTAKES?|COMPARE|UPGRADES?)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:MISTAKES?|COMMON\s*MISTAKES?|COMPARE|UPGRADES?)\s*:\s*/i, '').trim();
-            const sec = startNewSection('mistakes', 'Sound More Natural (Don\'t Say vs. Say This)', 'fa-scale-balanced');
+            const sec = startNewSection('mistakes', 'Don\'t Say vs. Say This!', 'fa-scale-balanced');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
@@ -454,7 +461,6 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             return;
         }
 
-        // Default section if none started yet
         if (!currentSec) {
             ensureSection('editorial', 'Let\'s Dive In', 'fa-compass');
         }
@@ -473,7 +479,6 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
                 break;
             }
             case 'editorial': {
-                // Distinguish between a flowing paragraph vs a titled highlight point
                 const colonMatch = stripped.match(/^([^:]{2,48}):\s*(.+)$/);
                 if (isBullet && colonMatch) {
                     currentSec.items.push({ title: colonMatch[1].replace(/^\[|\]$/g, '').trim(), body: colonMatch[2].trim() });
@@ -572,7 +577,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
 }
 
 // ============================================================================
-// INTERACTIVE HANDOUT CONTROLS (AUDIO, BLUR LISTENING MODE, REVEAL ANSWER)
+// INTERACTIVE HANDOUT CONTROLS
 // ============================================================================
 window.playHandoutTextAudio = function(rawSpeech, btnEl) {
     const cleanSpeech = String(rawSpeech || '')
@@ -605,11 +610,8 @@ window.toggleDialogueBlurMode = function(secDomId, btnEl) {
     container.dataset.blurred = nextState ? '1' : '0';
 
     container.querySelectorAll('.dialogue-line-text').forEach(el => {
-        if (nextState) {
-            el.classList.add('blur-xs', 'select-none');
-        } else {
-            el.classList.remove('blur-xs', 'select-none');
-        }
+        if (nextState) el.classList.add('blur-xs', 'select-none');
+        else el.classList.remove('blur-xs', 'select-none');
     });
 
     if (btnEl) {
@@ -697,10 +699,9 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
         return idx;
     };
 
-    const sectionsHTML = data.sections.map((sec, sIdx) => {
+    const sectionsHTML = data.sections.map((sec) => {
         const domId = `${prefix}-${sec.id}`;
 
-        // 1. STORY / SCENARIO / HOOK BLOCK (Editorial Magazine Style)
         if (sec.type === 'story') {
             const fullStoryAudioIdx = registerAudio(sec.paragraphs.join(' '));
             return `
@@ -724,7 +725,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 2. CALLOUT / PRO TIP / CULTURE NOTE (Tutor Sticky Note)
         if (sec.type === 'callout') {
             return `
                 <section id="${domId}" class="scroll-mt-20">
@@ -737,7 +737,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                             <div class="space-y-2.5 flex-1">
                                 <h3 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-amber-300">${escapeHtmlStr(sec.title)}</h3>
                                 <div class="space-y-2.5 text-sm sm:text-[15px] text-blue-50 leading-[1.8] font-medium">
-                                    ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p).replace(/text-slate-900/g, 'text-white').replace(/text-indigo-700/g, 'text-amber-300')}</p>`).join('')}
+                                    ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p).replace(/text-slate-900/g, 'text-amber-950').replace(/text-indigo-700/g, 'text-amber-300')}</p>`).join('')}
                                 </div>
                             </div>
                         </div>
@@ -745,7 +745,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 3. WARM UP / ICE BREAKER
         if (sec.type === 'warmup') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
@@ -776,7 +775,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 4. EDITORIAL / CONCEPT (Flowing Paragraphs + Clean Cards)
         if (sec.type === 'editorial') {
             return `
                 <section id="${domId}" class="space-y-5 scroll-mt-20">
@@ -798,7 +796,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                             <div class="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:border-indigo-300 transition ${sec.items.length % 2 === 1 && idx === sec.items.length - 1 ? 'md:col-span-2' : ''}">
                                 ${item.title ? `
                                 <h4 class="text-sm sm:text-base font-extrabold text-slate-900 mb-2 flex items-center gap-2">
-                                    <span class="w-2 h-2 rounded-full ${theme.accentBg}"></span>
+                                    <span class="w-6 h-6 rounded-lg ${theme.accentBg} text-white text-xs font-black flex items-center justify-center shrink-0">${idx + 1}</span>
                                     ${escapeHtmlStr(item.title)}
                                 </h4>` : ''}
                                 <p class="text-xs sm:text-[15px] text-slate-600 leading-[1.8] font-medium">${formatRichEnglishText(item.body)}</p>
@@ -808,7 +806,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 5. FORMULAS / SENTENCE PATTERNS (Visual Pills)
         if (sec.type === 'formulas') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
@@ -860,7 +857,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 6. PHRASES / EXPRESSIONS
         if (sec.type === 'phrases') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
@@ -903,7 +899,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 7. REAL-LIFE EXAMPLES
         if (sec.type === 'examples') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
@@ -948,7 +943,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 8. COMMON MISTAKES / UPGRADES (Side-by-Side Comparison)
         if (sec.type === 'mistakes') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
@@ -978,7 +972,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                                     <div class="p-4 rounded-xl bg-white border border-rose-200 flex items-start gap-3">
                                         <span class="w-6 h-6 rounded-full bg-rose-100 text-rose-600 text-xs font-black flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-times"></i></span>
                                         <div class="space-y-1">
-                                            <span class="text-[10px] font-extrabold uppercase tracking-wider text-rose-500 block">Kurang Tepat / Kaku</span>
+                                            <span class="text-[10px] font-extrabold uppercase tracking-wider text-rose-500 block">Don't Say (Kurang Tepat)</span>
                                             <p class="text-xs sm:text-sm font-semibold text-slate-600 line-through decoration-rose-400 leading-relaxed">${escapeHtmlStr(m.wrong)}</p>
                                         </div>
                                     </div>
@@ -986,7 +980,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                                         <div class="flex items-start gap-3">
                                             <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-check"></i></span>
                                             <div class="space-y-1">
-                                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">Lebih Natural (Say This!)</span>
+                                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">Say This! (Lebih Natural)</span>
                                                 <p class="text-xs sm:text-sm font-extrabold text-emerald-950 leading-relaxed">${escapeHtmlStr(m.right)}</p>
                                             </div>
                                         </div>
@@ -1005,7 +999,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 9. DIALOGUE / CONVERSATION (With Interactive Listening Blur Mode)
         if (sec.type === 'dialogue') {
             data.allAudioDialogues[sec.id] = sec.items;
             const chatContainerId = `${domId}-chatbox`;
@@ -1066,7 +1059,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        // 10. PRACTICE / QUIZ (Interactive Click-to-Reveal Answer)
         if (sec.type === 'practice') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
@@ -1119,7 +1111,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
     }).join('');
 
     box.innerHTML = `
-        <!-- Top Action Bar -->
         <div class="flex flex-wrap items-center justify-between gap-3 mb-5 bg-slate-900 text-white px-5 py-4 rounded-2xl shadow-sm">
             <div class="flex items-center gap-3.5">
                 <div class="w-10 h-10 rounded-xl ${theme.accentBg} text-white flex items-center justify-center text-base font-black shrink-0">
@@ -1141,18 +1132,15 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             </div>
         </div>
 
-        <!-- Editorial Study Guide Container -->
         <div id="printable-handout-${prefix}" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;" class="bg-white mx-auto rounded-3xl shadow-md border border-slate-200/90 overflow-hidden text-slate-800 relative">
             <div class="h-3 w-full bg-gradient-to-r ${theme.barGrad}"></div>
 
-            <!-- Subtle Watermark -->
             <div class="absolute inset-0 flex flex-col items-center justify-around pointer-events-none select-none overflow-hidden opacity-[0.025] -rotate-12">
                 <span class="text-4xl sm:text-6xl font-black tracking-widest text-slate-900 whitespace-nowrap">HAMDI ENGLISH STUDIO</span>
                 <span class="text-4xl sm:text-6xl font-black tracking-widest text-slate-900 whitespace-nowrap">FRIENDLY LEARNING SPACE</span>
             </div>
 
             <div class="relative z-10 p-6 sm:p-11 space-y-10">
-                <!-- Editorial Header -->
                 <div class="space-y-6">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div class="space-y-1.5">
@@ -1174,7 +1162,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                         <p class="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p>
                     </div>` : ''}
 
-                    <!-- Quick Jump Pills -->
                     ${data.sections.length > 2 ? `
                     <div class="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
                         ${data.sections.map(s => `
@@ -1185,12 +1172,10 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                     </div>` : ''}
                 </div>
 
-                <!-- Dynamic Content Sections -->
                 <div class="space-y-11">
                     ${sectionsHTML}
                 </div>
 
-                <!-- Footer -->
                 <div class="pt-6 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="flex items-center gap-3.5">
                         <div class="w-10 h-10 rounded-xl ${theme.badgeBg} border flex items-center justify-center text-base shrink-0">
@@ -1209,19 +1194,20 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
 }
 
 // ============================================================================
-// GENERATOR PDF A4 BARU (LEGA, ANTI-KELUAR KERTAS, & DESAIN VARIATIF)
+// MESIN CETAK PDF A4 MAGAZINE WORKBOOK (100% ANTI-KELUAR KERTAS & KAYA VISUAL)
 // ============================================================================
 function drawHandoutRoundedRect(ctx, x, y, w, h, r, fillStyle, strokeStyle = null, lineWidth = 1) {
+    const rad = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
     ctx.closePath();
     if (fillStyle) { ctx.fillStyle = fillStyle; ctx.fill(); }
     if (strokeStyle) { ctx.lineWidth = lineWidth; ctx.strokeStyle = strokeStyle; ctx.stroke(); }
@@ -1248,7 +1234,7 @@ function drawHandoutGradCapIcon(ctx, cx, cy, scale = 1, color = '#FFFFFF') {
     ctx.restore();
 }
 
-function cleanPdfText(str) {
+function cleanPlainPdfText(str) {
     return String(str || '')
         .replace(/\*\*([^*]+)\*\*/g, '$1')
         .replace(/\*([^*]+)\*/g, '$1')
@@ -1257,31 +1243,32 @@ function cleanPdfText(str) {
         .trim();
 }
 
-function wrapPdfTextStrict(ctx, rawText, maxW) {
+// Strict line wrapper that guarantees NO line ever exceeds maxW pixels
+function wrapPlainLinesStrict(ctx, rawText, maxW, fontStr = null) {
+    if (fontStr) ctx.font = fontStr;
+    const safeMaxW = Math.max(60, maxW - 12);
     const paragraphs = String(rawText || '').split('\n');
     const lines = [];
 
     paragraphs.forEach(p => {
-        const cleanP = cleanPdfText(p);
+        const cleanP = cleanPlainPdfText(p);
         if (!cleanP) return;
         const words = cleanP.split(' ');
         let cur = '';
 
         words.forEach(word => {
-            // Break abnormally long single tokens so they never overflow the paper
-            if (ctx.measureText(word).width > maxW) {
+            if (ctx.measureText(word).width > safeMaxW) {
                 if (cur) { lines.push(cur); cur = ''; }
                 let chunk = '';
                 for (const ch of word) {
-                    if (ctx.measureText(chunk + ch).width <= maxW) chunk += ch;
+                    if (ctx.measureText(chunk + ch).width <= safeMaxW) chunk += ch;
                     else { lines.push(chunk); chunk = ch; }
                 }
                 cur = chunk;
                 return;
             }
-
             const test = cur ? `${cur} ${word}` : word;
-            if (ctx.measureText(test).width <= maxW) {
+            if (ctx.measureText(test).width <= safeMaxW) {
                 cur = test;
             } else {
                 if (cur) lines.push(cur);
@@ -1294,68 +1281,220 @@ function wrapPdfTextStrict(ctx, rawText, maxW) {
     return lines.length ? lines : [''];
 }
 
-function createEditorialPDFPage(W, H, fontStack, monthTitle, sessionNumber, pageNum, theme) {
+// Draws wrapped lines with top baseline and hardware maxWidth clamp
+function drawPlainLinesStrict(ctx, lines, x, startY, lineH, maxW, fontStr = null, color = '#0F172A', strikeThrough = false) {
+    ctx.save();
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    if (fontStr) ctx.font = fontStr;
+    ctx.fillStyle = color;
+
+    lines.forEach((line, idx) => {
+        const ly = startY + (idx * lineH);
+        ctx.fillText(line, x, ly, maxW);
+        if (strikeThrough && line.trim()) {
+            const w = Math.min(maxW, ctx.measureText(line).width);
+            ctx.strokeStyle = '#F43F5E';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(x, ly + (lineH * 0.35));
+            ctx.lineTo(x + w, ly + (lineH * 0.35));
+            ctx.stroke();
+        }
+    });
+    ctx.restore();
+    return startY + (lines.length * lineH);
+}
+
+// Rich Inline Tokenizer for PDF (**bold highlight**, "quoted accent", normal text)
+function tokenizeRichPdfParagraph(rawText) {
+    const clean = String(rawText || '').replace(/->/g, '→').replace(/\s+/g, ' ').trim();
+    const regex = /(\*\*[^*]+\*\*|"[^"]+"|\*[^*]+\*)/g;
+    const parts = clean.split(regex).filter(Boolean);
+    const tokens = [];
+
+    parts.forEach(part => {
+        let style = 'normal';
+        let content = part;
+        if (part.startsWith('**') && part.endsWith('**')) {
+            style = 'highlight';
+            content = part.slice(2, -2).trim();
+        } else if (part.startsWith('"') && part.endsWith('"')) {
+            style = 'quote';
+            content = part.trim();
+        } else if (part.startsWith('*') && part.endsWith('*')) {
+            style = 'italic';
+            content = part.slice(1, -1).trim();
+        }
+        content.split(' ').filter(Boolean).forEach(w => {
+            tokens.push({ word: w, style });
+        });
+    });
+    return tokens;
+}
+
+function layoutRichPdfLines(ctx, rawText, maxW, fontSize, fontStack) {
+    const safeMaxW = Math.max(80, maxW - 16);
+    const tokens = tokenizeRichPdfParagraph(rawText);
+    const lines = [];
+    let currentLine = [];
+    let currentW = 0;
+
+    const getTokenFont = (style) => {
+        if (style === 'highlight') return `800 ${fontSize}px ${fontStack}`;
+        if (style === 'quote') return `italic 700 ${fontSize}px ${fontStack}`;
+        if (style === 'italic') return `italic 600 ${fontSize}px ${fontStack}`;
+        return `500 ${fontSize}px ${fontStack}`;
+    };
+
+    tokens.forEach(tk => {
+        ctx.font = getTokenFont(tk.style);
+        const spaceW = currentLine.length > 0 ? ctx.measureText(' ').width : 0;
+        const wordW = ctx.measureText(tk.word).width + (tk.style === 'highlight' ? 10 : 0);
+
+        if (currentW + spaceW + wordW <= safeMaxW || currentLine.length === 0) {
+            currentLine.push({ ...tk, width: wordW, spaceBefore: spaceW });
+            currentW += spaceW + wordW;
+        } else {
+            lines.push(currentLine);
+            currentLine = [{ ...tk, width: wordW, spaceBefore: 0 }];
+            currentW = wordW;
+        }
+    });
+    if (currentLine.length) lines.push(currentLine);
+    return lines.length ? lines : [[]];
+}
+
+function drawRichPdfLines(ctx, richLines, startX, startY, lineH, fontSize, fontStack, colors = {}) {
+    const normalColor = colors.normal || '#334155';
+    const highlightText = colors.highlightText || '#0F172A';
+    const highlightBg = colors.highlightBg || '#FEF3C7';
+    const quoteColor = colors.quote || '#1D4ED8';
+
+    ctx.save();
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+
+    richLines.forEach((lineTokens, rowIdx) => {
+        let curX = startX;
+        const rowY = startY + (rowIdx * lineH);
+
+        lineTokens.forEach(tk => {
+            curX += tk.spaceBefore;
+            if (tk.style === 'highlight') {
+                ctx.font = `800 ${fontSize}px ${fontStack}`;
+                const rawW = ctx.measureText(tk.word).width;
+                drawHandoutRoundedRect(ctx, curX - 2, rowY - 3, rawW + 12, fontSize + 10, 8, highlightBg);
+                ctx.fillStyle = highlightText;
+                ctx.fillText(tk.word, curX + 4, rowY);
+            } else if (tk.style === 'quote') {
+                ctx.font = `italic 700 ${fontSize}px ${fontStack}`;
+                ctx.fillStyle = quoteColor;
+                ctx.fillText(tk.word, curX, rowY);
+            } else if (tk.style === 'italic') {
+                ctx.font = `italic 600 ${fontSize}px ${fontStack}`;
+                ctx.fillStyle = normalColor;
+                ctx.fillText(tk.word, curX, rowY);
+            } else {
+                ctx.font = `500 ${fontSize}px ${fontStack}`;
+                ctx.fillStyle = normalColor;
+                ctx.fillText(tk.word, curX, rowY);
+            }
+            curX += tk.width;
+        });
+    });
+
+    ctx.restore();
+    return startY + (richLines.length * lineH);
+}
+
+function createMagazinePDFPage(W, H, fontStack, monthTitle, sessionNumber, pageNum, theme) {
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
 
+    // Warm Editorial Paper Background
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, W, H);
 
-    // Subtle Editorial Header & Footer Waves
+    // Subtle Geometric Corner Art
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(W * 0.52, 0);
-    ctx.bezierCurveTo(W * 0.70, 160, W * 0.86, 40, W, 210);
-    ctx.lineTo(W, 0);
-    ctx.closePath();
     ctx.fillStyle = theme.pdfSoft;
+    ctx.beginPath();
+    ctx.arc(W - 60, -40, 260, 0, Math.PI * 2);
     ctx.fill();
 
-    // Diagonal Watermark
+    ctx.beginPath();
+    ctx.arc(40, H + 40, 240, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Subtle Diagonal Watermark
     ctx.translate(W / 2, H / 2);
-    ctx.rotate(-Math.PI / 6);
+    ctx.rotate(-Math.PI / 7);
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.026)';
-    ctx.font = `800 82px ${fontStack}`;
-    ctx.fillText('HAMDI ENGLISH STUDIO', 0, -380);
-    ctx.fillText('FRIENDLY LEARNING SPACE', 0, 40);
-    ctx.fillText('HAMDI ENGLISH STUDIO', 0, 460);
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.022)';
+    ctx.font = `800 76px ${fontStack}`;
+    ctx.fillText('HAMDI ENGLISH STUDIO', 0, -420);
+    ctx.fillText('FRIENDLY LEARNING SPACE', 0, 0);
+    ctx.fillText('HAMDI ENGLISH STUDIO', 0, 420);
     ctx.restore();
 
     // Top Accent Bar
     const topGrad = ctx.createLinearGradient(0, 0, W, 0);
-    topGrad.addColorStop(0, theme.pdfPrimary);
+    topGrad.addColorStop(0, theme.pdfDark);
+    topGrad.addColorStop(0.5, theme.pdfPrimary);
     topGrad.addColorStop(1, theme.pdfSecondary);
     ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, W, 24);
+    ctx.fillRect(0, 0, W, 22);
 
-    // Footer
+    // Running Header on Page 2+
     const padX = 115;
+    if (pageNum > 1) {
+        ctx.save();
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = `700 18px ${fontStack}`;
+        ctx.fillText(`HAMDI ENGLISH STUDIO  •  ${monthTitle.toUpperCase()} (SESSION ${sessionNumber})`, padX, 52);
+
+        ctx.strokeStyle = '#E2E8F0';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(padX, 86);
+        ctx.lineTo(W - padX, 86);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Editorial Footer
+    ctx.save();
     ctx.strokeStyle = '#E2E8F0';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(padX, H - 130);
-    ctx.lineTo(W - padX, H - 130);
+    ctx.moveTo(padX, H - 125);
+    ctx.lineTo(W - padX, H - 125);
     ctx.stroke();
 
-    drawHandoutRoundedRect(ctx, padX, H - 106, 56, 56, 14, theme.pdfSoft);
-    drawHandoutGradCapIcon(ctx, padX + 28, H - 79, 0.65, theme.pdfPrimary);
+    drawHandoutRoundedRect(ctx, padX, H - 102, 52, 52, 14, theme.pdfSoft);
+    drawHandoutGradCapIcon(ctx, padX + 26, H - 77, 0.6, theme.pdfPrimary);
 
+    ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#0F172A';
-    ctx.font = `800 22px ${fontStack}`;
-    ctx.fillText('Hamdi English Studio  •  Friendly Learning Space', padX + 74, H - 80);
+    ctx.font = `800 21px ${fontStack}`;
+    ctx.fillText('Hamdi English Studio', padX + 68, H - 98);
 
     ctx.fillStyle = '#64748B';
-    ctx.font = `600 19px ${fontStack}`;
-    ctx.fillText(`${monthTitle} (Session ${sessionNumber} of 12)  •  Curated by Hamdi Rizal`, padX + 74, H - 52);
+    ctx.font = `600 18px ${fontStack}`;
+    ctx.fillText(`Friendly Learning Space  •  ${monthTitle} (Session ${sessionNumber} of 12)`, padX + 68, H - 70);
 
-    drawHandoutRoundedRect(ctx, W - padX - 140, H - 100, 140, 44, 22, theme.pdfSoft, theme.pdfBorder, 2);
+    drawHandoutRoundedRect(ctx, W - padX - 135, H - 98, 135, 44, 22, theme.pdfSoft, theme.pdfBorder, 1.5);
     ctx.textAlign = 'center';
     ctx.fillStyle = theme.pdfPrimary;
-    ctx.font = `800 20px ${fontStack}`;
-    ctx.fillText(`Page ${pageNum}`, W - padX - 70, H - 71);
+    ctx.font = `800 19px ${fontStack}`;
+    ctx.fillText(`Page ${pageNum}`, W - padX - 67.5, H - 86);
+    ctx.restore();
 
     return { canvas, ctx };
 }
@@ -1368,7 +1507,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
     const origHTML = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Merapikan PDF...`;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Mendesain PDF...`;
     }
 
     try {
@@ -1381,355 +1520,634 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
         const theme = getSessionThemePalette(sessionNumber, isRecap, data.style);
 
         const fontStack = '"Plus Jakarta Sans", "Nunito", sans-serif';
-        const W = 1654, H = 2339, padX = 115, contentW = W - (padX * 2), maxY = H - 175;
+        const W = 1654, H = 2339, padX = 115, contentW = W - (padX * 2), maxY = H - 170;
 
         const pages = [];
         let pageNum = 1;
-        let curPage = createEditorialPDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
+        let curPage = createMagazinePDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
         pages.push(curPage.canvas);
         let ctx = curPage.ctx;
-        let y = 105;
+        let y = 78;
 
         const startNewPage = () => {
             pageNum++;
-            curPage = createEditorialPDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
+            curPage = createMagazinePDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
             pages.push(curPage.canvas);
             ctx = curPage.ctx;
-            y = 105;
+            y = 115;
         };
 
         const ensureSpace = (neededH) => {
             if (y + neededH > maxY) startNewPage();
         };
 
-        // DOCUMENT HEADER (Lega & Tidak Terpotong)
+        // ====================================================================
+        // MAGAZINE HERO BANNER ON PAGE 1
+        // ====================================================================
+        const titleFont = `800 44px ${fontStack}`;
+        const titleLines = wrapPlainLinesStrict(ctx, data.title, contentW - 120, titleFont);
+        const goalRichLines = data.goal ? layoutRichPdfLines(ctx, data.goal, contentW - 140, 24, fontStack) : [];
+
+        const heroTopH = 128 + (titleLines.length * 56);
+        const goalBoxH = goalRichLines.length ? (66 + (goalRichLines.length * 40)) : 0;
+        const totalHeroH = heroTopH + (goalBoxH ? goalBoxH + 28 : 24);
+
+        // Hero Card Background
+        drawHandoutRoundedRect(ctx, padX, y, contentW, totalHeroH, 32, theme.pdfSoft, theme.pdfBorder, 2);
+
+        // Decorative Circle inside Hero Card
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(padX + contentW - 70, y + 70, 130, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fill();
+        ctx.restore();
+
+        // Kicker Pill Badge
+        const kickerText = cleanPlainPdfText(`${data.level}  •  WEEK ${week} DAY ${day}`).toUpperCase();
+        ctx.font = `800 18px ${fontStack}`;
+        const kickerW = Math.min(contentW - 100, ctx.measureText(kickerText).width + 44);
+        drawHandoutRoundedRect(ctx, padX + 46, y + 38, kickerW, 40, 20, '#FFFFFF', theme.pdfBorder, 1.5);
+        ctx.save();
+        ctx.textBaseline = 'top';
         ctx.textAlign = 'left';
         ctx.fillStyle = theme.pdfPrimary;
-        ctx.font = `800 21px ${fontStack}`;
-        ctx.fillText(`HAMDI ENGLISH STUDIO  •  ${cleanPdfText(data.level).toUpperCase()}`, padX, y + 24);
+        ctx.font = `800 18px ${fontStack}`;
+        ctx.fillText(kickerText, padX + 68, y + 49, kickerW - 36);
+        ctx.restore();
 
-        ctx.fillStyle = '#0F172A';
-        ctx.font = `800 44px ${fontStack}`;
-        const titleLines = wrapPdfTextStrict(ctx, data.title, contentW);
-        titleLines.forEach((tl, idx) => {
-            ctx.fillText(tl, padX, y + 78 + (idx * 54));
-        });
-        y += 45 + (titleLines.length * 54);
+        // Main Title (Strictly Wrapped)
+        drawPlainLinesStrict(ctx, titleLines, padX + 46, y + 98, 56, contentW - 92, titleFont, '#0F172A');
 
-        // Goal Box
-        if (data.goal) {
-            ctx.font = `600 24px ${fontStack}`;
-            const goalLines = wrapPdfTextStrict(ctx, data.goal, contentW - 88);
-            const goalH = 54 + (goalLines.length * 40);
-            ensureSpace(goalH + 35);
+        // Floating Goal Sub-Card inside Hero
+        if (goalRichLines.length) {
+            const gy = y + heroTopH - 6;
+            drawHandoutRoundedRect(ctx, padX + 40, gy, contentW - 80, goalBoxH, 22, '#FFFFFF', theme.pdfBorder, 1.5);
+            drawHandoutRoundedRect(ctx, padX + 40, gy, 10, goalBoxH, 5, theme.pdfPrimary);
 
-            drawHandoutRoundedRect(ctx, padX, y, contentW, goalH, 22, theme.pdfSoft, theme.pdfBorder, 2);
-            drawHandoutRoundedRect(ctx, padX, y, 12, goalH, 6, theme.pdfPrimary);
+            ctx.save();
+            ctx.textBaseline = 'top';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = theme.pdfPrimary;
+            ctx.font = `800 17px ${fontStack}`;
+            ctx.fillText('TODAY\'S LEARNING FOCUS', padX + 72, gy + 20);
+            ctx.restore();
 
-            ctx.fillStyle = '#1E293B';
-            ctx.font = `600 24px ${fontStack}`;
-            goalLines.forEach((gl, i) => ctx.fillText(gl, padX + 42, y + 46 + (i * 40)));
-            y += goalH + 45;
-        } else {
-            y += 25;
+            drawRichPdfLines(ctx, goalRichLines, padX + 72, gy + 48, 40, 24, fontStack, {
+                normal: '#1E293B',
+                highlightBg: theme.pdfHighlight,
+                quote: theme.pdfPrimary
+            });
         }
 
-        const drawSectionHeading = (title, accentColor = theme.pdfPrimary) => {
-            ensureSpace(110);
-            y += 12;
-            drawHandoutRoundedRect(ctx, padX, y - 26, 12, 34, 6, accentColor);
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#0F172A';
-            ctx.font = `800 30px ${fontStack}`;
-            ctx.fillText(cleanPdfText(title), padX + 28, y);
-            y += 32;
+        y += totalHeroH + 52;
+
+        // ====================================================================
+        // MAGAZINE SECTION HEADER HELPER (Strictly Wrapped & Numbered)
+        // ====================================================================
+        let secCounter = 1;
+        const drawMagazineSectionHeader = (title, subtitle = '', accentColor = theme.pdfPrimary) => {
+            const headFont = `800 31px ${fontStack}`;
+            const headLines = wrapPlainLinesStrict(ctx, title, contentW - 90, headFont);
+            const subFont = `500 20px ${fontStack}`;
+            const subLines = subtitle ? wrapPlainLinesStrict(ctx, subtitle, contentW - 90, subFont) : [];
+
+            const needed = 30 + (headLines.length * 40) + (subLines.length * 30) + 140;
+            ensureSpace(needed);
+
+            const numStr = String(secCounter++).padStart(2, '0');
+            drawHandoutRoundedRect(ctx, padX, y, 56, 56, 16, accentColor);
+            ctx.save();
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = `800 23px ${fontStack}`;
+            ctx.fillText(numStr, padX + 28, y + 28);
+            ctx.restore();
+
+            let curY = drawPlainLinesStrict(ctx, headLines, padX + 76, y + (subLines.length ? 2 : 10), 40, contentW - 80, headFont, '#0F172A');
+            if (subLines.length) {
+                curY = drawPlainLinesStrict(ctx, subLines, padX + 76, curY + 2, 30, contentW - 80, subFont, '#64748B');
+            }
+            y = Math.max(y + 62, curY) + 22;
         };
 
-        const drawFlowingParagraphs = (paragraphs, bg = '#F8FAFC', border = '#E2E8F0', textColor = '#334155') => {
+        // Helper for airy rich paragraphs
+        const drawEditorialParagraphs = (paragraphs, boxBg = '#F8FAFC', boxBorder = '#E2E8F0', leftStripe = null) => {
             if (!paragraphs || !paragraphs.length) return;
-            paragraphs.forEach(para => {
-                ctx.font = `500 23px ${fontStack}`;
-                const lines = wrapPdfTextStrict(ctx, para, contentW - 84);
-                const boxH = 44 + (lines.length * 40);
-                ensureSpace(boxH + 20);
-                drawHandoutRoundedRect(ctx, padX, y, contentW, boxH, 20, bg, border, 2);
-                ctx.fillStyle = textColor;
-                ctx.font = `500 23px ${fontStack}`;
-                lines.forEach((l, i) => ctx.fillText(l, padX + 42, y + 46 + (i * 40)));
-                y += boxH + 20;
+            const innerW = contentW - 96;
+            const blocks = paragraphs.map(p => layoutRichPdfLines(ctx, p, innerW, 24, fontStack));
+            const totalLines = blocks.reduce((acc, b) => acc + b.length, 0);
+            const paraGaps = Math.max(0, blocks.length - 1) * 22;
+            const boxH = 56 + (totalLines * 42) + paraGaps;
+
+            ensureSpace(boxH + 26);
+            drawHandoutRoundedRect(ctx, padX, y, contentW, boxH, 24, boxBg, boxBorder, 2);
+            if (leftStripe) {
+                drawHandoutRoundedRect(ctx, padX, y, 12, boxH, 6, leftStripe);
+            }
+
+            let curY = y + 30;
+            blocks.forEach((richLines) => {
+                curY = drawRichPdfLines(ctx, richLines, padX + 48, curY, 42, 24, fontStack, {
+                    normal: '#334155',
+                    highlightBg: '#FEF3C7',
+                    highlightText: '#0F172A',
+                    quote: theme.pdfPrimary
+                });
+                curY += 22;
             });
+            y += boxH + 28;
         };
 
-        // RENDER SECTIONS IN DYNAMIC ORDER
+        // ====================================================================
+        // RENDER EACH SECTION WITH ITS OWN GRAPHIC DESIGN LAYOUT
+        // ====================================================================
         data.sections.forEach(sec => {
+            // 1. STORY / SCENARIO (Editorial Pull-Quote Magazine Card)
             if (sec.type === 'story') {
-                drawSectionHeading(sec.title, '#D97706');
-                drawFlowingParagraphs(sec.paragraphs, '#FFFBEB', '#FDE68A', '#78350F');
-                y += 18;
+                drawMagazineSectionHeader(sec.title, 'Read this real-life scenario to feel how the language flows naturally.', '#D97706');
+                drawEditorialParagraphs(sec.paragraphs, '#FFFBEB', '#FDE68A', '#F59E0B');
+                y += 16;
             }
+
+            // 2. CALLOUT / PRO TIP (High-Contrast Dark Navy Spotlight Banner!)
             else if (sec.type === 'callout') {
-                drawSectionHeading(sec.title, '#4F46E5');
-                drawFlowingParagraphs(sec.paragraphs, '#EEF2FF', '#C7D2FE', '#1E1B4B');
-                y += 18;
-            }
-            else if (sec.type === 'warmup') {
-                drawSectionHeading(sec.title, '#D97706');
-                sec.items.forEach((q, idx) => {
-                    ctx.font = `600 23px ${fontStack}`;
-                    const lines = wrapPdfTextStrict(ctx, `${idx + 1}.  ${q}`, contentW - 80);
-                    const h = 40 + (lines.length * 38);
-                    ensureSpace(h + 16);
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 18, '#FFFBEB', '#FDE68A', 2);
-                    ctx.fillStyle = '#92400E';
-                    ctx.font = `600 23px ${fontStack}`;
-                    lines.forEach((l, i) => ctx.fillText(l, padX + 38, y + 44 + (i * 38)));
-                    y += h + 16;
+                const innerW = contentW - 140;
+                const blocks = sec.paragraphs.map(p => layoutRichPdfLines(ctx, p, innerW, 23, fontStack));
+                const totalLines = blocks.reduce((a, b) => a + b.length, 0);
+                const boxH = 92 + (totalLines * 40) + (Math.max(0, blocks.length - 1) * 16);
+
+                ensureSpace(boxH + 34);
+                drawHandoutRoundedRect(ctx, padX, y, contentW, boxH, 28, '#0F172A', '#1E293B', 2);
+
+                // Gold Icon Badge
+                drawHandoutRoundedRect(ctx, padX + 38, y + 34, 56, 56, 16, 'rgba(251, 191, 36, 0.18)', '#FBBF24', 1.5);
+                ctx.save();
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#FBBF24';
+                ctx.font = `800 22px ${fontStack}`;
+                ctx.fillText('TIP', padX + 66, y + 62);
+
+                ctx.textBaseline = 'top';
+                ctx.textAlign = 'left';
+                ctx.fillStyle = '#FBBF24';
+                ctx.font = `800 21px ${fontStack}`;
+                ctx.fillText(cleanPlainPdfText(sec.title).toUpperCase(), padX + 114, y + 34, contentW - 150);
+                ctx.restore();
+
+                let curY = y + 72;
+                blocks.forEach(richLines => {
+                    curY = drawRichPdfLines(ctx, richLines, padX + 114, curY, 40, 23, fontStack, {
+                        normal: '#F8FAFC',
+                        highlightBg: '#FBBF24',
+                        highlightText: '#0F172A',
+                        quote: '#38BDF8'
+                    });
+                    curY += 16;
                 });
-                y += 20;
+                y += boxH + 36;
             }
-            else if (sec.type === 'editorial') {
-                drawSectionHeading(sec.title, theme.pdfPrimary);
-                drawFlowingParagraphs(sec.paragraphs, '#F8FAFC', '#E2E8F0', '#1E293B');
 
-                sec.items.forEach(item => {
-                    ctx.font = `700 24px ${fontStack}`;
-                    const tLines = item.title ? wrapPdfTextStrict(ctx, item.title, contentW - 84) : [];
-                    ctx.font = `500 23px ${fontStack}`;
-                    const bLines = wrapPdfTextStrict(ctx, item.body, contentW - 84);
+            // 3. WARM UP (Horizontal Numbered Question Cards)
+            else if (sec.type === 'warmup') {
+                drawMagazineSectionHeader(sec.title, 'Warm up your brain by answering these casual questions aloud.', '#D97706');
 
-                    const h = 44 + (tLines.length * 38) + (bLines.length * 38);
+                sec.items.forEach((q, idx) => {
+                    const richLines = layoutRichPdfLines(ctx, q, contentW - 140, 24, fontStack);
+                    const h = Math.max(88, 44 + (richLines.length * 40));
                     ensureSpace(h + 18);
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 20, '#FFFFFF', '#CBD5E1', 2);
 
-                    let curY = y + 46;
-                    if (tLines.length) {
-                        ctx.fillStyle = theme.pdfPrimary;
-                        ctx.font = `800 24px ${fontStack}`;
-                        tLines.forEach(tl => { ctx.fillText(tl, padX + 42, curY); curY += 38; });
-                    }
-                    ctx.fillStyle = '#334155';
-                    ctx.font = `500 23px ${fontStack}`;
-                    bLines.forEach(bl => { ctx.fillText(bl, padX + 42, curY); curY += 38; });
+                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 22, '#FFFBEB', '#FDE68A', 2);
+                    drawHandoutRoundedRect(ctx, padX + 28, y + 22, 54, 44, 12, '#F59E0B');
+
+                    ctx.save();
+                    ctx.textBaseline = 'middle';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.font = `800 20px ${fontStack}`;
+                    ctx.fillText(`Q${idx + 1}`, padX + 55, y + 44);
+                    ctx.restore();
+
+                    drawRichPdfLines(ctx, richLines, padX + 104, y + 24, 40, 24, fontStack, {
+                        normal: '#78350F',
+                        highlightBg: '#FEF3C7',
+                        quote: '#B45309'
+                    });
                     y += h + 18;
                 });
+                y += 22;
+            }
+
+            // 4. EDITORIAL / CONCEPT (Flowing Article + 2-Column Bento Grid)
+            else if (sec.type === 'editorial') {
+                drawMagazineSectionHeader(sec.title, 'Key insights explained in simple, everyday English.', theme.pdfPrimary);
+                drawEditorialParagraphs(sec.paragraphs, '#F8FAFC', '#E2E8F0', theme.pdfPrimary);
+
+                if (sec.items.length) {
+                    const gapX = 28;
+                    const colW = Math.floor((contentW - gapX) / 2);
+
+                    for (let i = 0; i < sec.items.length; i += 2) {
+                        const leftIt = sec.items[i];
+                        const rightIt = sec.items[i + 1];
+                        const isSingleWide = !rightIt;
+                        const cardW = isSingleWide ? contentW : colW;
+
+                        const measureBento = (it, w) => {
+                            if (!it) return null;
+                            const tLines = it.title ? wrapPlainLinesStrict(ctx, it.title, w - 76, `800 24px ${fontStack}`) : [];
+                            const bLines = layoutRichPdfLines(ctx, it.body, w - 76, 22, fontStack);
+                            const h = 58 + (tLines.length * 36) + (bLines.length * 36);
+                            return { tLines, bLines, h };
+                        };
+
+                        const mL = measureBento(leftIt, cardW);
+                        const mR = measureBento(rightIt, colW);
+                        const rowH = Math.max(mL?.h || 0, mR?.h || 0);
+                        ensureSpace(rowH + 22);
+
+                        const drawBento = (mObj, xPos, w, num) => {
+                            drawHandoutRoundedRect(ctx, xPos, y, w, rowH, 22, '#FFFFFF', '#CBD5E1', 2);
+                            drawHandoutRoundedRect(ctx, xPos, y, w, 10, 5, theme.pdfPrimary);
+
+                            let cy = y + 28;
+                            if (mObj.tLines.length) {
+                                cy = drawPlainLinesStrict(ctx, mObj.tLines, xPos + 36, cy, 36, w - 72, `800 24px ${fontStack}`, theme.pdfPrimary);
+                                cy += 8;
+                            }
+                            drawRichPdfLines(ctx, mObj.bLines, xPos + 36, cy, 36, 22, fontStack, {
+                                normal: '#334155',
+                                highlightBg: theme.pdfSoft,
+                                highlightText: theme.pdfPrimary
+                            });
+                        };
+
+                        if (mL && mR) {
+                            drawBento(mL, padX, colW, i + 1);
+                            drawBento(mR, padX + colW + gapX, colW, i + 2);
+                        } else if (mL) {
+                            drawBento(mL, padX, contentW, i + 1);
+                        }
+                        y += rowH + 22;
+                    }
+                }
                 y += 20;
             }
+
+            // 5. FORMULAS / PATTERNS (Visual Pill Diagram Blocks!)
             else if (sec.type === 'formulas') {
-                drawSectionHeading(sec.title, '#4F46E5');
-                drawFlowingParagraphs(sec.paragraphs);
+                drawMagazineSectionHeader(sec.title, 'Visual building blocks to put sentences together naturally.', '#4F46E5');
+                drawEditorialParagraphs(sec.paragraphs);
 
                 sec.items.forEach(f => {
-                    ctx.font = `800 23px ${fontStack}`;
-                    const lblLines = wrapPdfTextStrict(ctx, `${f.badge}  ${f.label}`, contentW - 84);
-                    ctx.font = `700 24px ${fontStack}`;
-                    const formLines = wrapPdfTextStrict(ctx, f.formula, contentW - 84);
-                    ctx.font = `500 22px ${fontStack}`;
-                    const exLines = f.example ? wrapPdfTextStrict(ctx, `e.g. "${f.example}"`, contentW - 84) : [];
+                    const parts = f.formula.includes('+')
+                        ? f.formula.split('+').map(s => cleanPlainPdfText(s)).filter(Boolean)
+                        : [cleanPlainPdfText(f.formula)];
 
-                    const h = 48 + ((lblLines.length + formLines.length + exLines.length) * 38);
-                    ensureSpace(h + 18);
+                    // Layout visual formula pills into rows that never exceed contentW - 84
+                    const maxRowW = contentW - 88;
+                    const pillRows = [];
+                    let curRow = [];
+                    let curRowW = 0;
 
-                    const bg = f.badge === '[+]' ? '#ECFDF5' : (f.badge === '[-]' ? '#FFF1F2' : '#EEF2FF');
-                    const brd = f.badge === '[+]' ? '#A7F3D0' : (f.badge === '[-]' ? '#FECDD3' : '#C7D2FE');
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 20, bg, brd, 2);
+                    ctx.font = `800 22px ${fontStack}`;
+                    parts.forEach((pText, pIdx) => {
+                        const textW = Math.min(maxRowW - 40, ctx.measureText(pText).width);
+                        const pillW = textW + 40;
+                        const plusW = pIdx < parts.length - 1 ? 42 : 0;
 
-                    let curY = y + 44;
-                    ctx.fillStyle = '#475569';
-                    ctx.font = `800 21px ${fontStack}`;
-                    lblLines.forEach(l => { ctx.fillText(l.toUpperCase(), padX + 42, curY); curY += 36; });
+                        if (curRowW + pillW + plusW <= maxRowW || curRow.length === 0) {
+                            curRow.push({ text: pText, pillW, hasPlus: pIdx < parts.length - 1 });
+                            curRowW += pillW + plusW;
+                        } else {
+                            pillRows.push(curRow);
+                            curRow = [{ text: pText, pillW, hasPlus: pIdx < parts.length - 1 }];
+                            curRowW = pillW + plusW;
+                        }
+                    });
+                    if (curRow.length) pillRows.push(curRow);
+
+                    const exLines = f.example ? layoutRichPdfLines(ctx, `"${f.example}"`, contentW - 96, 23, fontStack) : [];
+                    const cardH = 74 + (pillRows.length * 60) + (exLines.length ? 22 + (exLines.length * 38) : 12);
+                    ensureSpace(cardH + 22);
+
+                    let accent = '#4F46E5', softBg = '#EEF2FF', brd = '#C7D2FE', tagTxt = 'PATTERN';
+                    if (f.badge === '[+]') { accent = '#059669'; softBg = '#ECFDF5'; brd = '#A7F3D0'; tagTxt = '+ POSITIVE'; }
+                    else if (f.badge === '[-]') { accent = '#E11D48'; softBg = '#FFF1F2'; brd = '#FECDD3'; tagTxt = '− NEGATIVE'; }
+                    else if (f.badge === '[?]') { accent = '#2563EB'; softBg = '#EFF6FF'; brd = '#BFDBFE'; tagTxt = '? QUESTION'; }
+
+                    drawHandoutRoundedRect(ctx, padX, y, contentW, cardH, 24, softBg, brd, 2);
+
+                    // Badge + Label
+                    ctx.font = `800 17px ${fontStack}`;
+                    const badgeW = ctx.measureText(tagTxt).width + 32;
+                    drawHandoutRoundedRect(ctx, padX + 38, y + 24, badgeW, 34, 10, accent);
+                    ctx.save();
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillText(tagTxt, padX + 54, y + 32);
 
                     ctx.fillStyle = '#0F172A';
-                    ctx.font = `800 25px ${fontStack}`;
-                    formLines.forEach(l => { ctx.fillText(l, padX + 42, curY); curY += 40; });
+                    ctx.font = `800 23px ${fontStack}`;
+                    ctx.fillText(cleanPlainPdfText(f.label).toUpperCase(), padX + 52 + badgeW, y + 28, contentW - badgeW - 96);
+                    ctx.restore();
+
+                    // Draw Pill Rows
+                    let py = y + 72;
+                    pillRows.forEach(row => {
+                        let px = padX + 38;
+                        row.forEach(pill => {
+                            drawHandoutRoundedRect(ctx, px, py, pill.pillW, 48, 14, '#FFFFFF', accent, 2);
+                            ctx.save();
+                            ctx.textBaseline = 'top';
+                            ctx.textAlign = 'left';
+                            ctx.fillStyle = '#0F172A';
+                            ctx.font = `800 22px ${fontStack}`;
+                            ctx.fillText(pill.text, px + 20, py + 13, pill.pillW - 36);
+                            ctx.restore();
+                            px += pill.pillW;
+
+                            if (pill.hasPlus) {
+                                ctx.save();
+                                ctx.textBaseline = 'middle';
+                                ctx.textAlign = 'center';
+                                ctx.fillStyle = accent;
+                                ctx.font = `800 26px ${fontStack}`;
+                                ctx.fillText('+', px + 21, py + 24);
+                                ctx.restore();
+                                px += 42;
+                            }
+                        });
+                        py += 60;
+                    });
 
                     if (exLines.length) {
-                        ctx.fillStyle = '#334155';
-                        ctx.font = `600 22px ${fontStack}`;
-                        exLines.forEach(l => { ctx.fillText(l, padX + 42, curY); curY += 36; });
+                        drawRichPdfLines(ctx, exLines, padX + 42, py + 4, 38, 23, fontStack, {
+                            normal: '#1E293B',
+                            quote: accent
+                        });
                     }
-                    y += h + 18;
+                    y += cardH + 22;
                 });
                 y += 20;
             }
-            else if (sec.type === 'phrases') {
-                drawSectionHeading(sec.title, '#0D9488');
-                drawFlowingParagraphs(sec.paragraphs);
 
-                // 2-Column Grid for Phrases so PDF looks like a real magazine workbook!
+            // 6. PHRASES & EXPRESSIONS (2-Column Flashcard Grid)
+            else if (sec.type === 'phrases') {
+                drawMagazineSectionHeader(sec.title, 'Natural expressions to sound more fluent in daily conversation.', '#0D9488');
+                drawEditorialParagraphs(sec.paragraphs);
+
                 const gapX = 28;
                 const colW = Math.floor((contentW - gapX) / 2);
 
                 for (let i = 0; i < sec.items.length; i += 2) {
-                    const leftItem = sec.items[i];
-                    const rightItem = sec.items[i + 1];
+                    const leftIt = sec.items[i];
+                    const rightIt = sec.items[i + 1];
+                    const isSingle = !rightIt;
+                    const cardW = isSingle ? contentW : colW;
 
-                    const measureCard = (it) => {
+                    const measurePhrase = (it, w) => {
                         if (!it) return null;
-                        ctx.font = `800 24px ${fontStack}`;
-                        const pLines = wrapPdfTextStrict(ctx, it.phrase, colW - 60);
-                        ctx.font = `600 21px ${fontStack}`;
-                        const mLines = it.meaning ? wrapPdfTextStrict(ctx, it.meaning, colW - 60) : [];
-                        ctx.font = `500 20px ${fontStack}`;
-                        const eLines = it.example ? wrapPdfTextStrict(ctx, `"${it.example}"`, colW - 60) : [];
-                        const totalH = 44 + (pLines.length * 36) + (mLines.length * 32) + (eLines.length * 32);
-                        return { pLines, mLines, eLines, totalH };
+                        const pLines = wrapPlainLinesStrict(ctx, it.phrase, w - 68, `800 25px ${fontStack}`);
+                        const mLines = it.meaning ? wrapPlainLinesStrict(ctx, `= ${it.meaning}`, w - 68, `600 21px ${fontStack}`) : [];
+                        const eLines = it.example ? wrapPlainLinesStrict(ctx, `"${it.example}"`, w - 68, `italic 500 20px ${fontStack}`) : [];
+                        const h = 58 + (pLines.length * 36) + (mLines.length * 32) + (eLines.length ? 16 + (eLines.length * 32) : 0);
+                        return { pLines, mLines, eLines, h };
                     };
 
-                    const mLeft = measureCard(leftItem);
-                    const mRight = measureCard(rightItem);
-                    const rowH = Math.max(mLeft?.totalH || 0, mRight?.totalH || 0);
-                    ensureSpace(rowH + 18);
+                    const mL = measurePhrase(leftIt, cardW);
+                    const mR = measurePhrase(rightIt, colW);
+                    const rowH = Math.max(mL?.h || 0, mR?.h || 0);
+                    ensureSpace(rowH + 22);
 
-                    const drawPhraseCard = (mObj, xPos, width) => {
-                        drawHandoutRoundedRect(ctx, xPos, y, width, rowH, 18, '#F0FDFA', '#99F6E4', 2);
-                        let cy = y + 42;
-                        ctx.fillStyle = '#134E4A';
-                        ctx.font = `800 24px ${fontStack}`;
-                        mObj.pLines.forEach(l => { ctx.fillText(l, xPos + 30, cy); cy += 36; });
+                    const drawPhrase = (mObj, xPos, w) => {
+                        drawHandoutRoundedRect(ctx, xPos, y, w, rowH, 22, '#F0FDFA', '#99F6E4', 2);
+                        drawHandoutRoundedRect(ctx, xPos, y, 10, rowH, 5, '#0D9488');
 
+                        let cy = y + 26;
+                        cy = drawPlainLinesStrict(ctx, mObj.pLines, xPos + 34, cy, 36, w - 64, `800 25px ${fontStack}`, '#134E4A');
                         if (mObj.mLines.length) {
-                            ctx.fillStyle = '#0F766E';
-                            ctx.font = `600 21px ${fontStack}`;
-                            mObj.mLines.forEach(l => { ctx.fillText(l, xPos + 30, cy); cy += 32; });
+                            cy = drawPlainLinesStrict(ctx, mObj.mLines, xPos + 34, cy + 4, 32, w - 64, `600 21px ${fontStack}`, '#0F766E');
                         }
                         if (mObj.eLines.length) {
-                            cy += 4;
-                            ctx.fillStyle = '#334155';
-                            ctx.font = `500 20px ${fontStack}`;
-                            mObj.eLines.forEach(l => { ctx.fillText(l, xPos + 30, cy); cy += 32; });
+                            drawPlainLinesStrict(ctx, mObj.eLines, xPos + 34, cy + 12, 32, w - 64, `italic 500 20px ${fontStack}`, '#334155');
                         }
                     };
 
-                    if (mLeft && mRight) {
-                        drawPhraseCard(mLeft, padX, colW);
-                        drawPhraseCard(mRight, padX + colW + gapX, colW);
-                    } else if (mLeft) {
-                        drawPhraseCard(mLeft, padX, contentW);
+                    if (mL && mR) {
+                        drawPhrase(mL, padX, colW);
+                        drawPhrase(mR, padX + colW + gapX, colW);
+                    } else if (mL) {
+                        drawPhrase(mL, padX, contentW);
                     }
-                    y += rowH + 18;
+                    y += rowH + 22;
                 }
                 y += 20;
             }
+
+            // 7. EXAMPLES (2-Column Context Cards with Pill Tags)
             else if (sec.type === 'examples') {
-                drawSectionHeading(sec.title, '#059669');
-                drawFlowingParagraphs(sec.paragraphs);
+                drawMagazineSectionHeader(sec.title, 'Real-world sentences showing how to use this topic in context.', '#059669');
+                drawEditorialParagraphs(sec.paragraphs);
 
-                sec.items.forEach(ex => {
-                    ctx.font = `700 24px ${fontStack}`;
-                    const mainLines = wrapPdfTextStrict(ctx, `[${ex.tag}]   ${ex.sentence}`, contentW - 84);
-                    ctx.font = `500 21px ${fontStack}`;
-                    const noteLines = ex.note ? wrapPdfTextStrict(ctx, `→ ${ex.note}`, contentW - 84) : [];
+                const gapX = 28;
+                const colW = Math.floor((contentW - gapX) / 2);
 
-                    const h = 42 + (mainLines.length * 38) + (noteLines.length * 34);
-                    ensureSpace(h + 16);
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 18, '#FFFFFF', '#CBD5E1', 2);
+                for (let i = 0; i < sec.items.length; i += 2) {
+                    const leftIt = sec.items[i];
+                    const rightIt = sec.items[i + 1];
+                    const isSingle = !rightIt;
+                    const cardW = isSingle ? contentW : colW;
 
-                    let curY = y + 44;
-                    ctx.fillStyle = '#0F172A';
-                    ctx.font = `700 24px ${fontStack}`;
-                    mainLines.forEach(l => { ctx.fillText(l, padX + 40, curY); curY += 38; });
+                    const measureEx = (it, w) => {
+                        if (!it) return null;
+                        const sLines = wrapPlainLinesStrict(ctx, it.sentence, w - 68, `700 23px ${fontStack}`);
+                        const nLines = it.note ? wrapPlainLinesStrict(ctx, `💡 ${it.note}`, w - 68, `500 19px ${fontStack}`) : [];
+                        const h = 82 + (sLines.length * 36) + (nLines.length ? 14 + (nLines.length * 30) : 0);
+                        return { tag: cleanPlainPdfText(it.tag || 'EXAMPLE').toUpperCase(), sLines, nLines, h };
+                    };
 
-                    if (noteLines.length) {
+                    const mL = measureEx(leftIt, cardW);
+                    const mR = measureEx(rightIt, colW);
+                    const rowH = Math.max(mL?.h || 0, mR?.h || 0);
+                    ensureSpace(rowH + 22);
+
+                    const drawEx = (mObj, xPos, w) => {
+                        drawHandoutRoundedRect(ctx, xPos, y, w, rowH, 22, '#FFFFFF', '#CBD5E1', 2);
+
+                        ctx.font = `800 16px ${fontStack}`;
+                        const tagW = Math.min(w - 64, ctx.measureText(mObj.tag).width + 30);
+                        drawHandoutRoundedRect(ctx, xPos + 32, y + 24, tagW, 32, 10, '#ECFDF5', '#A7F3D0', 1.5);
+                        ctx.save();
+                        ctx.textBaseline = 'top';
+                        ctx.textAlign = 'left';
                         ctx.fillStyle = '#047857';
-                        ctx.font = `600 21px ${fontStack}`;
-                        noteLines.forEach(l => { ctx.fillText(l, padX + 40, curY); curY += 34; });
+                        ctx.fillText(mObj.tag, xPos + 47, y + 32, tagW - 24);
+                        ctx.restore();
+
+                        let cy = drawPlainLinesStrict(ctx, mObj.sLines, xPos + 32, y + 68, 36, w - 64, `700 23px ${fontStack}`, '#0F172A');
+                        if (mObj.nLines.length) {
+                            drawPlainLinesStrict(ctx, mObj.nLines, xPos + 32, cy + 10, 30, w - 64, `500 19px ${fontStack}`, '#64748B');
+                        }
+                    };
+
+                    if (mL && mR) {
+                        drawEx(mL, padX, colW);
+                        drawEx(mR, padX + colW + gapX, colW);
+                    } else if (mL) {
+                        drawEx(mL, padX, contentW);
                     }
-                    y += h + 16;
-                });
+                    y += rowH + 22;
+                }
                 y += 20;
             }
+
+            // 8. MISTAKES (True Side-by-Side Split Comparison Card: ❌ DON'T SAY vs ✅ SAY THIS)
             else if (sec.type === 'mistakes') {
-                drawSectionHeading(sec.title, '#E11D48');
+                drawMagazineSectionHeader(sec.title, 'Side-by-side comparison to help you sound natural and avoid common traps.', '#E11D48');
+
+                const halfW = Math.floor((contentW - 68) / 2);
                 sec.items.forEach(m => {
-                    ctx.font = `600 22px ${fontStack}`;
-                    const wLines = m.wrong ? wrapPdfTextStrict(ctx, `✗ Avoid:  ${m.wrong}`, contentW - 84) : [];
-                    ctx.font = `800 23px ${fontStack}`;
-                    const rLines = wrapPdfTextStrict(ctx, `✓ Natural:  ${m.right}`, contentW - 84);
-                    ctx.font = `500 21px ${fontStack}`;
-                    const whyLines = m.reason ? wrapPdfTextStrict(ctx, `Why: ${m.reason}`, contentW - 84) : [];
+                    if (!m.wrong) {
+                        drawEditorialParagraphs([m.right], '#FFFBEB', '#FDE68A', '#F59E0B');
+                        return;
+                    }
 
-                    const h = 46 + ((wLines.length + rLines.length + whyLines.length) * 36);
-                    ensureSpace(h + 18);
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 18, '#FFF1F2', '#FECDD3', 2);
+                    const wLines = wrapPlainLinesStrict(ctx, m.wrong, halfW - 36, `600 22px ${fontStack}`);
+                    const rLines = wrapPlainLinesStrict(ctx, m.right, halfW - 36, `800 23px ${fontStack}`);
+                    const whyLines = m.reason ? wrapPlainLinesStrict(ctx, `Why: ${m.reason}`, contentW - 84, `600 20px ${fontStack}`) : [];
 
-                    let curY = y + 44;
-                    ctx.fillStyle = '#BE123C';
-                    ctx.font = `600 22px ${fontStack}`;
-                    wLines.forEach(l => { ctx.fillText(l, padX + 40, curY); curY += 36; });
+                    const splitBoxH = 68 + (Math.max(wLines.length, rLines.length) * 36);
+                    const totalCardH = splitBoxH + (whyLines.length ? 30 + (whyLines.length * 32) : 24) + 24;
+                    ensureSpace(totalCardH + 20);
 
-                    ctx.fillStyle = '#047857';
-                    ctx.font = `800 23px ${fontStack}`;
-                    rLines.forEach(l => { ctx.fillText(l, padX + 40, curY); curY += 36; });
+                    drawHandoutRoundedRect(ctx, padX, y, contentW, totalCardH, 24, '#F8FAFC', '#CBD5E1', 2);
+
+                    // Left Box: DON'T SAY
+                    const leftX = padX + 24;
+                    const topY = y + 22;
+                    drawHandoutRoundedRect(ctx, leftX, topY, halfW, splitBoxH, 18, '#FFF1F2', '#FECDD3', 2);
+                    ctx.save();
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = '#E11D48';
+                    ctx.font = `800 16px ${fontStack}`;
+                    ctx.fillText('✕  DON\'T SAY (AVOID)', leftX + 22, topY + 18);
+                    ctx.restore();
+                    drawPlainLinesStrict(ctx, wLines, leftX + 22, topY + 48, 36, halfW - 44, `600 22px ${fontStack}`, '#881337', true);
+
+                    // Right Box: SAY THIS
+                    const rightX = leftX + halfW + 20;
+                    drawHandoutRoundedRect(ctx, rightX, topY, halfW, splitBoxH, 18, '#ECFDF5', '#A7F3D0', 2);
+                    ctx.save();
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = '#059669';
+                    ctx.font = `800 16px ${fontStack}`;
+                    ctx.fillText('✓  SAY THIS (NATURAL)', rightX + 22, topY + 18);
+                    ctx.restore();
+                    drawPlainLinesStrict(ctx, rLines, rightX + 22, topY + 48, 36, halfW - 44, `800 23px ${fontStack}`, '#064E3B', false);
 
                     if (whyLines.length) {
-                        ctx.fillStyle = '#475569';
-                        ctx.font = `500 21px ${fontStack}`;
-                        whyLines.forEach(l => { ctx.fillText(l, padX + 40, curY); curY += 36; });
+                        drawPlainLinesStrict(ctx, whyLines, padX + 36, topY + splitBoxH + 16, 32, contentW - 72, `600 20px ${fontStack}`, '#475569');
                     }
-                    y += h + 18;
+                    y += totalCardH + 20;
                 });
                 y += 20;
             }
-            else if (sec.type === 'dialogue') {
-                drawSectionHeading(sec.title, '#0284C7');
-                drawFlowingParagraphs(sec.paragraphs);
 
-                // Left / Right Chat Bubbles in PDF
-                const bubbleW = Math.floor(contentW * 0.82);
+            // 9. DIALOGUE / CONVERSATION (Messenger Chat Bubbles + Avatars)
+            else if (sec.type === 'dialogue') {
+                drawMagazineSectionHeader(sec.title, 'Read aloud or roleplay this natural conversation.', '#0284C7');
+                drawEditorialParagraphs(sec.paragraphs);
+
+                const avatarSize = 54;
+                const bubbleW = Math.floor(contentW * 0.78);
+
                 sec.items.forEach((line, lIdx) => {
                     const match = line.match(/^([A-Za-z\s.]{1,22})\s*:\s*(.+)$/);
                     const spk = match ? match[1].trim() : `Speaker ${(lIdx % 2) + 1}`;
                     const txt = match ? match[2].trim() : line;
                     const isLeft = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|a)\b/i.test(spk) || (lIdx % 2 === 0);
 
-                    ctx.font = `500 23px ${fontStack}`;
-                    const lines = wrapPdfTextStrict(ctx, txt, bubbleW - 72);
+                    const lines = wrapPlainLinesStrict(ctx, txt, bubbleW - 76, `500 23px ${fontStack}`);
                     const h = 68 + (lines.length * 36);
-                    ensureSpace(h + 16);
+                    ensureSpace(h + 20);
 
-                    const bx = isLeft ? padX : (padX + contentW - bubbleW);
-                    const bg = isLeft ? '#F8FAFC' : '#EFF6FF';
-                    const brd = isLeft ? '#CBD5E1' : '#93C5FD';
+                    const avatarX = isLeft ? padX : (padX + contentW - avatarSize);
+                    const bubbleX = isLeft ? (padX + avatarSize + 18) : (padX + contentW - avatarSize - 18 - bubbleW);
 
-                    drawHandoutRoundedRect(ctx, bx, y, bubbleW, h, 22, bg, brd, 2);
+                    // Draw Avatar Circle
+                    drawHandoutRoundedRect(ctx, avatarX, y + 6, avatarSize, avatarSize, 18, isLeft ? '#2563EB' : '#E11D48');
+                    ctx.save();
+                    ctx.textBaseline = 'middle';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.font = `800 22px ${fontStack}`;
+                    ctx.fillText(spk.charAt(0).toUpperCase(), avatarX + (avatarSize / 2), y + 33);
+                    ctx.restore();
 
+                    // Draw Speech Bubble
+                    drawHandoutRoundedRect(ctx, bubbleX, y, bubbleW, h, 24, isLeft ? '#F8FAFC' : '#EFF6FF', isLeft ? '#CBD5E1' : '#93C5FD', 2);
+
+                    ctx.save();
+                    ctx.textBaseline = 'top';
                     ctx.textAlign = 'left';
-                    ctx.fillStyle = isLeft ? '#475569' : '#1D4ED8';
-                    ctx.font = `800 19px ${fontStack}`;
-                    ctx.fillText(spk.toUpperCase(), bx + 36, y + 36);
+                    ctx.fillStyle = isLeft ? '#2563EB' : '#1D4ED8';
+                    ctx.font = `800 17px ${fontStack}`;
+                    ctx.fillText(spk.toUpperCase(), bubbleX + 34, y + 18, bubbleW - 68);
+                    ctx.restore();
 
-                    ctx.fillStyle = '#0F172A';
-                    ctx.font = `500 23px ${fontStack}`;
-                    lines.forEach((l, i) => ctx.fillText(l, bx + 36, y + 72 + (i * 36)));
-                    y += h + 16;
+                    drawPlainLinesStrict(ctx, lines, bubbleX + 34, y + 46, 36, bubbleW - 68, `500 23px ${fontStack}`, '#0F172A');
+                    y += h + 20;
                 });
                 y += 20;
             }
+
+            // 10. PRACTICE / WORKSHEET CHALLENGES
             else if (sec.type === 'practice') {
-                drawSectionHeading(sec.title, '#7C3AED');
-                drawFlowingParagraphs(sec.paragraphs);
+                drawMagazineSectionHeader(sec.title, 'Test your understanding and practice speaking aloud.', '#7C3AED');
+                drawEditorialParagraphs(sec.paragraphs);
 
                 sec.items.forEach((pr, idx) => {
-                    ctx.font = `600 23px ${fontStack}`;
-                    const qLines = wrapPdfTextStrict(ctx, `${idx + 1}. [${pr.tag}]   ${pr.task}`, contentW - 84);
-                    ctx.font = `600 20px ${fontStack}`;
-                    const aLines = pr.answerKey ? wrapPdfTextStrict(ctx, `Key: ${pr.answerKey}`, contentW - 84) : [];
+                    const qLines = layoutRichPdfLines(ctx, pr.task, contentW - 130, 23, fontStack);
+                    const aLines = pr.answerKey ? wrapPlainLinesStrict(ctx, `Answer Key: ${pr.answerKey}`, contentW - 130, `600 19px ${fontStack}`) : [];
 
-                    const h = 44 + (qLines.length * 38) + (aLines.length * 32);
-                    ensureSpace(h + 16);
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 18, '#F5F3FF', '#DDD6FE', 2);
+                    const h = 76 + (qLines.length * 38) + (aLines.length ? 16 + (aLines.length * 30) : 0);
+                    ensureSpace(h + 20);
 
-                    let curY = y + 44;
-                    ctx.fillStyle = '#1E1B4B';
-                    ctx.font = `600 23px ${fontStack}`;
-                    qLines.forEach(l => { ctx.fillText(l, padX + 40, curY); curY += 38; });
+                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 22, '#F5F3FF', '#DDD6FE', 2);
+
+                    // Number Circle
+                    drawHandoutRoundedRect(ctx, padX + 28, y + 24, 48, 48, 14, '#7C3AED');
+                    ctx.save();
+                    ctx.textBaseline = 'middle';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.font = `800 21px ${fontStack}`;
+                    ctx.fillText(String(idx + 1), padX + 52, y + 48);
+
+                    // Tag Pill
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = '#6D28D9';
+                    ctx.font = `800 17px ${fontStack}`;
+                    ctx.fillText(cleanPlainPdfText(pr.tag).toUpperCase(), padX + 94, y + 22, contentW - 130);
+                    ctx.restore();
+
+                    let cy = drawRichPdfLines(ctx, qLines, padX + 94, y + 50, 38, 23, fontStack, {
+                        normal: '#1E1B4B',
+                        highlightBg: '#FEF3C7',
+                        quote: '#6D28D9'
+                    });
 
                     if (aLines.length) {
-                        ctx.fillStyle = '#6D28D9';
-                        ctx.font = `600 20px ${fontStack}`;
-                        aLines.forEach(l => { ctx.fillText(l, padX + 40, curY); curY += 32; });
+                        drawPlainLinesStrict(ctx, aLines, padX + 94, cy + 12, 30, contentW - 130, `600 19px ${fontStack}`, '#059669');
                     }
-                    y += h + 16;
+                    y += h + 20;
                 });
             }
         });
@@ -1743,7 +2161,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
             });
             const cleanTitle = data.title.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
             pdf.save(`HES_${monthObj.title.replace(/\s+/g, '')}_Session${sessionNumber}_${cleanTitle}.pdf`);
-            showToast('PDF berhasil diunduh dengan layout baru yang lega!', 'success');
+            showToast('PDF Magazine Workbook berhasil diunduh!', 'success');
         }
     } catch (e) {
         console.error(e);
