@@ -22,7 +22,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800">Panel Kendali Admin (CMS)</h2>
-                        <p class="text-xs sm:text-sm text-slate-500">Kelola murid, jadwal, materi PDF, wordbank, dan penilaian ujian.</p>
+                        <p class="text-xs sm:text-sm text-slate-500">Kelola murid, jadwal, modul materi pintar, wordbank, dan penilaian ujian.</p>
                     </div>
                     <button onclick="refreshAdminCloudData()" class="hes-btn-soft self-start sm:self-auto">
                         <i class="fas fa-sync-alt"></i> Segarkan Data Cloud
@@ -115,17 +115,115 @@
 
                 <!-- TAB 3: MATERI & KOSAKATA -->
                 <section id="admin-panel-materials" class="hidden space-y-6">
-                    <div class="hes-card space-y-4">
-                        <h3 class="text-base font-extrabold text-slate-800"><i class="fas fa-file-pdf text-red-500 mr-1.5"></i> Upload Link Modul & Recap (Google Drive)</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <select id="admin-target-student" class="hes-input"></select>
-                            <select id="admin-month" class="hes-input"></select>
-                            <select id="admin-week" class="hes-input"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option></select>
-                            <select id="admin-day" class="hes-input"><option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option></select>
+                    <!-- BUILDER MODUL MATERI & RECAP (PENGGANTI PDF) -->
+                    <div class="hes-card space-y-5">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                            <div>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-extrabold uppercase">Smart Handout Builder</span>
+                                <h3 class="text-base sm:text-lg font-extrabold text-slate-800 mt-1">
+                                    <i class="fas fa-book-open text-indigo-600 mr-1.5"></i> Builder Modul Materi & Catatan Recap (Desain Rapor)
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-0.5">Buat materi Full English yang rapi dan mudah dipahami dengan bantuan Prompt Gemini. Otomatis tampil berdesain eksklusif & ber-watermark.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2 shrink-0">
+                                <button type="button" onclick="copyGeminiModulePrompt('single')" class="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold transition cursor-pointer">
+                                    <i class="fas fa-copy mr-1"></i> Prompt 1 Sesi
+                                </button>
+                                <button type="button" onclick="copyGeminiModulePrompt('bulk')" class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer">
+                                    <i class="fas fa-bolt mr-1 text-amber-300"></i> Prompt Bulk 1 Bulan
+                                </button>
+                                <button type="button" onclick="copyGeminiModulePrompt('recap')" class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-extrabold transition cursor-pointer">
+                                    <i class="fas fa-file-signature mr-1"></i> Prompt Recap
+                                </button>
+                            </div>
                         </div>
-                        <input type="text" id="admin-link" placeholder="Link Google Drive Modul Presentasi" class="hes-input">
-                        <input type="text" id="admin-recap-pdf" placeholder="Link Google Drive Catatan Recap" class="hes-input">
-                        <button onclick="saveMaterialData(event)" class="hes-btn-primary"><i class="fas fa-save"></i> Simpan Link Materi</button>
+
+                        <!-- Filter Target, Bulan, Minggu, Hari -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase">Target Murid</label>
+                                <select id="admin-target-student" onchange="loadAdminMaterialEditor()" class="hes-input mt-1"></select>
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Bulan</label>
+                                <select id="admin-month" onchange="loadAdminMaterialEditor()" class="hes-input mt-1"></select>
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Minggu</label>
+                                <select id="admin-week" onchange="loadAdminMaterialEditor()" class="hes-input mt-1">
+                                    <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Hari</label>
+                                <select id="admin-day" onchange="loadAdminMaterialEditor()" class="hes-input mt-1">
+                                    <option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Peta Status 12 Sesi di Bulan Terpilih -->
+                        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-extrabold text-slate-500 uppercase">Status Pengisian 12 Sesi di Bulan Ini (Klik angka untuk pindah sesi):</span>
+                                <span id="admin-material-session-indicator" class="text-xs font-extrabold text-indigo-600">Sesi 1 (W1•D1)</span>
+                            </div>
+                            <div id="admin-month-sessions-bar" class="grid grid-cols-6 sm:grid-cols-12 gap-1.5"></div>
+                        </div>
+
+                        <!-- Sub-Tab: Modul Materi vs Catatan Recap -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-100 p-1.5 rounded-2xl">
+                            <div class="flex gap-1.5">
+                                <button type="button" id="adm-mat-subtab-module" onclick="switchAdminMaterialSubtab('module')" class="px-4 py-2 rounded-xl text-xs font-extrabold transition bg-white text-indigo-600 shadow-xs">
+                                    <i class="fas fa-book-open mr-1.5"></i> 1. Modul Materi Utama (Handout)
+                                </button>
+                                <button type="button" id="adm-mat-subtab-recap" onclick="switchAdminMaterialSubtab('recap')" class="px-4 py-2 rounded-xl text-xs font-extrabold transition text-slate-600 hover:text-slate-900">
+                                    <i class="fas fa-clipboard-check mr-1.5"></i> 2. Catatan Recap & Evaluasi Sesi
+                                </button>
+                            </div>
+                            <span id="admin-material-status-badge" class="text-[11px] font-extrabold px-3 py-1 rounded-lg bg-slate-200 text-slate-600">Belum Diisi</span>
+                        </div>
+
+                        <!-- Editor Modul Materi Utama -->
+                        <div id="admin-editor-module-box" class="space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label class="text-xs font-extrabold text-slate-700">
+                                    Isi Teks Modul Materi (Bisa 1 Sesi atau Bulk Beberapa Sesi dipisah <code>===</code>):
+                                </label>
+                                <button type="button" onclick="insertSampleModuleTemplate('module')" class="text-xs font-extrabold text-indigo-600 hover:underline self-start sm:self-auto cursor-pointer">
+                                    <i class="fas fa-magic mr-1"></i> Isi Contoh Format Materi
+                                </button>
+                            </div>
+                            <textarea id="admin-link" rows="12" class="hes-input !bg-white font-mono text-xs leading-relaxed" placeholder="Tempelkan hasil materi dari Gemini di sini...&#10;&#10;TITLE: Daily Routines & Simple Present Tense&#10;LEVEL: Month 1 - Beginner Friendly&#10;GOAL: Talk about daily activities naturally in English.&#10;OVERVIEW:&#10;Simple Present Tense is used to describe habits, daily routines, and general facts...&#10;KEY POINTS:&#10;- Use Verb 1 for I, You, We, They...&#10;EXAMPLES:&#10;- I wake up at 6 AM every morning.&#10;DIALOGUE:&#10;Man: What time do you usually start your day?&#10;Woman: I usually wake up at 6 AM and make coffee.&#10;TIPS:&#10;- Don't forget to add -s/-es for He, She, It!&#10;PRACTICE:&#10;1. Share 3 things you do every morning."></textarea>
+                        </div>
+
+                        <!-- Editor Catatan Recap -->
+                        <div id="admin-editor-recap-box" class="hidden space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label class="text-xs font-extrabold text-slate-700">
+                                    Isi Catatan Rangkuman & Koreksi Kelas (Recap Handout):
+                                </label>
+                                <button type="button" onclick="insertSampleModuleTemplate('recap')" class="text-xs font-extrabold text-emerald-600 hover:underline self-start sm:self-auto cursor-pointer">
+                                    <i class="fas fa-magic mr-1"></i> Isi Contoh Format Recap
+                                </button>
+                            </div>
+                            <textarea id="admin-recap-pdf" rows="10" class="hes-input !bg-white font-mono text-xs leading-relaxed" placeholder="Tempelkan catatan recap sesi kelas di sini...&#10;&#10;TITLE: Class Recap - Daily Routines&#10;GOAL: Review of today's speaking practice & pronunciation corrections.&#10;OVERVIEW:&#10;Great job in class today! You spoke with much better confidence...&#10;KEY POINTS:&#10;- Remember to pronounce the final -s in 'works' and 'plays'.&#10;EXAMPLES:&#10;- Correct: She works at a hospital. (Not: She work at a hospital)&#10;TIPS:&#10;- Practice reading today's dialogue aloud 3 times before our next class!"></textarea>
+                        </div>
+
+                        <!-- Tombol Simpan Sesi Ini / Simpan Bulk 1 Bulan -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                            <div class="flex flex-wrap gap-2.5 flex-1">
+                                <button type="button" onclick="saveMaterialData(false)" class="hes-btn-primary">
+                                    <i class="fas fa-save"></i> Simpan ke Sesi Ini
+                                </button>
+                                <button type="button" onclick="saveMaterialData(true)" class="hes-btn-primary !bg-emerald-600 hover:!bg-emerald-700">
+                                    <i class="fas fa-layer-group"></i> Proses & Simpan Bulk (Otomatis Urut Sesi 1–12)
+                                </button>
+                            </div>
+                            <button type="button" onclick="clearCurrentSessionMaterial()" class="hes-btn-soft !bg-red-50 !text-red-600 !border-red-200">
+                                <i class="fas fa-trash"></i> Kosongkan Sesi Ini
+                            </button>
+                        </div>
                     </div>
 
                     <div class="hes-card space-y-4">
@@ -223,6 +321,6 @@
     <script src="js/wordbank.js"></script>
     <script src="js/config.js"></script>
     <script src="js/layout.js"></script>
-    <script src="js/admin.js?v=7"></script>
+    <script src="js/admin.js?v=8"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 // js/admin.js
 
 let currentAdminTab = 'overview';
+let currentAdminMaterialSubtab = 'module';
 let adminExamState = { student: '', month: '', activeTab: 'listening', data: null };
 let currentAdminGradingTab = 'reading';
 
@@ -45,7 +46,10 @@ window.switchAdminTab = function(tabName) {
     });
     if (tabName === 'overview') renderAdminOverviewTab();
     if (tabName === 'users') renderAdminUsersTab();
-    if (tabName === 'materials') loadAdminVocabPreview();
+    if (tabName === 'materials') {
+        loadAdminMaterialEditor();
+        loadAdminVocabPreview();
+    }
 };
 
 function populateAllAdminDropdowns() {
@@ -67,6 +71,7 @@ function populateAllAdminDropdowns() {
     ['admin-month', 'admin-vocab-month', 'admin-review-month', 'admin-exam-month'].forEach(id => fill(id, mOpts));
     ['admin-review-student', 'admin-exam-student'].forEach(id => fill(id, sOpts));
     loadStudentScheduleForm();
+    loadAdminMaterialEditor();
 }
 
 // TAB 1: OVERVIEW
@@ -217,17 +222,348 @@ window.deleteStudentAccount = async function(email) {
     renderAdminUsersTab();
 };
 
-// TAB 3: MATERI & WORDBANK
-window.saveMaterialData = async function() {
+// ============================================================================
+// TAB 3: BUILDER MODUL MATERI PINTAR (SMART HANDOUT) & WORDBANK
+// ============================================================================
+window.switchAdminMaterialSubtab = function(sub) {
+    currentAdminMaterialSubtab = sub;
+    const btnMod = document.getElementById('adm-mat-subtab-module');
+    const btnRec = document.getElementById('adm-mat-subtab-recap');
+    const boxMod = document.getElementById('admin-editor-module-box');
+    const boxRec = document.getElementById('admin-editor-recap-box');
+
+    if (btnMod) btnMod.className = `px-4 py-2 rounded-xl text-xs font-extrabold transition ${sub === 'module' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if (btnRec) btnRec.className = `px-4 py-2 rounded-xl text-xs font-extrabold transition ${sub === 'recap' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if (boxMod) boxMod.classList.toggle('hidden', sub !== 'module');
+    if (boxRec) boxRec.classList.toggle('hidden', sub !== 'recap');
+    updateAdminMaterialStatusBadge();
+};
+
+window.selectAdminMaterialSession = function(week, day) {
+    const wEl = document.getElementById('admin-week');
+    const dEl = document.getElementById('admin-day');
+    if (wEl) wEl.value = String(week);
+    if (dEl) dEl.value = String(day);
+    loadAdminMaterialEditor();
+};
+
+window.loadAdminMaterialEditor = function() {
+    const pref = document.getElementById('admin-target-student')?.value || 'all';
+    const m = document.getElementById('admin-month')?.value || 'm1';
+    const w = parseInt(document.getElementById('admin-week')?.value || '1');
+    const d = parseInt(document.getElementById('admin-day')?.value || '1');
+
+    const linkEl = document.getElementById('admin-link');
+    const recapEl = document.getElementById('admin-recap-pdf');
+    if (!linkEl || !recapEl) return;
+
+    const sessionNum = ((w - 1) * 3) + d;
+    const indEl = document.getElementById('admin-material-session-indicator');
+    if (indEl) indEl.innerText = `Sesi ${sessionNum} dari 12 (${m.toUpperCase()} • W${w}•D${d})`;
+
+    const savedMod = window.HES.materials[`${pref}-${m}-w${w}-d${d}-link`] || '';
+    const savedRec = window.HES.materials[`${pref}-${m}-w${w}-d${d}-recap`] || '';
+
+    linkEl.value = savedMod;
+    recapEl.value = savedRec;
+
+    renderAdminMonthSessionsBar(pref, m, w, d);
+    updateAdminMaterialStatusBadge();
+};
+
+function renderAdminMonthSessionsBar(pref, m, activeW, activeD) {
+    const bar = document.getElementById('admin-month-sessions-bar');
+    if (!bar) return;
+    let html = '';
+    for (let i = 0; i < 12; i++) {
+        const w = Math.floor(i / 3) + 1;
+        const d = (i % 3) + 1;
+        const hasMod = Boolean((window.HES.materials[`${pref}-${m}-w${w}-d${d}-link`] || '').trim());
+        const hasRec = Boolean((window.HES.materials[`${pref}-${m}-w${w}-d${d}-recap`] || '').trim());
+        const isCurrent = (w === activeW && d === activeD);
+
+        let cls = 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300';
+        if (hasMod) cls = 'bg-emerald-50 text-emerald-700 border-emerald-300';
+        if (isCurrent) cls = 'bg-indigo-600 text-white border-indigo-700 shadow-xs ring-2 ring-indigo-300';
+
+        html += `
+            <button type="button" onclick="selectAdminMaterialSession(${w}, ${d})" title="Sesi ${i + 1} (Week ${w} Day ${d}) ${hasMod ? '• Modul Terisi' : '• Kosong'}" class="py-2 px-1 rounded-xl border text-xs font-extrabold transition flex flex-col items-center justify-center cursor-pointer ${cls}">
+                <span>${i + 1}</span>
+                <span class="text-[9px] opacity-80">${hasMod ? (hasRec ? '✓+R' : '✓') : '-'}</span>
+            </button>`;
+    }
+    bar.innerHTML = html;
+}
+
+function updateAdminMaterialStatusBadge() {
+    const badge = document.getElementById('admin-material-status-badge');
+    if (!badge) return;
+    const val = currentAdminMaterialSubtab === 'module'
+        ? (document.getElementById('admin-link')?.value || '').trim()
+        : (document.getElementById('admin-recap-pdf')?.value || '').trim();
+
+    if (val) {
+        badge.className = 'text-[11px] font-extrabold px-3 py-1 rounded-lg bg-emerald-100 text-emerald-800';
+        badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Sudah Terisi';
+    } else {
+        badge.className = 'text-[11px] font-extrabold px-3 py-1 rounded-lg bg-slate-200 text-slate-600';
+        badge.innerHTML = 'Belum Diisi';
+    }
+}
+
+window.copyGeminiModulePrompt = function(mode = 'single') {
+    const m = document.getElementById('admin-month')?.value || 'm1';
+    const w = document.getElementById('admin-week')?.value || '1';
+    const d = document.getElementById('admin-day')?.value || '1';
+    const sNum = ((parseInt(w) - 1) * 3) + parseInt(d);
+
+    let promptText = '';
+    if (mode === 'single') {
+        promptText = `Create a complete, friendly, and easy-to-understand English Study Handout for my student (100% in English, clear and practical, not overly academic) for ${m.toUpperCase()} - Session ${sNum} about the topic: [ISI TOPIK MATERI DI SINI].
+
+Please put the result inside a single code block using this exact structure so I can copy-paste it directly into my system:
+
+TITLE: [Engaging Topic Title in English]
+LEVEL: [${m.toUpperCase()} • Friendly & Practical English]
+GOAL: [1 clear sentence explaining what the student will be able to do after this lesson]
+OVERVIEW:
+[2-3 short, friendly, and clear paragraphs explaining the core concept/grammar/topic in simple English so it is very easy to understand]
+KEY POINTS:
+- [Key formula, pattern, or important rule #1 with short example]
+- [Key formula, pattern, or important rule #2 with short example]
+- [Key formula, pattern, or important rule #3 with short example]
+- [Key formula, pattern, or important rule #4 with short example]
+- [Key formula, pattern, or important rule #5 with short example]
+EXAMPLES:
+- [Natural everyday English sentence example #1]
+- [Natural everyday English sentence example #2]
+- [Natural everyday English sentence example #3]
+- [Natural everyday English sentence example #4]
+- [Natural everyday English sentence example #5]
+- [Natural everyday English sentence example #6]
+DIALOGUE:
+Man: [Natural spoken line 1]
+Woman: [Natural spoken line 2]
+Man: [Natural spoken line 3]
+Woman: [Natural spoken line 4]
+Man: [Natural spoken line 5]
+Woman: [Natural spoken line 6]
+TIPS:
+- [Common mistake to avoid or pro fluency tip #1]
+- [Common mistake to avoid or pro fluency tip #2]
+- [Common mistake to avoid or pro fluency tip #3]
+PRACTICE:
+1. [Interactive speaking or writing exercise #1 for the student]
+2. [Interactive speaking or writing exercise #2 for the student]
+3. [Interactive speaking or writing exercise #3 for the student]`;
+    } else if (mode === 'bulk') {
+        promptText = `Create a complete curriculum of 12 English Study Handouts for ${m.toUpperCase()} (Session 1 to Session 12) for my English course "Hamdi English Studio".
+Level / Theme for this month: [ISI LEVEL / TEMA BULAN INI, MISAL: MONTH 1 BEGINNER SPEAKING & ESSENTIAL GRAMMAR].
+
+Make all explanations 100% in English, friendly, complete, practical, and very easy to understand.
+Separate each session with === on a new line so my system can automatically import all 12 sessions at once!
+Put the output inside a code block with this exact format for each session:
+
+SESSION: 1
+TITLE: [Topic Title for Session 1]
+LEVEL: [${m.toUpperCase()} • Session 1 of 12]
+GOAL: [Clear learning goal]
+OVERVIEW:
+[Clear and easy-to-understand explanation in 2 paragraphs]
+KEY POINTS:
+- [Rule/Pattern 1]
+- [Rule/Pattern 2]
+- [Rule/Pattern 3]
+- [Rule/Pattern 4]
+EXAMPLES:
+- [Everyday example sentence 1]
+- [Everyday example sentence 2]
+- [Everyday example sentence 3]
+- [Everyday example sentence 4]
+- [Everyday example sentence 5]
+DIALOGUE:
+Man: [Line 1]
+Woman: [Line 2]
+Man: [Line 3]
+Woman: [Line 4]
+TIPS:
+- [Common mistake or tip 1]
+- [Common mistake or tip 2]
+PRACTICE:
+1. [Speaking/Writing task 1]
+2. [Speaking/Writing task 2]
+3. [Speaking/Writing task 3]
+===
+SESSION: 2
+... (continue up to SESSION: 12)`;
+    } else {
+        promptText = `Create a warm, encouraging, and clear Class Recap & Feedback Note (100% in English, easy to understand) for my student after completing Session ${sNum} (${m.toUpperCase()}) on the topic: [ISI TOPIK / CATATAN SINGKAT KELAS HARI INI].
+
+Put the output inside a code block with this exact format:
+
+TITLE: Class Recap & Feedback • Session ${sNum}
+LEVEL: ${m.toUpperCase()} • Personal Class Summary
+GOAL: Review of key takeaways, pronunciation/grammar corrections, and next-step practice.
+OVERVIEW:
+[Warm encouragement and summary of what we practiced in class today]
+KEY POINTS:
+- [Key takeaway or grammar point reviewed #1]
+- [Key takeaway or grammar point reviewed #2]
+- [Key takeaway or grammar point reviewed #3]
+EXAMPLES:
+- [Corrected sentence or great expression from today's class #1]
+- [Corrected sentence or great expression from today's class #2]
+- [Corrected sentence or great expression from today's class #3]
+- [Corrected sentence or great expression from today's class #4]
+TIPS:
+- [Pronunciation or fluency tip #1]
+- [Pronunciation or fluency tip #2]
+PRACTICE:
+1. [Light homework or daily speaking mission before the next session]
+2. [Self-practice task]`;
+    }
+
+    navigator.clipboard.writeText(promptText)
+        .then(() => showToast('Prompt Gemini berhasil disalin! Tempelkan ke Gemini.', 'success'))
+        .catch(() => showToast('Gagal menyalin otomatis.', 'error'));
+};
+
+window.insertSampleModuleTemplate = function(type = 'module') {
+    const m = (document.getElementById('admin-month')?.value || 'm1').toUpperCase();
+    const w = parseInt(document.getElementById('admin-week')?.value || '1');
+    const d = parseInt(document.getElementById('admin-day')?.value || '1');
+    const sNum = ((w - 1) * 3) + d;
+
+    if (type === 'module') {
+        document.getElementById('admin-link').value = `TITLE: Talking About Daily Routines & Habits
+LEVEL: ${m} • Session ${sNum} of 12
+GOAL: Confidently describe your daily activities, habits, and schedule using the Simple Present Tense.
+OVERVIEW:
+We use the Simple Present Tense to talk about things we do regularly, everyday habits, and facts that are always true. It is the most important foundation for daily English conversation.
+In English, the verb changes slightly depending on who is doing the action. Let's look at the simple rules below so you can build sentences effortlessly!
+KEY POINTS:
+- For I / You / We / They: Use the base verb (V1) -> I work, You study, They live.
+- For He / She / It: Add -s or -es to the verb -> He works, She watches, It starts.
+- Negative Form: Use "don't" (I/You/We/They) or "doesn't" (He/She/It) + base verb -> She doesn't drink coffee.
+- Question Form: Start with "Do" or "Does" + Subject + base verb -> Do you wake up early?
+EXAMPLES:
+- I usually wake up at 6:00 AM and drink a glass of warm water.
+- She works as a graphic designer and starts her shift at 9:00 AM.
+- We don't go out much on weekdays because we prefer to rest at home.
+- My brother exercises at the gym three times a week.
+- What time do you usually finish your work in the evening?
+- Does your friend live near the city center?
+DIALOGUE:
+Man: Hey Sarah! You always look so energetic in the morning. What is your secret?
+Woman: Thanks, Kevin! I usually wake up at 5:30 AM and go for a 20-minute walk outside.
+Man: Wow, that is impressive! I usually wake up at 7:00 AM and rush to the office.
+Woman: Try waking up just 30 minutes earlier tomorrow. A calm breakfast really makes a big difference!
+Man: That sounds like a great idea. I will definitely try it tomorrow morning.
+TIPS:
+- Never add -s to the verb after "doesn't" or "does" (Say: "He doesn't like tea", NOT "He doesn't likes tea").
+- Use frequency adverbs like always, usually, often, sometimes, and never right before the main verb.
+PRACTICE:
+1. Tell your tutor 4 things you do every morning from waking up until noon.
+2. Describe the daily routine of a family member or close friend using "He" or "She".
+3. Ask your tutor 3 questions about their weekend routine using "Do you..." or "What time do you..."`;
+    } else {
+        document.getElementById('admin-recap-pdf').value = `TITLE: Class Recap & Personal Evaluation • Session ${sNum}
+LEVEL: ${m} • Session ${sNum} Summary
+GOAL: Review today's speaking highlights, sentence corrections, and pronunciation practice.
+OVERVIEW:
+Awesome effort in today's session! You were very active in building sentences and answering questions spontaneously. Below is a summary of our key corrections and expressions to review at home.
+KEY POINTS:
+- Remember to pronounce the final "-s" clearly when talking about He, She, or It.
+- When asking a question in the Simple Present, always put "Do" or "Does" before the subject.
+EXAMPLES:
+- She goes to the office by motorcycle every day.
+- He doesn't have classes on Sunday afternoon.
+- What time do you usually have dinner with your family?
+- I spend about thirty minutes reading a book before bed.
+TIPS:
+- Slow down slightly when speaking long sentences so every word sounds clear and natural.
+- Read the example sentences above aloud 3 times using the audio button!
+PRACTICE:
+1. Record a 1-minute voice note describing your ideal weekend routine.
+2. Review today's 5 vocabulary words and make 1 simple sentence for each word.`;
+    }
+    updateAdminMaterialStatusBadge();
+    showToast('Contoh format berhasil dimasukkan!', 'info');
+};
+
+window.saveMaterialData = async function(isBulk = false) {
     const pref = document.getElementById('admin-target-student').value;
-    const m = document.getElementById('admin-month').value, w = document.getElementById('admin-week').value, d = document.getElementById('admin-day').value;
-    const link = document.getElementById('admin-link').value.trim(), recap = document.getElementById('admin-recap-pdf').value.trim();
+    const m = document.getElementById('admin-month').value;
+    const w = parseInt(document.getElementById('admin-week').value);
+    const d = parseInt(document.getElementById('admin-day').value);
+    const linkRaw = document.getElementById('admin-link').value.trim();
+    const recapRaw = document.getElementById('admin-recap-pdf').value.trim();
+
+    if (isBulk) {
+        const activeText = currentAdminMaterialSubtab === 'module' ? linkRaw : recapRaw;
+        const fieldSuffix = currentAdminMaterialSubtab === 'module' ? 'link' : 'recap';
+        if (!activeText) return showToast('Tempelkan teks materi bulk terlebih dahulu!', 'error');
+
+        let blocks = activeText.split(/\n\s*(?:===+|---+)\s*\n/).map(b => b.trim()).filter(Boolean);
+        if (blocks.length === 1 && /SESSION\s*:\s*\d+/i.test(activeText)) {
+            blocks = activeText.split(/(?=^SESSION\s*:\s*\d+)/im).map(b => b.trim()).filter(Boolean);
+        }
+
+        if (!blocks.length) return showToast('Teks kosong atau format tidak dikenali.', 'error');
+
+        let savedCount = 0;
+        const startSessionIdx = ((w - 1) * 3) + (d - 1);
+
+        await safeSaveMaterialsToCloud(materials => {
+            blocks.forEach((block, idx) => {
+                let targetIdx = startSessionIdx + idx;
+                const sessionMatch = block.match(/^SESSION\s*:\s*(\d+)/im);
+                if (sessionMatch) {
+                    const parsedNum = parseInt(sessionMatch[1]);
+                    if (parsedNum >= 1 && parsedNum <= 12) targetIdx = parsedNum - 1;
+                }
+                if (targetIdx >= 0 && targetIdx < 12) {
+                    const tW = Math.floor(targetIdx / 3) + 1;
+                    const tD = (targetIdx % 3) + 1;
+                    const cleanBlock = block.replace(/^SESSION\s*:\s*\d+\s*\n?/im, '').trim();
+                    if (cleanBlock) {
+                        materials[`${pref}-${m}-w${tW}-d${tD}-${fieldSuffix}`] = cleanBlock;
+                        savedCount++;
+                    }
+                }
+            });
+        });
+
+        loadAdminMaterialEditor();
+        showToast(`${savedCount} Sesi berhasil diisi & disimpan sekaligus untuk ${m.toUpperCase()}!`, 'success');
+        return;
+    }
 
     await safeSaveMaterialsToCloud(materials => {
-        if (link) materials[`${pref}-${m}-w${w}-d${d}-link`] = link; else delete materials[`${pref}-${m}-w${w}-d${d}-link`];
-        if (recap) materials[`${pref}-${m}-w${w}-d${d}-recap`] = recap; else delete materials[`${pref}-${m}-w${w}-d${d}-recap`];
+        if (linkRaw) materials[`${pref}-${m}-w${w}-d${d}-link`] = linkRaw;
+        else delete materials[`${pref}-${m}-w${w}-d${d}-link`];
+
+        if (recapRaw) materials[`${pref}-${m}-w${w}-d${d}-recap`] = recapRaw;
+        else delete materials[`${pref}-${m}-w${w}-d${d}-recap`];
     });
-    showToast('Tautan materi berhasil disimpan!', 'success');
+
+    loadAdminMaterialEditor();
+    showToast(`Materi Sesi (W${w}•D${d}) berhasil disimpan!`, 'success');
+};
+
+window.clearCurrentSessionMaterial = async function() {
+    const pref = document.getElementById('admin-target-student').value;
+    const m = document.getElementById('admin-month').value;
+    const w = document.getElementById('admin-week').value;
+    const d = document.getElementById('admin-day').value;
+
+    if (!confirm(`Kosongkan Modul & Recap pada ${m.toUpperCase()} Minggu ${w} Hari ${d}?`)) return;
+    await safeSaveMaterialsToCloud(materials => {
+        delete materials[`${pref}-${m}-w${w}-d${d}-link`];
+        delete materials[`${pref}-${m}-w${w}-d${d}-recap`];
+    });
+    loadAdminMaterialEditor();
+    showToast('Materi sesi ini berhasil dikosongkan.', 'info');
 };
 
 window.updateMasterWordbankCounter = function() {
