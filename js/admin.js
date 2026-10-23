@@ -319,152 +319,145 @@ window.copyGeminiModulePrompt = function(mode = 'single') {
 
     let promptText = '';
     if (mode === 'single') {
-        promptText = `Create a comprehensive, detailed, and super student-friendly English Study Workbook Handout (100% in simple, natural, easy-to-understand English) for ${m.toUpperCase()} - Session ${sNum} on the topic: [ISI TOPIK MATERI DI SINI].
+        promptText = `Act as a warm, charismatic, and modern private English coach at "Hamdi English Studio".
+Create an engaging, relaxed, and natural-flowing English Study Guide for ${m.toUpperCase()} - Session ${sNum} on the topic: [ISI TOPIK MATERI DI SINI].
 
-Make sure the explanation is thorough, well-structured, practical for speaking/daily life, and never stiff or overly academic.
-Put the result inside a single code block using this EXACT 8-section format (use the exact pipe "|" separators where shown) so my web app can render it into interactive visual cards:
+IMPORTANT STYLE RULES:
+- DO NOT make it stiff, robotic, or overly academic. Write like a friendly mentor chatting directly with the student ("Imagine you're at a coffee shop...", "Here is the secret native speakers use...").
+- Vary the flow naturally based on the topic! Mix warm storytelling paragraphs with visual blocks so it feels like a modern magazine workbook, not a boring list of bullet points.
+- Put the output inside a single code block using a flexible mix of these section headers (you can reorder them or use custom "## Headings" to fit the topic naturally):
 
-TITLE: [Engaging Topic Title in English]
-LEVEL: [${m.toUpperCase()} • Session ${sNum} of 12 • Friendly English Guide]
-GOAL: [1-2 clear sentences explaining what the student will master and be able to say after this session]
-WARM UP:
-- [Friendly ice-breaker question #1 to ask the student at the start of class]
-- [Friendly ice-breaker question #2]
-- [Friendly ice-breaker question #3]
-CONCEPT:
-- [Point Title 1]: [Clear, friendly explanation of when and why we use this in real life, with a quick example in quotes]
-- [Point Title 2]: [Clear explanation of how it works in simple terms]
-- [Point Title 3]: [Important time signals, tone, or context clues to remember]
-- [Point Title 4]: [Additional helpful rule or everyday usage note]
-FORMULAS:
-[+] Positive Form | [Formula, e.g., Subject + Verb 1 (s/es) + Object] | [2 clear example sentences]
-[-] Negative Form | [Formula, e.g., Subject + don't / doesn't + Verb 1] | [2 clear example sentences]
-[?] Yes/No Question | [Formula, e.g., Do / Does + Subject + Verb 1?] | [2 clear example sentences]
-[?] Wh- Question | [Formula, e.g., Wh-Word + do / does + Subject + Verb 1?] | [2 clear example sentences]
-[*] Special Pattern | [Special rule or natural speaking shortcut] | [2 clear example sentences]
+TITLE: [Catchy, Modern Topic Title]
+LEVEL: [${m.toUpperCase()} • Session ${sNum} of 12]
+STYLE: [Choose one theme: ocean / indigo / teal / amber]
+GOAL: [1 warm sentence about what the student will be able to do naturally after today]
+
+STORY:
+[Write 1-2 relaxed, relatable storytelling paragraphs setting a real-life scene or situation where this English topic happens naturally. Include a few **bold** expressions in context.]
+
+## [Custom Engaging Heading Explaining the Core Idea]
+[Write 1-2 clear, conversational paragraphs explaining how this works in real life without stiff grammar jargon. Then optionally add 2-3 key highlights:]
+- [Key Insight 1]: [Friendly explanation]
+- [Key Insight 2]: [Friendly explanation]
+
+PATTERNS:
+[+] [Pattern Name] | [Visual building blocks separated by +, e.g., Subject + usually + Verb 1 + Object] | [1 natural example sentence]
+[-] [Negative / Alternative Pattern] | [Building blocks separated by +] | [1 natural example sentence]
+[?] [Question Pattern] | [Building blocks separated by +] | [1 natural example sentence]
+
 PHRASES:
-- [Natural Phrase / Expression 1] | [Simple English meaning] | [Short example sentence]
-- [Natural Phrase / Expression 2] | [Simple English meaning] | [Short example sentence]
-- [Natural Phrase / Expression 3] | [Simple English meaning] | [Short example sentence]
-- [Natural Phrase / Expression 4] | [Simple English meaning] | [Short example sentence]
-- [Natural Phrase / Expression 5] | [Simple English meaning] | [Short example sentence]
-- [Natural Phrase / Expression 6] | [Simple English meaning] | [Short example sentence]
-EXAMPLES:
-- [Daily Life] | [Natural example sentence #1] | [Short note on why this sentence works]
-- [At Work/School] | [Natural example sentence #2] | [Short note]
-- [Socializing] | [Natural example sentence #3] | [Short note]
-- [Habits] | [Natural example sentence #4] | [Short note]
-- [Asking Questions] | [Natural example sentence #5] | [Short note]
-- [Negative Statement] | [Natural example sentence #6] | [Short note]
-- [Real Conversation] | [Natural example sentence #7] | [Short note]
-- [Expressing Ideas] | [Natural example sentence #8] | [Short note]
+- [Natural Expression 1] | [Simple English meaning] | [Natural example sentence]
+- [Natural Expression 2] | [Simple English meaning] | [Natural example sentence]
+- [Natural Expression 3] | [Simple English meaning] | [Natural example sentence]
+- [Natural Expression 4] | [Simple English meaning] | [Natural example sentence]
+
+PRO TIP:
+[Write a short, memorable "insider tip" or cultural note from a tutor's perspective so the student sounds more natural.]
+
 MISTAKES:
-- [Common Wrong Sentence 1] | [Correct Natural Sentence 1] | [Simple 1-sentence reason why]
-- [Common Wrong Sentence 2] | [Correct Natural Sentence 2] | [Simple 1-sentence reason why]
-- [Common Wrong Sentence 3] | [Correct Natural Sentence 3] | [Simple 1-sentence reason why]
-- [Common Wrong Sentence 4] | [Correct Natural Sentence 4] | [Simple 1-sentence reason why]
+- [Stiff or Wrong Sentence 1] | [Natural English Upgrade 1] | [Friendly 1-sentence reason]
+- [Stiff or Wrong Sentence 2] | [Natural English Upgrade 2] | [Friendly 1-sentence reason]
+
 DIALOGUE:
+[Optional: 1 short sentence setting the scene of the conversation]
 Man: [Natural spoken line 1]
 Woman: [Natural spoken line 2]
 Man: [Natural spoken line 3]
 Woman: [Natural spoken line 4]
 Man: [Natural spoken line 5]
 Woman: [Natural spoken line 6]
-Man: [Natural spoken line 7]
-Woman: [Natural spoken line 8]
-PRACTICE:
-1. [Quick Check - Fill in the Blank]: [Sentence with a blank ___ and options, plus the answer key in parentheses]
-2. [Quick Check - Fix the Mistake]: [Give a wrong sentence for the student to fix aloud]
-3. [Speaking Prompt #1]: [Practical speaking challenge for the student to answer in 3-4 sentences]
-4. [Speaking Roleplay #2]: [Interactive roleplay scenario between the student and tutor]`;
-    } else if (mode === 'bulk') {
-        promptText = `Create a complete, detailed, and student-friendly curriculum of 12 English Study Handouts for ${m.toUpperCase()} (Session 1 to Session 12) for my course "Hamdi English Studio".
-Theme / Level for this month: [ISI TEMA / LEVEL BULAN INI, MISAL: MONTH 1 BEGINNER SPEAKING & ESSENTIAL GRAMMAR].
 
-Make all 12 sessions 100% in English, warm, comprehensive, and very easy to understand.
-Separate each session with === on a new line so my system can import all 12 sessions automatically!
-Use this EXACT format for every session inside a code block:
+PRACTICE:
+1. [Quick Brain Check]: [Interactive fill-in-the-blank or sentence upgrade question] (Answer: [Provide the answer key here so the app turns it into a Click-to-Reveal button])
+2. [Fix the Vibe]: [Ask the student to make a stiff sentence sound more natural] (Answer: [Sample natural answer])
+3. [Real-Life Speaking Mission]: [A fun, relatable speaking prompt to discuss aloud with the tutor]`;
+    } else if (mode === 'bulk') {
+        promptText = `Act as a creative curriculum designer for "Hamdi English Studio".
+Create 12 varied, engaging, and natural-flowing English Study Guides for ${m.toUpperCase()} (Session 1 to Session 12).
+Theme / Level for this month: [ISI TEMA / LEVEL BULAN INI, MISAL: CASUAL DAILY SPEAKING & CONFIDENCE BUILDER].
+
+CRITICAL RULES TO PREVENT BOREDOM:
+- DO NOT make all 12 sessions look identical! Vary the structure and vibe across sessions:
+  * Some sessions can be Storytelling & Experience focused (starting with STORY:, then PHRASES:, then DIALOGUE:).
+  * Some sessions can be Real-World Roleplay focused (starting with WARM UP:, then WAYS TO SAY:, then DIALOGUE:, then PRACTICE:).
+  * Some sessions can be Grammar-in-Action focused (starting with STORY:, then ## How It Works, then PATTERNS:, then MISTAKES:).
+- Write in warm, relaxed paragraphs—never just dry bullet points.
+- Separate each session with === on a new line.
+
+Use this structure for each session inside a single code block:
 
 SESSION: 1
-TITLE: [Engaging Topic Title for Session 1]
+TITLE: [Engaging Title]
 LEVEL: [${m.toUpperCase()} • Session 1 of 12]
-GOAL: [Clear learning goal in 1-2 sentences]
-WARM UP:
-- [Ice-breaker question 1]
-- [Ice-breaker question 2]
-CONCEPT:
-- [Core Idea]: [Friendly explanation]
-- [How to Use It]: [Friendly explanation]
-- [Key Time Words / Clues]: [Friendly explanation]
-FORMULAS:
-[+] Positive | [Formula] | [Example sentence]
-[-] Negative | [Formula] | [Example sentence]
-[?] Question | [Formula] | [Example sentence]
-[*] Pro Pattern | [Formula] | [Example sentence]
+STYLE: [ocean / indigo / teal / amber]
+GOAL: [Warm 1-sentence goal]
+
+STORY:
+[Relatable real-life story or scenario in 1-2 flowing paragraphs]
+
+## [Engaging Custom Section Title]
+[Conversational explanation paragraph]
+- [Highlight 1]: [Friendly note]
+- [Highlight 2]: [Friendly note]
+
+PATTERNS:
+[+] [Name] | [Block 1 + Block 2 + Block 3] | [Natural example]
+[?] [Name] | [Block 1 + Block 2 + Block 3] | [Natural example]
+
 PHRASES:
-- [Phrase 1] | [Simple English meaning] | [Example]
-- [Phrase 2] | [Simple English meaning] | [Example]
-- [Phrase 3] | [Simple English meaning] | [Example]
-- [Phrase 4] | [Simple English meaning] | [Example]
-EXAMPLES:
-- [Daily Life] | [Example sentence 1] | [Short note]
-- [Work/Study] | [Example sentence 2] | [Short note]
-- [Conversation] | [Example sentence 3] | [Short note]
-- [Negative] | [Example sentence 4] | [Short note]
-- [Question] | [Example sentence 5] | [Short note]
-- [Natural Expression] | [Example sentence 6] | [Short note]
+- [Expression 1] | [Simple meaning] | [Example sentence]
+- [Expression 2] | [Simple meaning] | [Example sentence]
+- [Expression 3] | [Simple meaning] | [Example sentence]
+- [Expression 4] | [Simple meaning] | [Example sentence]
+
 MISTAKES:
-- [Wrong sentence 1] | [Correct sentence 1] | [Simple reason]
-- [Wrong sentence 2] | [Correct sentence 2] | [Simple reason]
-- [Wrong sentence 3] | [Correct sentence 3] | [Simple reason]
+- [Wrong/Stiff 1] | [Natural 1] | [Short reason]
+- [Wrong/Stiff 2] | [Natural 2] | [Short reason]
+
 DIALOGUE:
 Man: [Line 1]
 Woman: [Line 2]
 Man: [Line 3]
 Woman: [Line 4]
-Man: [Line 5]
-Woman: [Line 6]
+
 PRACTICE:
-1. [Quick Quiz]: [Fill-in-the-blank question]
-2. [Sentence Builder]: [Prompt to make 3 sentences]
-3. [Speaking Mission]: [Speaking question to discuss with tutor]
+1. [Quick Check]: [Question] (Answer: [Key])
+2. [Speaking Mission]: [Fun speaking prompt]
 ===
 SESSION: 2
 ... (continue up to SESSION: 12)`;
     } else {
-        promptText = `Create a warm, detailed, and encouraging Class Recap & Personal Evaluation Handout (100% in friendly English) for my student after completing Session ${sNum} (${m.toUpperCase()}) on the topic: [ISI TOPIK / CATATAN SINGKAT KELAS HARI INI].
+        promptText = `Write a warm, personal, and encouraging Class Recap & Coaching Note (in friendly English) for my student after Session ${sNum} (${m.toUpperCase()}) about: [ISI TOPIK / CATATAN SINGKAT KELAS HARI INI].
 
-Put the output inside a code block with this exact format:
+Put the result inside a code block using this natural format:
 
-TITLE: Class Recap & Feedback • Session ${sNum}
-LEVEL: ${m.toUpperCase()} • Personal Class Summary
-GOAL: Review today's speaking highlights, key grammar/pronunciation upgrades, and home practice.
-CONCEPT:
-- [Great Job Today!]: [Warm praise and summary of the student's progress in today's session]
-- [Main Focus Reviewed]: [Summary of the main grammar/speaking topic we practiced]
-FORMULAS:
-[*] Key Pattern to Remember | [Formula or structure practiced today] | [Example from class]
-[*] Pronunciation Focus | [Word or sound practiced] | [How to pronounce it naturally]
+TITLE: Personal Class Recap • Session ${sNum}
+LEVEL: ${m.toUpperCase()} • Coaching Summary
+STYLE: emerald
+GOAL: Celebrate today's speaking wins and lock in your new expressions.
+
+STORY:
+[Write a warm, personal note praising the student's effort and energy in class today, written like a supportive coach.]
+
 PHRASES:
-- [New Expression 1 from Class] | [Simple meaning] | [Example sentence]
-- [New Expression 2 from Class] | [Simple meaning] | [Example sentence]
-- [New Expression 3 from Class] | [Simple meaning] | [Example sentence]
-EXAMPLES:
-- [Highlight #1] | [Great sentence practiced in class today] | [Keep using this structure!]
-- [Highlight #2] | [Another natural sentence from today] | [Great vocabulary choice!]
-- [Highlight #3] | [Polite question practiced today] | [Natural intonation!]
-- [Highlight #4] | [Everyday expression] | [Very fluent!]
+- [Best Expression Practiced 1] | [Meaning] | [Example from today's topic]
+- [Best Expression Practiced 2] | [Meaning] | [Example from today's topic]
+- [Best Expression Practiced 3] | [Meaning] | [Example from today's topic]
+
 MISTAKES:
-- [Sentence that needed a small fix 1] | [Better & natural version 1] | [Friendly explanation why]
-- [Sentence that needed a small fix 2] | [Better & natural version 2] | [Friendly explanation why]
-- [Sentence that needed a small fix 3] | [Better & natural version 3] | [Friendly explanation why]
+- [What was said in class 1] | [Smoother, natural version 1] | [Friendly coaching note]
+- [What was said in class 2] | [Smoother, natural version 2] | [Friendly coaching note]
+
+PRO TIP:
+[1 encouraging tip on pronunciation or fluency for the week ahead.]
+
 PRACTICE:
-1. [3-Minute Audio Drill]: Read the "Better & Natural Version" sentences aloud 3 times using the audio button.
-2. [Mini Speaking Mission]: Record a 45-second voice note using at least 2 phrases from today's recap.`;
+1. [Quick Recall]: [1 mini review question from today's lesson] (Answer: [Answer key])
+2. [2-Minute Voice Note]: [A light, fun speaking challenge before the next class]`;
     }
 
     navigator.clipboard.writeText(promptText)
-        .then(() => showToast('Prompt Lengkap berhasil disalin! Tempelkan ke Gemini.', 'success'))
+        .then(() => showToast('Prompt Gaya Baru (Mengalir & Interaktif) berhasil disalin!', 'success'))
         .catch(() => showToast('Gagal menyalin otomatis.', 'error'));
 };
 
@@ -475,90 +468,89 @@ window.insertSampleModuleTemplate = function(type = 'module') {
     const sNum = ((w - 1) * 3) + d;
 
     if (type === 'module') {
-        document.getElementById('admin-link').value = `TITLE: Talking About Daily Routines & Habits (Simple Present)
-LEVEL: ${m} • Session ${sNum} of 12 • Friendly English Guide
-GOAL: Confidently describe your daily activities, work schedule, and personal habits in natural, everyday English without translating word-by-word in your head.
+        document.getElementById('admin-link').value = `TITLE: Small Talk & Talking About Your Daily Rhythm
+LEVEL: ${m} • Session ${sNum} of 12 • Conversational English
+STYLE: ocean
+GOAL: Chat naturally about your morning vibe, work routine, and how you unwind without sounding like a textbook.
+
 WARM UP:
-- Are you an early bird (morning person) or a night owl (night person)? Why?
-- What is the very first thing you do after you wake up every morning?
-- How do you usually spend your Sunday afternoons?
-CONCEPT:
-- What is Simple Present?: We use the Simple Present Tense to talk about things we do regularly (habits, routines, schedules) and facts that are always true. For example: "I drink coffee every morning."
-- The Golden 2-Group Rule: Divide subjects into two simple teams! Team 1 (I, You, We, They) uses the base verb (Verb 1). Team 2 (He, She, It, or 1 person's name) adds "-s" or "-es" to the verb.
-- Time Signals (Frequency Words): Words like "always" (100%), "usually" (80%), "often" (60%), "sometimes" (40%), and "never" (0%) go right BEFORE the main action verb, such as "I usually wake up at 6 AM."
-- Using Do vs. Does: We use "do / don't" for I, You, We, They, and we use "does / doesn't" for He, She, It when making negative sentences or asking questions.
-FORMULAS:
-[+] Positive (I / You / We / They) | Subject + Verb 1 + Object | I wake up at 6 AM. / They work in a bank.
-[+] Positive (He / She / It) | Subject + Verb 1 (+s/es) + Object | She wakes up at 6 AM. / He works in a bank.
-[-] Negative Sentence | Subject + don't / doesn't + Verb 1 | I don't drink soda. / He doesn't work on Sundays.
-[?] Yes / No Question | Do / Does + Subject + Verb 1? | Do you like spicy food? / Does she live near here?
-[?] Wh- Question | Wh-Word + do / does + Subject + Verb 1? | What time do you start work? / Where does he live?
+- Are you a morning person who loves sunrise, or do you need two cups of coffee just to function?
+- What is one small ritual you never skip before starting your day?
+
+STORY:
+Imagine you just bumped into an international colleague at a cozy coffee shop on Monday morning. Instead of saying stiff textbook sentences like **"I wake up at 6:00 AM every day,"** native speakers love sharing the *feeling* and *rhythm* of their day.
+
+They might smile and say, **"Honestly, I'm a bit of a slow starter in the morning, so I always grab a quick coffee before I dive into work."** Notice how relaxed and human that sounds? Today, we are going to upgrade the way you talk about your everyday life.
+
+## The Secret to Natural Routine Talk
+When we talk about habits and routines in English, we use the **Simple Present**. The trick is not just memorizing grammar rules, but pairing your action verbs with natural **frequency words** (*usually, pretty much always, hardly ever*) and conversational time phrases.
+- The "I / You / We / They" Flow: Keep the verb in its pure, base form. It is super clean and effortless, like "I usually **start** work around nine."
+- The "He / She / It" Touch: Whenever you talk about one other person (your boss, your sister, your best friend), just add a gentle **-s / -es** sound to the action verb, like "She **runs** her own design studio."
+
+PATTERNS:
+[+] Sharing Your Habit | Subject + Frequency Word + Verb 1 + Rest of Idea | I usually wind down by watching Netflix at night.
+[+] Talking About Someone Else | He / She + Verb 1 (-s/es) + Rest of Idea | My brother works remotely from a café almost every day.
+[-] Saying What You Don't Do | Subject + don't / doesn't + Verb 1 | I don't really check work emails after 8 PM.
+[?] Casual Routine Question | How often + do / does + Subject + Verb 1? | How often do you work out during the week?
+
 PHRASES:
-- Get ready for work | Prepare yourself (shower, dress up) before going to work | It takes me 30 minutes to get ready for work.
 - Grab a quick bite | Eat something fast because you are busy | I usually grab a quick bite before my morning meeting.
-- Commute to work | Travel from home to your workplace | I commute to work by motorcycle every day.
-- Take a short break | Rest for a few minutes between tasks | Let's take a short break and get some fresh air.
-- Wind down | Relax slowly after a busy or tiring day | I like to wind down by listening to music at night.
-- Hit the sack | Go to sleep / go to bed (informal & natural) | I am exhausted, so I'm going to hit the sack early tonight.
-EXAMPLES:
-- [Morning Routine] | I usually wake up at 5:30 AM and drink a full glass of warm water. | Uses "I + Verb 1" with frequency word "usually".
-- [Work Life] | My sister works as a nurse, so she often starts her shift very early. | Uses "works" and "starts" (+s) because the subject is "My sister" (She).
-- [Healthy Habit] | We don't eat fast food on weekdays because we prefer home-cooked meals. | Uses "don't + Verb 1" for negative routine.
-- [Evening Routine] | Kevin doesn't watch TV at night; he prefers reading books before bed. | Notice "watch" has NO "-s" after "doesn't"!
-- [Asking Habits] | What time do you usually leave your house in the morning? | Natural Wh-question to ask about someone's schedule.
-- [Asking Others] | Does your office provide free coffee for the employees? | Uses "Does + Subject + Verb 1" for singular subject.
-- [Weekend Life] | On Saturdays, I love hanging out with my close friends at a cozy cafe. | Use "On + plural day (Saturdays)" to mean every Saturday.
-- [Daily Schedule] | The train to the city center leaves every thirty minutes. | Public schedules also use the Simple Present tense!
+- Dive into work | Start working with focus and energy | After my coffee, I'm ready to dive into work.
+- Take a breather | Take a short, relaxing break | Let's take a quick breather and get some fresh air.
+- Wind down | Relax slowly after a long, busy day | Listening to acoustic music helps me wind down at night.
+
+PRO TIP:
+Native speakers rarely say "I do not" in casual conversation. Always blend it into **"I don't"** or **"He doesn't"**—and remember, once you use **doesn't**, the main verb goes right back to normal (say **"She doesn't drink coffee"**, never *"She doesn't drinks"*!).
+
 MISTAKES:
-- She work in a hospital every day. | She works in a hospital every day. | Always add -s/-es to the verb when the subject is He, She, or It.
-- He doesn't likes coffee. | He doesn't like coffee. | After "doesn't" or "does", the main verb MUST return to basic Verb 1 (no -s!).
-- Do she live in Medan? | Does she live in Medan? | Use "Does" (not "Do") when asking about He, She, or It.
-- I am usually wake up at 6 AM. | I usually wake up at 6 AM. | Never put "am / is / are" together with a basic action verb (Verb 1).
+- I am usually wake up at 6 AM. | I usually wake up at 6 AM. | "Wake up" is already an action verb, so you don't need "am" before it.
+- My manager don't like long meetings. | My manager doesn't like long meetings. | Since "My manager" is one person (he/she), use "doesn't".
+- She goes to office by car. | She drives to the office. | Using "drives" or "commutes" sounds much more natural than "goes by car".
+
 DIALOGUE:
-Man: Good morning, Sarah! You always look so fresh and energetic. What time do you usually wake up?
-Woman: Morning, Kevin! On weekdays, I usually wake up at 5:15 AM.
-Man: Wow, that is super early! What do you do that early in the morning?
-Woman: First, I stretch for ten minutes and go for a short walk. Then I take a shower and make a healthy breakfast.
-Man: That sounds amazing. Honestly, I always hit the snooze button and rush to the office at 7:30 AM!
-Woman: Haha, I used to do that too! Does your commute to the office take a long time?
-Man: Yes, it takes about forty minutes by car when the traffic is heavy.
-Woman: Try sleeping thirty minutes earlier tonight. Waking up without rushing feels so much better!
+Kevin and Sarah are chatting while waiting for their morning coffee at the office pantry.
+Man: Morning, Sarah! You look super energized today. Are you naturally an early bird?
+Woman: Haha, not at all! Honestly, I hit the snooze button at least twice every morning.
+Man: Really? How do you always get to the office so early then?
+Woman: Well, I prep my clothes the night before, and I usually grab a quick breakfast on the way. What about you?
+Man: I'm the opposite. I wake up around 5:30 AM, go for a short jog, and then take my time getting ready.
+Woman: Wow, I respect that! By the time evening comes, I just want to wind down on the couch.
+
 PRACTICE:
-1. [Quick Check #1]: Fill in the blank -> "My brother _____ (don't / doesn't) _____ (drink / drinks) coffee at night." (Answer: doesn't drink)
-2. [Quick Check #2]: Spot & fix the error -> "What time does you usually finishes your work?" (Answer: What time do you usually finish your work?)
-3. [Speaking Challenge]: Tell your tutor 5 things you do on a typical weekday from the moment you wake up until you go to bed.
-4. [Interview Roleplay]: Ask your tutor 3 questions about their daily routine using "What time do you...", "How often do you...", and "Do you usually..."`;
+1. [Quick Brain Check]: Complete this natural sentence -> "My best friend _____ (don't / doesn't) _____ (work / works) on Saturdays." (Answer: doesn't work — because after doesn't, the verb returns to base form!)
+2. [Upgrade the Vibe]: How would you make "I eat fast because I am busy" sound more natural using today's phrases? (Answer: "I usually grab a quick bite because I'm on a tight schedule.")
+3. [Coffee Shop Roleplay]: Tell your tutor what your ideal Sunday looks like from morning to night using at least 2 new expressions from today!`;
     } else {
-        document.getElementById('admin-recap-pdf').value = `TITLE: Class Recap & Personal Evaluation • Session ${sNum}
-LEVEL: ${m} • Session ${sNum} Personal Summary
-GOAL: Review today's speaking highlights, sentence upgrades, and pronunciation notes.
-CONCEPT:
-- Awesome Effort Today!: You spoke with great enthusiasm and built your own sentences much faster today! Your confidence in answering spontaneous questions is improving steadily.
-- Key Grammar Focus: Today we practiced using Simple Present Tense for daily routines, paying special attention to adding "-s" for He/She/It and using "don't / doesn't" accurately.
-FORMULAS:
-[*] He / She / It Rule | He / She + Verb 1 (+s/es) | She works at a bank. / He goes to the gym.
-[*] Negative Shortcut | Subject + don't / doesn't + Verb 1 (No -s!) | She doesn't wake up late on Mondays.
+        document.getElementById('admin-recap-pdf').value = `TITLE: Personal Class Recap • Session ${sNum}
+LEVEL: ${m} • Coaching & Feedback Summary
+STYLE: emerald
+GOAL: Celebrate today's speaking wins and lock in your natural phrasing upgrades.
+
+STORY:
+Awesome energy in class today! You were much more relaxed when answering spontaneous questions, and you didn't pause to translate word-by-word nearly as much as last week. Your storytelling about your morning routine sounded genuinely engaging!
+
 PHRASES:
-- Grab a quick breakfast | Eat a fast, simple breakfast | I usually grab a quick breakfast before leaving home.
-- Stuck in traffic | Unable to move fast on the road | I was stuck in traffic for thirty minutes this morning.
+- Grab a quick breakfast | Eat a fast, simple meal in the morning | I usually grab a quick breakfast before leaving home.
+- Stuck in traffic | Unable to move fast on a busy road | I was stuck in traffic for thirty minutes this morning.
 - Call it a day | Stop working for the day | Let's finish this report and call it a day!
-EXAMPLES:
-- [Your Great Sentence #1] | I usually start working at 8:30 AM and check my emails first. | Very natural flow and clear pronunciation!
-- [Your Great Sentence #2] | My mother cooks delicious food for our family every weekend. | Perfect use of "-s" in "cooks"!
-- [Question Practiced] | What do you usually do to relax after a busy day? | Great question structure and friendly intonation.
-- [Natural Response] | I like watching movies or taking a warm shower to wind down. | Excellent use of the phrasal verb "wind down"!
+
 MISTAKES:
-- My friend don't live here anymore. | My friend doesn't live here anymore. | Since "My friend" is 1 person (He/She), we use "doesn't".
-- She go to office by motorcycle. | She goes to the office by motorcycle. | Add "-es" (goes) for "She", and add "the" before "office".
-- I am agree with your opinion. | I agree with your opinion. | "Agree" is already a verb, so we don't need "am" before it.
+- My friend don't live here anymore. | My friend doesn't live here anymore. | Use "doesn't" whenever you talk about one person (he/she).
+- I am agree with your opinion. | I completely agree with you. | "Agree" is already a verb, so we never put "am" in front of it.
+
+PRO TIP:
+When you want to sound extra natural in conversation, try starting your answers with casual connectors like **"Honestly,"**, **"To be fair,"**, or **"Well, most of the time..."**—it gives your brain an extra second to think while sounding super fluent!
+
 PRACTICE:
-1. [3-Minute Audio Review]: Click the speaker button on each sentence in the "Examples" section above and repeat aloud 3 times to lock in the rhythm.
-2. [Home Speaking Mission]: Before our next class, send a 45-second voice note describing your best friend's daily routine (using He/She + Verb-s!).`;
+1. [Quick Recall]: Which one is natural? A) "She doesn't likes tea" or B) "She doesn't like tea"? (Answer: B! "She doesn't like tea.")
+2. [Home Voice Note]: Send a relaxed 45-second voice note describing how you usually wind down on Friday nights.`;
     }
     updateAdminMaterialStatusBadge();
-    showToast('Contoh Modul Lengkap (8 Bagian) berhasil dimasukkan! Klik Simpan untuk melihat hasilnya.', 'info');
+    showToast('Contoh Materi Mengalir & Interaktif berhasil dimasukkan! Klik Simpan untuk mencoba.', 'info');
 };
 
+
+      
 window.saveMaterialData = async function(isBulk = false) {
     const pref = document.getElementById('admin-target-student').value;
     const m = document.getElementById('admin-month').value;
