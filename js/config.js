@@ -7,7 +7,7 @@ window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
 const TELEGRAM_BOT_TOKEN = "8783483454:AAFIMaNa4Z5-uUMXHOeqHZgkk2S9EK4gC0Y";
 const TELEGRAM_CHAT_ID = "1225652735";
 
-// Wajib agar streaming suara Cloud Neural Google tidak terkena blokir 403 di HP
+// Wajib agar streaming MP3 Cloud Neural Google tidak terkena blokir 403 di HP
 if (!document.getElementById('hes-no-referrer')) {
     const meta = document.createElement('meta');
     meta.id = 'hes-no-referrer';
@@ -131,21 +131,10 @@ function updateCloudStatusUI(status) {
 }
 
 // ============================================================================
-// MESIN SUARA 100% AMERICAN ENGLISH (US MALE & US FEMALE NATURAL DI HP)
+// MESIN SUARA 100% CLOUD NEURAL AMERICAN ENGLISH (en-US) - ANTI ROBOT/INDIA
 // ============================================================================
 let _ttsSessionId = 0;
 let _sharedAudioEl = null;
-let _audioUnlocked = false;
-let _cachedVoices = [];
-
-function initTTSVoices() {
-    if (!('speechSynthesis' in window)) return;
-    _cachedVoices = window.speechSynthesis.getVoices() || [];
-    window.speechSynthesis.onvoiceschanged = () => {
-        _cachedVoices = window.speechSynthesis.getVoices() || [];
-    };
-}
-initTTSVoices();
 
 function getSharedTTSAudio() {
     if (!_sharedAudioEl) {
@@ -156,21 +145,7 @@ function getSharedTTSAudio() {
     return _sharedAudioEl;
 }
 
-// Buka kunci audio di Chrome HP tepat saat tombol disentuh
-function unlockMobileAudio() {
-    if (_audioUnlocked) return;
-    const audio = getSharedTTSAudio();
-    audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-    const p = audio.play();
-    if (p !== undefined) {
-        p.then(() => {
-            audio.pause();
-            _audioUnlocked = true;
-        }).catch(() => {});
-    }
-}
-
-function splitIntoChunks(text, maxLen = 160) {
+function splitIntoChunks(text, maxLen = 165) {
     const safe = String(text || '').replace(/\b(Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr)\.\s+/gi, '$1__DOT__ ');
     const sentences = safe.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [safe];
     const chunks = [];
@@ -227,105 +202,52 @@ function parseDialogueSegments(rawText) {
     return segments;
 }
 
-function pickBestUSVoice(gender) {
-    const voices = _cachedVoices.length ? _cachedVoices : (window.speechSynthesis?.getVoices() || []);
-    // Kunci HANYA ke bahasa Inggris Amerika (en-US / en_US), jangan pernah ambil en-GB (British)
-    const usVoices = voices.filter(v => /en[-_]us/i.test(String(v.lang || '')) || /united states|\bus\b/i.test(String(v.name || '')));
-    const pool = usVoices.length ? usVoices : voices.filter(v => /^en/i.test(String(v.lang || '')) && !/gb|uk|au|in/i.test(String(v.lang || '')));
-    if (!pool.length) return { voice: null, isExplicitMale: false };
-
-    if (gender === 'male') {
-        const maleRegex = /\b(guy|christopher|eric|roger|steffan|andrew|brian|davis|tony|jason|jacob|aaron|alex|fred|david|mark|daniel|iom|tpd|iol|male)\b/i;
-        const femaleBlock = /\b(female|woman|zira|aria|jenny|michelle|ana|ava|emma|samantha|victoria|sfg|iob|tpf)\b/i;
-
-        // Utamakan suara Online/Natural (!v.localService) agar tidak terdengar seperti robot
-        const naturalMale = pool.find(v => !v.localService && maleRegex.test(`${v.name} ${v.voiceURI}`) && !femaleBlock.test(`${v.name} ${v.voiceURI}`));
-        if (naturalMale) return { voice: naturalMale, isExplicitMale: true };
-
-        const anyMale = pool.find(v => maleRegex.test(`${v.name} ${v.voiceURI}`) && !femaleBlock.test(`${v.name} ${v.voiceURI}`));
-        if (anyMale) return { voice: anyMale, isExplicitMale: true };
-
-        // Jika di Chrome HP nama suaranya hanya "English (United States)", utamakan yang Online (!localService)
-        const naturalUS = pool.find(v => !v.localService) || pool[1] || pool[0];
-        return { voice: naturalUS, isExplicitMale: false };
-    } else {
-        const femaleRegex = /\b(aria|jenny|michelle|ana|ava|emma|samantha|victoria|zira|google us english|sfg|iob|tpf|female)\b/i;
-        const naturalFemale = pool.find(v => !v.localService && femaleRegex.test(`${v.name} ${v.voiceURI}`)) || pool.find(v => !v.localService) || pool[0];
-        return { voice: naturalFemale, isExplicitMale: false };
-    }
-}
-
-// SUARA PRIA (MAN): 100% American English dengan nada bariton natural (0.72, bukan 0.52 robot)
-function playUSMaleChunk(text, sessionId) {
-    return new Promise(resolve => {
-        if (sessionId !== _ttsSessionId || !('speechSynthesis' in window)) return resolve();
-        try {
-            window.speechSynthesis.cancel();
-            const { voice, isExplicitMale } = pickBestUSVoice('male');
-            const u = new SpeechSynthesisUtterance(text);
-            if (voice) {
-                u.voice = voice;
-                u.lang = voice.lang || 'en-US';
-            } else {
-                u.lang = 'en-US';
-            }
-            // Pitch 0.72 mengubah vokal ke frekuensi pria dewasa secara natural tanpa distorsi robot
-            u.pitch = isExplicitMale ? 0.95 : 0.72;
-            u.rate = 0.98;
-            u.onend = u.onerror = () => resolve();
-            window.speechSynthesis.speak(u);
-        } catch (e) {
-            resolve();
-        }
-    });
-}
-
-// SUARA WANITA (WOMAN): 100% American English Cloud Neural MP3 (en-US) -> Fallback ke US Female
-function playUSFemaleChunk(text, sessionId) {
+function playCloudUSNeuralSegment(text, gender, sessionId) {
     return new Promise(resolve => {
         if (sessionId !== _ttsSessionId) return resolve();
+
+        // 100% American English (en-US) Cloud Neural MP3 untuk Pria & Wanita
         const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=en-US&dt=t&q=${encodeURIComponent(text)}`;
         const audio = getSharedTTSAudio();
         let done = false;
 
-        const finish = () => {
+        const applyVoiceProfile = () => {
+            const isMale = gender === 'male';
+            // Kunci pitch shift langsung pada audio player saat stream dimuat di Chrome HP
+            if ('preservesPitch' in audio) audio.preservesPitch = !isMale;
+            if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = !isMale;
+            if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = !isMale;
+
+            // 0.80 menurunkan frekuensi suara US ke bariton Pria, 1.00 tetap di suara Wanita US
+            const rate = isMale ? 0.80 : 1.0;
+            audio.defaultPlaybackRate = rate;
+            audio.playbackRate = rate;
+        };
+
+        const cleanupAndResolve = () => {
             if (done) return;
             done = true;
+            audio.onloadedmetadata = null;
+            audio.oncanplay = null;
+            audio.onplay = null;
             audio.onended = null;
             audio.onerror = null;
             resolve();
         };
 
-        const fallbackUSFemale = () => {
-            if (done) return;
-            done = true;
-            audio.onended = null;
-            audio.onerror = null;
-            if (!('speechSynthesis' in window) || sessionId !== _ttsSessionId) return resolve();
-            try {
-                window.speechSynthesis.cancel();
-                const { voice } = pickBestUSVoice('female');
-                const u = new SpeechSynthesisUtterance(text);
-                if (voice) {
-                    u.voice = voice;
-                    u.lang = voice.lang || 'en-US';
-                } else {
-                    u.lang = 'en-US';
-                }
-                u.pitch = 1.06;
-                u.rate = 0.98;
-                u.onend = u.onerror = () => resolve();
-                window.speechSynthesis.speak(u);
-            } catch (e) { resolve(); }
-        };
+        audio.onloadedmetadata = applyVoiceProfile;
+        audio.oncanplay = applyVoiceProfile;
+        audio.onplay = applyVoiceProfile;
+        audio.onended = cleanupAndResolve;
+        audio.onerror = cleanupAndResolve;
 
-        audio.onended = finish;
-        audio.onerror = fallbackUSFemale;
         audio.src = url;
-        audio.playbackRate = 1.0;
+        applyVoiceProfile();
 
-        const p = audio.play();
-        if (p !== undefined) p.catch(fallbackUSFemale);
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(cleanupAndResolve);
+        }
     });
 }
 
@@ -333,6 +255,9 @@ window.stopNaturalEnglishTTS = function() {
     _ttsSessionId++;
     if (_sharedAudioEl) {
         try {
+            _sharedAudioEl.onloadedmetadata = null;
+            _sharedAudioEl.oncanplay = null;
+            _sharedAudioEl.onplay = null;
             _sharedAudioEl.onended = null;
             _sharedAudioEl.onerror = null;
             _sharedAudioEl.pause();
@@ -356,7 +281,6 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
         return;
     }
 
-    unlockMobileAudio();
     window.stopNaturalEnglishTTS();
     const session = ++_ttsSessionId;
     const segments = parseDialogueSegments(cleanText);
@@ -378,14 +302,10 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
                 : `<i class="fas fa-stop mr-1"></i> 👩 Woman (US)...`;
         }
 
-        if (seg.gender === 'male') {
-            await playUSMaleChunk(seg.text, session);
-        } else {
-            await playUSFemaleChunk(seg.text, session);
-        }
+        await playCloudUSNeuralSegment(seg.text, seg.gender, session);
 
         if (session !== _ttsSessionId) break;
-        if (i < segments.length - 1) await new Promise(r => setTimeout(r, 220));
+        if (i < segments.length - 1) await new Promise(r => setTimeout(r, 200));
     }
 
     if (btnEl && session === _ttsSessionId) {
@@ -724,5 +644,5 @@ function showToast(message, type = 'success') {
     t.className = `pointer-events-auto flex items-center gap-3 px-4 py-3.5 rounded-2xl shadow-xl border text-sm font-semibold fade-in ${styles[0]}`;
     t.innerHTML = `<i class="fas ${styles[1]} text-base"></i><span class="flex-1">${message}</span>`;
     box.appendChild(t);
-    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 250); }, 3200);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 3200); }, 3200);
 }
