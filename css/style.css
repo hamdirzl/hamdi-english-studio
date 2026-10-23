@@ -8,7 +8,20 @@ body {
 }
 
 #app-sidebar {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Mode Fokus / Fullscreen Laptop (Sembunyikan Sidebar) */
+@media (min-width: 768px) {
+    body.hes-sidebar-collapsed #app-sidebar {
+        margin-left: -18rem;
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+body.hes-sidebar-collapsed .materi-container-width {
+    max-width: 72rem !important; /* Melebar dengan nyaman saat sidebar disembunyikan */
 }
 
 /* Komponen Elegan (Clean & Modern UI) */
@@ -46,7 +59,7 @@ body {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
-/* Tombol Profesional (Soft Shadow, Non-3D) */
+/* Tombol Profesional */
 .hes-btn-primary {
     display: inline-flex;
     align-items: center;
@@ -106,7 +119,13 @@ body {
     40%, 60% { transform: translateX(4px); }
 }
 
-.speaking-pulse { animation: speakingPulse 0.8s infinite ease-in-out; }
-@keyframes speakingPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+.speaking-pulse {
+    animation: speakingPulse 0.85s infinite ease-in-out;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+}
+@keyframes speakingPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
 
 input[type="radio"], input[type="checkbox"] { accent-color: #4F46E5; cursor: pointer; }

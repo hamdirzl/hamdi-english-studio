@@ -7,7 +7,6 @@ window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
 const TELEGRAM_BOT_TOKEN = "8783483454:AAFIMaNa4Z5-uUMXHOeqHZgkk2S9EK4gC0Y";
 const TELEGRAM_CHAT_ID = "1225652735";
 
-// Wajib agar streaming MP3 Cloud Neural Google tidak terkena blokir 403 di HP
 if (!document.getElementById('hes-no-referrer')) {
     const meta = document.createElement('meta');
     meta.id = 'hes-no-referrer';
@@ -131,10 +130,11 @@ function updateCloudStatusUI(status) {
 }
 
 // ============================================================================
-// MESIN SUARA 100% CLOUD NEURAL AMERICAN ENGLISH (en-US) - ANTI ROBOT/INDIA
+// MESIN SUARA 100% CLOUD NEURAL AMERICAN ENGLISH (en-US) - IKON RAPI & PASTI BERHENTI
 // ============================================================================
 let _ttsSessionId = 0;
 let _sharedAudioEl = null;
+let _activeTTSBtn = null;
 
 function getSharedTTSAudio() {
     if (!_sharedAudioEl) {
@@ -143,6 +143,43 @@ function getSharedTTSAudio() {
         _sharedAudioEl.preload = 'auto';
     }
     return _sharedAudioEl;
+}
+
+function resetActiveTTSButton() {
+    if (_activeTTSBtn) {
+        try {
+            _activeTTSBtn.dataset.playing = '0';
+            _activeTTSBtn.classList.remove('speaking-pulse');
+            if (_activeTTSBtn.dataset.origHtml !== undefined) {
+                _activeTTSBtn.innerHTML = _activeTTSBtn.dataset.origHtml;
+            }
+        } catch (e) {}
+        _activeTTSBtn = null;
+    }
+    document.querySelectorAll('.speaking-pulse').forEach(el => {
+        el.classList.remove('speaking-pulse');
+        el.dataset.playing = '0';
+        if (el.dataset.origHtml !== undefined) el.innerHTML = el.dataset.origHtml;
+    });
+}
+
+function setButtonPlayingIconOnly(btnEl) {
+    if (!btnEl) return;
+    const hasLabelText = btnEl.textContent && btnEl.textContent.trim().length > 0;
+    if (!hasLabelText) {
+        btnEl.innerHTML = `<i class="fas fa-stop text-xs"></i>`;
+    } else {
+        // Hanya ganti ikon di dalam tombol tanpa mengubah teks atau menambah tulisan Man/Woman
+        const temp = document.createElement('div');
+        temp.innerHTML = btnEl.dataset.origHtml || btnEl.innerHTML;
+        const icon = temp.querySelector('i');
+        if (icon) {
+            icon.className = 'fas fa-stop mr-1.5';
+            btnEl.innerHTML = temp.innerHTML;
+        } else {
+            btnEl.innerHTML = `<i class="fas fa-stop"></i>`;
+        }
+    }
 }
 
 function splitIntoChunks(text, maxLen = 165) {
@@ -206,20 +243,18 @@ function playCloudUSNeuralSegment(text, gender, sessionId) {
     return new Promise(resolve => {
         if (sessionId !== _ttsSessionId) return resolve();
 
-        // 100% American English (en-US) Cloud Neural MP3 untuk Pria & Wanita
         const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=en-US&dt=t&q=${encodeURIComponent(text)}`;
         const audio = getSharedTTSAudio();
         let done = false;
+        let safetyTimer = null;
 
         const applyVoiceProfile = () => {
             const isMale = gender === 'male';
-            // Kunci pitch shift langsung pada audio player saat stream dimuat di Chrome HP
             if ('preservesPitch' in audio) audio.preservesPitch = !isMale;
             if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = !isMale;
             if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = !isMale;
 
-            // 0.80 menurunkan frekuensi suara US ke bariton Pria, 1.00 tetap di suara Wanita US
-            const rate = isMale ? 0.80 : 1.0;
+            const rate = isMale ? 0.82 : 1.0;
             audio.defaultPlaybackRate = rate;
             audio.playbackRate = rate;
         };
@@ -227,6 +262,7 @@ function playCloudUSNeuralSegment(text, gender, sessionId) {
         const cleanupAndResolve = () => {
             if (done) return;
             done = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
             audio.onloadedmetadata = null;
             audio.oncanplay = null;
             audio.onplay = null;
@@ -234,6 +270,9 @@ function playCloudUSNeuralSegment(text, gender, sessionId) {
             audio.onerror = null;
             resolve();
         };
+
+        // Safety timer agar tombol tidak pernah macet berkedut jika jaringan terputus
+        safetyTimer = setTimeout(cleanupAndResolve, 16000);
 
         audio.onloadedmetadata = applyVoiceProfile;
         audio.oncanplay = applyVoiceProfile;
@@ -253,6 +292,7 @@ function playCloudUSNeuralSegment(text, gender, sessionId) {
 
 window.stopNaturalEnglishTTS = function() {
     _ttsSessionId++;
+    resetActiveTTSButton();
     if (_sharedAudioEl) {
         try {
             _sharedAudioEl.onloadedmetadata = null;
@@ -273,11 +313,9 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
     const cleanText = String(text || '').trim();
     if (!cleanText) return showToast('Tulis naskah audio terlebih dahulu.', 'error');
 
+    // Jika tombol yang sedang aktif diklik lagi -> Hentikan
     if (btnEl && btnEl.dataset.playing === '1') {
         window.stopNaturalEnglishTTS();
-        btnEl.dataset.playing = '0';
-        btnEl.classList.remove('speaking-pulse');
-        btnEl.innerHTML = btnEl.dataset.origHtml || `<i class="fas fa-play mr-1"></i> Putar Audio`;
         return;
     }
 
@@ -286,32 +324,28 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
     const segments = parseDialogueSegments(cleanText);
     if (!segments.length) return;
 
-    const origHTML = btnEl ? btnEl.innerHTML : '';
     if (btnEl) {
-        btnEl.dataset.origHtml = origHTML;
+        if (btnEl.dataset.origHtml === undefined) {
+            btnEl.dataset.origHtml = btnEl.innerHTML;
+        }
         btnEl.dataset.playing = '1';
         btnEl.classList.add('speaking-pulse');
+        _activeTTSBtn = btnEl;
+        setButtonPlayingIconOnly(btnEl);
     }
 
-    for (let i = 0; i < segments.length; i++) {
-        if (session !== _ttsSessionId) break;
-        const seg = segments[i];
-        if (btnEl && segments.length > 1) {
-            btnEl.innerHTML = seg.gender === 'male'
-                ? `<i class="fas fa-stop mr-1"></i> 👨 Man (US)...`
-                : `<i class="fas fa-stop mr-1"></i> 👩 Woman (US)...`;
+    try {
+        for (let i = 0; i < segments.length; i++) {
+            if (session !== _ttsSessionId) break;
+            const seg = segments[i];
+            await playCloudUSNeuralSegment(seg.text, seg.gender, session);
+            if (session !== _ttsSessionId) break;
+            if (i < segments.length - 1) await new Promise(r => setTimeout(r, 180));
         }
-
-        await playCloudUSNeuralSegment(seg.text, seg.gender, session);
-
-        if (session !== _ttsSessionId) break;
-        if (i < segments.length - 1) await new Promise(r => setTimeout(r, 200));
-    }
-
-    if (btnEl && session === _ttsSessionId) {
-        btnEl.dataset.playing = '0';
-        btnEl.classList.remove('speaking-pulse');
-        btnEl.innerHTML = origHTML;
+    } finally {
+        if (session === _ttsSessionId) {
+            resetActiveTTSButton();
+        }
     }
 };
 
@@ -587,7 +621,6 @@ function getDriveDirectStreamLink(url) {
     return m?.[1] ? `https://drive.google.com/uc?export=download&id=${m[1]}` : url;
 }
 
-// PERHITUNGAN SKOR UJIAN TERPADU (DIPAKAI OLEH ADMIN & MURID)
 function computeExamSectionScore(cat, examData, examResult) {
     const list = examData?.[cat] || [];
     if (!list.length) return 0;

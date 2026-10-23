@@ -4,27 +4,66 @@ let sidebarSelectedMonth = null;
 
 function initLayout(pageTitle = 'Ruang Belajar') {
     if (!getSession()) return;
+    if (localStorage.getItem('hes_sidebar_collapsed') === '1') {
+        document.body.classList.add('hes-sidebar-collapsed');
+    }
     renderAppHeader(pageTitle);
     renderAppSidebar();
+}
+
+window.toggleDesktopSidebar = function() {
+    const isCollapsed = document.body.classList.toggle('hes-sidebar-collapsed');
+    localStorage.setItem('hes_sidebar_collapsed', isCollapsed ? '1' : '0');
+    updateFocusModeButtonsUI();
+};
+
+window.toggleFullScreenReading = function() {
+    const isCollapsed = !document.body.classList.contains('hes-sidebar-collapsed');
+    document.body.classList.toggle('hes-sidebar-collapsed', isCollapsed);
+    localStorage.setItem('hes_sidebar_collapsed', isCollapsed ? '1' : '0');
+    updateFocusModeButtonsUI();
+};
+
+function updateFocusModeButtonsUI() {
+    const isCollapsed = document.body.classList.contains('hes-sidebar-collapsed');
+    const headerBtn = document.getElementById('desktop-sidebar-toggle-btn');
+    if (headerBtn) {
+        headerBtn.innerHTML = `<i class="fas ${isCollapsed ? 'fa-indent' : 'fa-outdent'}"></i>`;
+        headerBtn.title = isCollapsed ? 'Tampilkan Sidebar' : 'Sembunyikan Sidebar (Mode Lebar)';
+    }
+    document.querySelectorAll('.hes-focus-mode-btn').forEach(btn => {
+        btn.innerHTML = isCollapsed
+            ? `<i class="fas fa-compress-alt mr-1.5"></i> Tampilkan Sidebar`
+            : `<i class="fas fa-expand-alt mr-1.5"></i> Mode Layar Penuh`;
+    });
 }
 
 function renderAppHeader(pageTitle) {
     const headerEl = document.getElementById('app-header');
     if (!headerEl) return;
 
+    const isCollapsed = document.body.classList.contains('hes-sidebar-collapsed');
+
     headerEl.innerHTML = `
         <div class="flex items-center gap-3 min-w-0">
-            <button id="open-sidebar-btn" class="md:hidden text-indigo-600 p-2.5 bg-indigo-50 rounded-xl font-bold">
+            <!-- Tombol Buka Sidebar (HP) -->
+            <button id="open-sidebar-btn" class="md:hidden text-indigo-600 p-2.5 bg-indigo-50 rounded-xl font-bold cursor-pointer">
                 <i class="fas fa-bars"></i>
+            </button>
+            <!-- Tombol Sembunyikan/Tampilkan Sidebar (Laptop/Desktop) -->
+            <button id="desktop-sidebar-toggle-btn" onclick="toggleDesktopSidebar()" title="${isCollapsed ? 'Tampilkan Sidebar' : 'Sembunyikan Sidebar (Mode Lebar)'}" class="hidden md:inline-flex items-center justify-center w-9 h-9 text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-xl font-bold transition cursor-pointer">
+                <i class="fas ${isCollapsed ? 'fa-indent' : 'fa-outdent'}"></i>
             </button>
             <div class="truncate">
                 <h1 class="text-base sm:text-lg font-black text-slate-800 truncate">${pageTitle}</h1>
                 <p class="text-xs font-bold text-slate-400 hidden sm:block">${getDisplayDate(new Date())}</p>
             </div>
         </div>
-        <div id="cloud-status-indicator" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
-            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-            <span>Memuat...</span>
+        <div class="flex items-center gap-2.5">
+            <div id="cloud-status-indicator" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                <span>Memuat...</span>
+            </div>
         </div>
     `;
 
@@ -172,7 +211,7 @@ function renderAppSidebar() {
         </div>
 
         <div class="p-3.5 border-t border-slate-100">
-            <button onclick="logoutUser()" class="w-full py-2.5 px-4 text-xs font-extrabold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-xl transition">
+            <button onclick="logoutUser()" class="w-full py-2.5 px-4 text-xs font-extrabold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-xl transition cursor-pointer">
                 <i class="fas fa-right-from-bracket mr-1"></i> Keluar
             </button>
         </div>

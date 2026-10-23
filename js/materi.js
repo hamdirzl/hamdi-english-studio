@@ -27,6 +27,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!requireAuth()) return;
     parseMateriQueryParams();
     initLayout('Ruang Belajar');
+
+    // Pasang class agar area materi otomatis melebar saat sidebar disembunyikan di laptop
+    const mainContainer = document.querySelector('main .max-w-4xl');
+    if (mainContainer) mainContainer.classList.add('materi-container-width', 'transition-all', 'duration-300');
+
     renderMateriContent();
 
     await syncFromCloud();
@@ -196,27 +201,70 @@ function renderMateriContent() {
 }
 
 // ============================================================================
-// DYNAMIC MAGAZINE & EDITORIAL HANDOUT PARSER
+// PEMBERSIH TEKS & FORMATTER ANTI-BOCOR (MENGATASI ** DAN KODE BOCOR)
 // ============================================================================
+function sanitizeRawInputString(str) {
+    return String(str || '')
+        // Bersihkan bila ada teks yang tidak sengaja ter-copy dari layar yang bocor sebelumnya
+        .replace(/"font-extrabold[^"]*">/g, '')
+        .replace(/"italic text-slate-\d+[^"]*">/g, '')
+        .replace(/<[^>]+>/g, '');
+}
+
 function escapeHtmlStr(str) {
-    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return sanitizeRawInputString(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function cleanTitleMarkdown(str) {
+    return escapeHtmlStr(str)
+        .replace(/\*+/g, '')
+        .replace(/^["']|["']$/g, '')
+        .trim();
 }
 
 function formatRichEnglishText(text) {
-    return escapeHtmlStr(text)
-        .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-extrabold text-slate-900 bg-amber-100/70 px-1.5 py-0.5 rounded-md">$1</strong>')
-        .replace(/\*([^*]+)\*/g, '<em class="italic text-slate-800 font-semibold">$1</em>')
-        .replace(/"([^"]+)"/g, '<span class="font-bold text-indigo-700">"$1"</span>')
-        .replace(/->|→/g, '<i class="fas fa-arrow-right text-indigo-400 mx-1.5 text-xs"></i>');
+    if (!text) return '';
+    let safe = escapeHtmlStr(text);
+
+    // 1. Amankan teks dalam tanda kutip "..." menggunakan token terlebih dahulu
+    //    agar TIDAK PERNAH menabrak atribut class="..." milik tag HTML!
+    const quoteTokens = [];
+    safe = safe.replace(/\*"([^"\n]+)"\*|"(?!font-|italic)([^"\n]+)"/g, (_, qItalic, qNormal) => {
+        const content = (qItalic || qNormal || '').replace(/\*+/g, '').trim();
+        quoteTokens.push(content);
+        return `@@HES_QUOTE_${quoteTokens.length - 1}@@`;
+    });
+
+    // 2. Ubah **teks tebal** menjadi highlight yang lembut & ramah mata
+    safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-extrabold text-slate-900 bg-amber-100/80 px-1.5 py-0.5 rounded-md">$1</strong>');
+
+    // 3. Ubah *teks miring* menjadi italic bersih
+    safe = safe.replace(/\*([^*]+)\*/g, '<em class="italic text-slate-800 font-semibold">$1</em>');
+
+    // 4. Hapus sisa bintang liar (jika ada ** atau * yang tidak berpasangan dari AI)
+    safe = safe.replace(/\*+/g, '');
+
+    // 5. Kembalikan token tanda kutip menjadi tampilan kutipan berwarna indigo
+    safe = safe.replace(/@@HES_QUOTE_(\d+)@@/g, (_, idx) => {
+        return `<span class="font-bold text-indigo-700">&ldquo;${quoteTokens[Number(idx)] || ''}&rdquo;</span>`;
+    });
+
+    // 6. Ubah tanda panah menjadi ikon panah
+    safe = safe.replace(/->|→/g, '<i class="fas fa-arrow-right text-indigo-400 mx-1.5 text-xs"></i>');
+
+    return safe;
 }
 
 function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = '') {
     if (isRecap) {
         return {
             name: 'emerald',
-            barGrad: 'from-emerald-800 via-teal-600 to-cyan-500',
+            barGrad: 'from-emerald-700 via-teal-600 to-cyan-500',
             badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            heroBg: 'bg-gradient-to-br from-emerald-50/90 via-teal-50/50 to-white',
+            heroBg: 'bg-gradient-to-br from-emerald-50/80 via-teal-50/30 to-white',
             heroBorder: 'border-emerald-500',
             accentText: 'text-emerald-700',
             accentBg: 'bg-emerald-600',
@@ -224,17 +272,16 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             pdfSecondary: '#0D9488',
             pdfDark: '#064E3B',
             pdfSoft: '#ECFDF5',
-            pdfBorder: '#A7F3D0',
-            pdfHighlight: '#FEF3C7'
+            pdfBorder: '#A7F3D0'
         };
     }
 
     const palettes = [
         {
             name: 'ocean',
-            barGrad: 'from-blue-900 via-blue-600 to-sky-400',
+            barGrad: 'from-blue-800 via-indigo-600 to-sky-500',
             badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
-            heroBg: 'bg-gradient-to-br from-blue-50/90 via-sky-50/40 to-white',
+            heroBg: 'bg-gradient-to-br from-blue-50/80 via-indigo-50/30 to-white',
             heroBorder: 'border-blue-600',
             accentText: 'text-blue-700',
             accentBg: 'bg-blue-600',
@@ -242,14 +289,13 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             pdfSecondary: '#0284C7',
             pdfDark: '#0F172A',
             pdfSoft: '#EFF6FF',
-            pdfBorder: '#BFDBFE',
-            pdfHighlight: '#FEF3C7'
+            pdfBorder: '#BFDBFE'
         },
         {
             name: 'indigo',
-            barGrad: 'from-indigo-900 via-violet-600 to-purple-500',
+            barGrad: 'from-indigo-800 via-violet-600 to-purple-500',
             badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-            heroBg: 'bg-gradient-to-br from-indigo-50/90 via-violet-50/40 to-white',
+            heroBg: 'bg-gradient-to-br from-indigo-50/80 via-violet-50/30 to-white',
             heroBorder: 'border-indigo-600',
             accentText: 'text-indigo-700',
             accentBg: 'bg-indigo-600',
@@ -257,14 +303,13 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             pdfSecondary: '#7C3AED',
             pdfDark: '#1E1B4B',
             pdfSoft: '#EEF2FF',
-            pdfBorder: '#C7D2FE',
-            pdfHighlight: '#FEF3C7'
+            pdfBorder: '#C7D2FE'
         },
         {
             name: 'teal',
-            barGrad: 'from-teal-900 via-teal-600 to-emerald-400',
+            barGrad: 'from-teal-800 via-teal-600 to-emerald-500',
             badgeBg: 'bg-teal-50 text-teal-700 border-teal-200',
-            heroBg: 'bg-gradient-to-br from-teal-50/90 via-emerald-50/40 to-white',
+            heroBg: 'bg-gradient-to-br from-teal-50/80 via-emerald-50/30 to-white',
             heroBorder: 'border-teal-600',
             accentText: 'text-teal-700',
             accentBg: 'bg-teal-600',
@@ -272,14 +317,13 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             pdfSecondary: '#059669',
             pdfDark: '#134E4A',
             pdfSoft: '#F0FDFA',
-            pdfBorder: '#99F6E4',
-            pdfHighlight: '#FEF3C7'
+            pdfBorder: '#99F6E4'
         },
         {
             name: 'amber',
             barGrad: 'from-amber-700 via-orange-600 to-rose-500',
             badgeBg: 'bg-amber-50 text-amber-800 border-amber-200',
-            heroBg: 'bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-white',
+            heroBg: 'bg-gradient-to-br from-amber-50/80 via-orange-50/30 to-white',
             heroBorder: 'border-amber-500',
             accentText: 'text-amber-800',
             accentBg: 'bg-amber-600',
@@ -287,8 +331,7 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
             pdfSecondary: '#EA580C',
             pdfDark: '#451A03',
             pdfSoft: '#FFFBEB',
-            pdfBorder: '#FDE68A',
-            pdfHighlight: '#E0F2FE'
+            pdfBorder: '#FDE68A'
         }
     ];
 
@@ -320,8 +363,25 @@ function splitQuestionAndAnswer(rawTask) {
     return { questionText: text, answerKey: answer };
 }
 
+// Helper cerdas memisahkan "**Judul**: Isi Penjelasan"
+function extractTitleAndBodyFromLine(str) {
+    const clean = String(str || '').trim();
+    const boldColon = clean.match(/^\*\*([^*]+)\*\*\s*:\s*(.+)$/);
+    if (boldColon) {
+        return { title: boldColon[1].trim(), body: boldColon[2].trim() };
+    }
+    const colonIdx = clean.indexOf(':');
+    if (colonIdx > 1 && colonIdx <= 68) {
+        return {
+            title: clean.slice(0, colonIdx).replace(/\*+/g, '').trim(),
+            body: clean.slice(colonIdx + 1).trim()
+        };
+    }
+    return { title: '', body: clean };
+}
+
 function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
-    const clean = String(rawText || '').replace(/\r\n/g, '\n').trim();
+    const clean = sanitizeRawInputString(rawText).replace(/\r\n/g, '\n').trim();
     const data = {
         title: defaultTitle,
         level: defaultLevel,
@@ -335,26 +395,11 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
     if (!clean) return data;
 
     let currentSec = null;
-    const ensureSection = (type, defaultSecTitle = '', icon = 'fa-sparkles') => {
-        if (!currentSec || currentSec.type !== type) {
-            currentSec = {
-                id: `sec_${data.sections.length + 1}`,
-                type,
-                title: defaultSecTitle,
-                icon,
-                paragraphs: [],
-                items: []
-            };
-            data.sections.push(currentSec);
-        }
-        return currentSec;
-    };
-
     const startNewSection = (type, title, icon) => {
         currentSec = {
             id: `sec_${data.sections.length + 1}`,
             type,
-            title,
+            title: title.replace(/\*+/g, '').trim(),
             icon,
             paragraphs: [],
             items: []
@@ -368,11 +413,11 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         if (!line || /^SESSION\s*:\s*\d+/i.test(line)) return;
 
         if (/^TITLE\s*:/i.test(line)) {
-            data.title = line.replace(/^TITLE\s*:\s*/i, '').trim() || data.title;
+            data.title = line.replace(/^TITLE\s*:\s*/i, '').replace(/\*+/g, '').trim() || data.title;
             return;
         }
         if (/^(?:LEVEL|SUBTITLE)\s*:/i.test(line)) {
-            data.level = line.replace(/^(?:LEVEL|SUBTITLE)\s*:\s*/i, '').trim() || data.level;
+            data.level = line.replace(/^(?:LEVEL|SUBTITLE)\s*:\s*/i, '').replace(/\*+/g, '').trim() || data.level;
             return;
         }
         if (/^(?:GOAL|OBJECTIVE)\s*:/i.test(line)) {
@@ -385,7 +430,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         }
 
         if (/^#{1,3}\s+(.+)$/.test(line) || /^SECTION\s*:\s*(.+)$/i.test(line)) {
-            const customTitle = line.replace(/^#{1,3}\s+|^SECTION\s*:\s*/i, '').trim();
+            const customTitle = line.replace(/^#{1,3}\s+|^SECTION\s*:\s*/i, '').replace(/\*+/g, '').trim();
             const lower = customTitle.toLowerCase();
             if (/warm[\s-]*up|ice[\s-]*breaker|starter/i.test(lower)) startNewSection('warmup', customTitle, 'fa-mug-hot');
             else if (/story|scenario|imagine|context|hook/i.test(lower)) startNewSection('story', customTitle, 'fa-book-open-reader');
@@ -402,37 +447,37 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
 
         if (/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO)\s*:\s*/i, '').trim();
-            const sec = startNewSection('story', 'The Story & Real-Life Context', 'fa-book-open-reader');
+            const sec = startNewSection('story', 'Story & Real-Life Context', 'fa-book-open-reader');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
         if (/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER)\s*:\s*/i, '').trim();
-            const sec = startNewSection('warmup', 'Warm-Up & Ice Breaker', 'fa-mug-hot');
+            const sec = startNewSection('warmup', 'Warm-Up Questions', 'fa-mug-hot');
             if (rest) sec.items.push(rest);
             return;
         }
-        if (/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE)\s*:(.*)$/i.test(line)) {
-            const rest = line.replace(/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE)\s*:\s*/i, '').trim();
-            const sec = startNewSection('editorial', 'How It Works in Real Life', 'fa-compass');
+        if (/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE|KEY\s*POINTS?)\s*:(.*)$/i.test(line)) {
+            const rest = line.replace(/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE|KEY\s*POINTS?)\s*:\s*/i, '').trim();
+            const sec = startNewSection('editorial', 'Key Concepts & Insights', 'fa-compass');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
-        if (/^(?:FORMULAS?|PATTERNS?|GRAMMAR|KEY\s*POINTS?|RULES?)\s*:(.*)$/i.test(line)) {
-            const rest = line.replace(/^(?:FORMULAS?|PATTERNS?|GRAMMAR|KEY\s*POINTS?|RULES?)\s*:\s*/i, '').trim();
-            const sec = startNewSection('formulas', 'Visual Sentence Patterns', 'fa-shapes');
+        if (/^(?:FORMULAS?|PATTERNS?|GRAMMAR|RULES?)\s*:(.*)$/i.test(line)) {
+            const rest = line.replace(/^(?:FORMULAS?|PATTERNS?|GRAMMAR|RULES?)\s*:\s*/i, '').trim();
+            const sec = startNewSection('formulas', 'Sentence Patterns', 'fa-shapes');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
         if (/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY)\s*:\s*/i, '').trim();
-            const sec = startNewSection('phrases', 'Natural Expressions & Phrases', 'fa-comment-dots');
+            const sec = startNewSection('phrases', 'Natural Expressions', 'fa-comment-dots');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
         if (/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION)\s*:\s*/i, '').trim();
-            const sec = startNewSection('examples', 'Everyday Examples in Context', 'fa-bolt');
+            const sec = startNewSection('examples', 'Examples in Context', 'fa-bolt');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
@@ -444,7 +489,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         }
         if (/^(?:TIPS?|PRO\s*TIPS?|COACH\s*NOTE|REMEMBER|CULTURE\s*NOTE)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:TIPS?|PRO\s*TIPS?|COACH\s*NOTE|REMEMBER|CULTURE\s*NOTE)\s*:\s*/i, '').trim();
-            const sec = startNewSection('callout', 'Tutor\'s Insider Tip', 'fa-lightbulb');
+            const sec = startNewSection('callout', 'Tutor\'s Pro Tip', 'fa-lightbulb');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
@@ -456,13 +501,13 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         }
         if (/^(?:PRACTICE|EXERCISES?|TASKS?|HOMEWORK|MISSION|QUIZ|YOUR\s*TURN)\s*:(.*)$/i.test(line)) {
             const rest = line.replace(/^(?:PRACTICE|EXERCISES?|TASKS?|HOMEWORK|MISSION|QUIZ|YOUR\s*TURN)\s*:\s*/i, '').trim();
-            const sec = startNewSection('practice', 'Your Turn! Interactive Practice', 'fa-gamepad');
+            const sec = startNewSection('practice', 'Interactive Practice', 'fa-gamepad');
             if (rest) sec.paragraphs.push(rest);
             return;
         }
 
         if (!currentSec) {
-            ensureSection('editorial', 'Let\'s Dive In', 'fa-compass');
+            startNewSection('editorial', 'Study Guide', 'fa-compass');
         }
 
         const isBullet = /^[-*•]\s+|\d+[.)]\s+|^\[[+?*-]\]/.test(line);
@@ -479,11 +524,9 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
                 break;
             }
             case 'editorial': {
-                const colonMatch = stripped.match(/^([^:]{2,48}):\s*(.+)$/);
-                if (isBullet && colonMatch) {
-                    currentSec.items.push({ title: colonMatch[1].replace(/^\[|\]$/g, '').trim(), body: colonMatch[2].trim() });
-                } else if (isBullet) {
-                    currentSec.items.push({ title: '', body: stripped });
+                if (isBullet) {
+                    const { title, body } = extractTitleAndBodyFromLine(stripped);
+                    currentSec.items.push({ title, body });
                 } else {
                     currentSec.paragraphs.push(line);
                 }
@@ -495,36 +538,42 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
                     let badge = '[*]', label = parts[0] || 'Pattern', formula = parts[1] || '', example = parts[2] || '';
                     const bMatch = label.match(/^(\[[+?*-]\])\s*(.*)$/);
                     if (bMatch) { badge = bMatch[1]; label = bMatch[2] || 'Pattern'; }
-                    currentSec.items.push({ badge, label, formula, example });
-                } else if (isBullet && stripped.includes(':')) {
-                    const [lbl, ...rest] = stripped.split(':');
-                    const rhs = rest.join(':').trim();
-                    const arrowParts = rhs.split(/->|→/);
+                    currentSec.items.push({ badge, label: label.replace(/\*+/g, '').trim(), formula, example, isNote: false });
+                } else if (isBullet) {
+                    const { title, body } = extractTitleAndBodyFromLine(stripped);
+                    const hasPlusFormula = body.includes('+') && body.length < 95;
                     currentSec.items.push({
                         badge: '[*]',
-                        label: lbl.trim(),
-                        formula: arrowParts[0]?.trim() || rhs,
-                        example: arrowParts.slice(1).join(' / ').trim()
+                        label: title || 'Key Concept',
+                        formula: hasPlusFormula ? body : '',
+                        example: hasPlusFormula ? '' : body,
+                        isNote: !hasPlusFormula
                     });
-                } else if (!isBullet && !line.startsWith('[')) {
-                    currentSec.paragraphs.push(line);
                 } else {
-                    currentSec.items.push({ badge: '[*]', label: 'Key Pattern', formula: stripped, example: '' });
+                    currentSec.paragraphs.push(line);
                 }
                 break;
             }
             case 'phrases': {
                 if (stripped.includes('|')) {
                     const parts = stripped.split('|').map(s => s.trim());
-                    currentSec.items.push({ phrase: parts[0] || '', meaning: parts[1] || '', example: parts[2] || '' });
-                } else if (stripped.includes('=') || stripped.includes('—') || stripped.includes(' - ')) {
-                    const sep = stripped.includes('=') ? '=' : (stripped.includes('—') ? '—' : ' - ');
-                    const [p, ...r] = stripped.split(sep);
-                    currentSec.items.push({ phrase: p.trim(), meaning: r.join(sep).trim(), example: '' });
-                } else if (!isBullet) {
-                    currentSec.paragraphs.push(line);
+                    currentSec.items.push({
+                        phrase: parts[0].replace(/\*+/g, '').trim(),
+                        meaning: parts[1] || '',
+                        example: parts[2] || ''
+                    });
+                } else if (isBullet) {
+                    const { title, body } = extractTitleAndBodyFromLine(stripped);
+                    if (title) {
+                        currentSec.items.push({ phrase: title, meaning: body, example: '' });
+                    } else if (stripped.includes('=')) {
+                        const [p, ...r] = stripped.split('=');
+                        currentSec.items.push({ phrase: p.replace(/\*+/g, '').trim(), meaning: r.join('=').trim(), example: '' });
+                    } else {
+                        currentSec.items.push({ phrase: '', meaning: stripped, example: '' });
+                    }
                 } else {
-                    currentSec.items.push({ phrase: stripped, meaning: '', example: '' });
+                    currentSec.paragraphs.push(line);
                 }
                 break;
             }
@@ -532,21 +581,30 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
                 if (stripped.includes('|')) {
                     const parts = stripped.split('|').map(s => s.trim());
                     if (parts.length >= 3) {
-                        currentSec.items.push({ tag: parts[0].replace(/^\[|\]$/g, ''), sentence: parts[1], note: parts.slice(2).join(' ') });
+                        currentSec.items.push({ tag: parts[0].replace(/^\[|\]$|\*+/g, ''), sentence: parts[1], note: parts.slice(2).join(' ') });
                     } else {
-                        currentSec.items.push({ tag: 'In Context', sentence: parts[0], note: parts[1] || '' });
+                        currentSec.items.push({ tag: 'Example', sentence: parts[0], note: parts[1] || '' });
                     }
-                } else if (!isBullet && stripped.length > 95) {
-                    currentSec.paragraphs.push(line);
+                } else if (isBullet) {
+                    const { title, body } = extractTitleAndBodyFromLine(stripped);
+                    currentSec.items.push({
+                        tag: title || `Example #${currentSec.items.length + 1}`,
+                        sentence: body,
+                        note: ''
+                    });
                 } else {
-                    currentSec.items.push({ tag: `Example #${currentSec.items.length + 1}`, sentence: stripped, note: '' });
+                    currentSec.paragraphs.push(line);
                 }
                 break;
             }
             case 'mistakes': {
                 if (stripped.includes('|')) {
                     const parts = stripped.split('|').map(s => s.trim());
-                    currentSec.items.push({ wrong: parts[0] || '', right: parts[1] || '', reason: parts[2] || '' });
+                    currentSec.items.push({
+                        wrong: parts[0].replace(/\*+/g, '').trim(),
+                        right: parts[1].replace(/\*+/g, '').trim(),
+                        reason: parts[2] || ''
+                    });
                 } else if (!isBullet) {
                     currentSec.paragraphs.push(line);
                 } else {
@@ -556,7 +614,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             }
             case 'dialogue': {
                 if (/^[A-Za-z\s.]{1,22}\s*:\s*.+$/.test(line)) {
-                    currentSec.items.push(line);
+                    currentSec.items.push(line.replace(/\*+/g, ''));
                 } else {
                     currentSec.paragraphs.push(stripped);
                 }
@@ -565,7 +623,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             case 'practice': {
                 const pMatch = stripped.match(/^\[([^\]]+)\]\s*:?\s*(.+)$/);
                 const rawTask = pMatch ? pMatch[2].trim() : stripped;
-                const tag = pMatch ? pMatch[1].trim() : `Challenge #${currentSec.items.length + 1}`;
+                const tag = pMatch ? pMatch[1].replace(/\*+/g, '').trim() : `Task #${currentSec.items.length + 1}`;
                 const { questionText, answerKey } = splitQuestionAndAnswer(rawTask);
                 currentSec.items.push({ tag, task: questionText, answerKey });
                 break;
@@ -580,9 +638,9 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
 // INTERACTIVE HANDOUT CONTROLS
 // ============================================================================
 window.playHandoutTextAudio = function(rawSpeech, btnEl) {
-    const cleanSpeech = String(rawSpeech || '')
+    const cleanSpeech = sanitizeRawInputString(rawSpeech)
         .replace(/\[[^\]]*\]/g, '')
-        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*+/g, '')
         .replace(/\([^)]*\)/g, '')
         .replace(/^(?:Correct|Incorrect|Wrong|Right)\s*:\s*/i, '')
         .trim();
@@ -616,8 +674,8 @@ window.toggleDialogueBlurMode = function(secDomId, btnEl) {
 
     if (btnEl) {
         btnEl.innerHTML = nextState
-            ? `<i class="fas fa-eye mr-1.5"></i> Tampilkan Teks Dialog`
-            : `<i class="fas fa-eye-slash mr-1.5"></i> Mode Latihan Listening (Blur Teks)`;
+            ? `<i class="fas fa-eye mr-1.5"></i> Tampilkan Teks`
+            : `<i class="fas fa-eye-slash mr-1.5"></i> Blur Teks (Latihan Listening)`;
         btnEl.className = nextState
             ? `px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold transition cursor-pointer shadow-2xs`
             : `px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-extrabold transition cursor-pointer`;
@@ -641,13 +699,14 @@ window.scrollToHandoutSection = function(elId) {
 };
 
 function renderFormulaPillsHTML(formulaStr) {
+    if (!formulaStr) return '';
     if (!formulaStr.includes('+')) {
-        return `<span class="inline-block px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 font-extrabold text-xs sm:text-sm text-slate-800 shadow-2xs">${formatRichEnglishText(formulaStr)}</span>`;
+        return `<div class="p-3.5 rounded-xl bg-white border border-slate-200/90 text-sm sm:text-[15px] font-semibold text-slate-700 leading-relaxed">${formatRichEnglishText(formulaStr)}</div>`;
     }
     const parts = formulaStr.split('+').map(s => s.trim()).filter(Boolean);
     return `<div class="flex flex-wrap items-center gap-1.5 my-1">` +
         parts.map((p, idx) => `
-            <span class="px-3 py-1.5 rounded-xl bg-white border border-indigo-200/90 font-extrabold text-xs sm:text-sm text-indigo-950 shadow-2xs">${formatRichEnglishText(p)}</span>
+            <span class="px-3 py-1.5 rounded-xl bg-white border border-indigo-200 font-extrabold text-xs sm:text-sm text-indigo-950 shadow-2xs">${cleanTitleMarkdown(p)}</span>
             ${idx < parts.length - 1 ? `<span class="text-indigo-400 font-black text-sm px-0.5">+</span>` : ''}
         `).join('') +
     `</div>`;
@@ -692,6 +751,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
 
     const isRecap = prefix === 'recap';
     const theme = getSessionThemePalette(sessionNumber, isRecap, data.style);
+    const isCollapsed = document.body.classList.contains('hes-sidebar-collapsed');
 
     const registerAudio = (speechText) => {
         const idx = data.allAudioItems.length;
@@ -702,22 +762,38 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
     const sectionsHTML = data.sections.map((sec) => {
         const domId = `${prefix}-${sec.id}`;
 
+        // 1. STORY & CONTEXT
         if (sec.type === 'story') {
             const fullStoryAudioIdx = registerAudio(sec.paragraphs.join(' '));
             return `
                 <section id="${domId}" class="scroll-mt-20">
-                    <div class="relative p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border border-amber-200/80 shadow-2xs overflow-hidden">
-                        <div class="absolute -right-6 -top-6 text-amber-500/10 text-8xl pointer-events-none select-none"><i class="fas fa-quote-right"></i></div>
-                        <div class="relative z-10 space-y-4">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-100/90 text-amber-900 text-xs font-extrabold uppercase tracking-wider">
-                                    <i class="fas ${sec.icon} text-amber-600"></i> ${escapeHtmlStr(sec.title)}
-                                </span>
-                                <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${fullStoryAudioIdx}, this)" class="px-3.5 py-1.5 rounded-xl bg-white hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-200 text-xs font-extrabold transition cursor-pointer shadow-2xs">
-                                    <i class="fas fa-volume-up mr-1.5"></i> Dengarkan Cerita
-                                </button>
-                            </div>
-                            <div class="space-y-4 text-slate-700 text-sm sm:text-[16px] leading-[1.85] font-medium">
+                    <div class="p-5 sm:p-7 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-100 text-amber-900 text-xs font-extrabold">
+                                <i class="fas ${sec.icon} text-amber-600"></i> ${cleanTitleMarkdown(sec.title)}
+                            </span>
+                            <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${fullStoryAudioIdx}, this)" title="Dengarkan Cerita" class="w-9 h-9 rounded-full bg-white hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200 flex items-center justify-center transition cursor-pointer shrink-0 shadow-2xs">
+                                <i class="fas fa-volume-up text-xs"></i>
+                            </button>
+                        </div>
+                        <div class="space-y-3.5 text-slate-700 text-sm sm:text-[15px] leading-[1.85] font-medium">
+                            ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
+                        </div>
+                    </div>
+                </section>`;
+        }
+
+        // 2. TUTOR PRO TIP / CALLOUT (Desain Ramah & Bersih)
+        if (sec.type === 'callout') {
+            return `
+                <section id="${domId}" class="scroll-mt-20">
+                    <div class="p-5 sm:p-6 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 flex items-start gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-base shrink-0 mt-0.5">
+                            <i class="fas fa-lightbulb"></i>
+                        </div>
+                        <div class="space-y-2 flex-1">
+                            <h3 class="text-sm sm:text-base font-extrabold text-indigo-950">${cleanTitleMarkdown(sec.title)}</h3>
+                            <div class="space-y-2.5 text-sm sm:text-[15px] text-slate-700 leading-[1.8] font-medium">
                                 ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
                             </div>
                         </div>
@@ -725,49 +801,27 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
-        if (sec.type === 'callout') {
-            return `
-                <section id="${domId}" class="scroll-mt-20">
-                    <div class="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-indigo-900 via-blue-900 to-slate-900 text-white shadow-md relative overflow-hidden">
-                        <div class="absolute -right-8 -bottom-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none"></div>
-                        <div class="flex flex-col sm:flex-row items-start gap-4 relative z-10">
-                            <div class="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-300/30 text-amber-300 flex items-center justify-center text-xl shrink-0">
-                                <i class="fas fa-lightbulb"></i>
-                            </div>
-                            <div class="space-y-2.5 flex-1">
-                                <h3 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-amber-300">${escapeHtmlStr(sec.title)}</h3>
-                                <div class="space-y-2.5 text-sm sm:text-[15px] text-blue-50 leading-[1.8] font-medium">
-                                    ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p).replace(/text-slate-900/g, 'text-amber-950').replace(/text-indigo-700/g, 'text-amber-300')}</p>`).join('')}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>`;
-        }
-
+        // 3. WARM UP
         if (sec.type === 'warmup') {
             return `
-                <section id="${domId}" class="space-y-4 scroll-mt-20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-base shrink-0">
+                <section id="${domId}" class="space-y-3.5 scroll-mt-20">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-sm shrink-0">
                             <i class="fas ${sec.icon}"></i>
                         </div>
-                        <div>
-                            <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
-                            <p class="text-xs sm:text-sm font-medium text-slate-500">Coba jawab dengan santai menggunakan kalimatmu sendiri sebelum kita mulai!</p>
-                        </div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                    <div class="grid grid-cols-1 gap-3">
                         ${sec.items.map((q, i) => {
                             const aIdx = registerAudio(q);
                             return `
-                            <div class="p-5 rounded-2xl bg-amber-50/50 border border-amber-200/80 flex flex-col justify-between gap-4 hover:bg-amber-50 transition">
-                                <div class="space-y-2">
-                                    <span class="inline-block px-2.5 py-0.5 rounded-lg bg-amber-200/70 text-amber-900 font-extrabold text-[11px]">Ice Breaker #${i + 1}</span>
-                                    <p class="text-sm sm:text-[15px] font-bold text-slate-800 leading-relaxed">${formatRichEnglishText(q)}</p>
+                            <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-amber-300 flex items-center justify-between gap-4 transition">
+                                <div class="flex items-start gap-3">
+                                    <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">${i + 1}</span>
+                                    <p class="text-sm sm:text-[15px] font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(q)}</p>
                                 </div>
-                                <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" class="self-start px-3 py-1.5 rounded-xl bg-white hover:bg-amber-500 text-amber-800 hover:text-white border border-amber-200 text-xs font-extrabold transition cursor-pointer">
-                                    <i class="fas fa-volume-up mr-1"></i> Dengar Pertanyaan
+                                <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-9 h-9 rounded-full bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white flex items-center justify-center transition cursor-pointer shrink-0">
+                                    <i class="fas fa-volume-up text-xs"></i>
                                 </button>
                             </div>`;
                         }).join('')}
@@ -775,81 +829,82 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
+        // 4. EDITORIAL / KEY CONCEPTS
         if (sec.type === 'editorial') {
             return `
-                <section id="${domId}" class="space-y-5 scroll-mt-20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl ${theme.badgeBg} border flex items-center justify-center text-base shrink-0">
+                <section id="${domId}" class="space-y-4 scroll-mt-20">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl ${theme.badgeBg} border flex items-center justify-center text-sm shrink-0">
                             <i class="fas ${sec.icon}"></i>
                         </div>
-                        <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                     </div>
 
                     ${sec.paragraphs.length ? `
-                    <div class="p-6 sm:p-8 rounded-3xl bg-slate-50/80 border border-slate-200/80 space-y-4 text-slate-700 text-sm sm:text-[16px] leading-[1.9] font-medium">
+                    <div class="p-5 sm:p-6 rounded-2xl bg-slate-50/90 border border-slate-200/80 space-y-3.5 text-slate-700 text-sm sm:text-[15px] leading-[1.85] font-medium">
                         ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
                     </div>` : ''}
 
                     ${sec.items.length ? `
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-3.5">
                         ${sec.items.map((item, idx) => `
-                            <div class="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:border-indigo-300 transition ${sec.items.length % 2 === 1 && idx === sec.items.length - 1 ? 'md:col-span-2' : ''}">
+                            <div class="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-indigo-300 transition space-y-1.5">
                                 ${item.title ? `
-                                <h4 class="text-sm sm:text-base font-extrabold text-slate-900 mb-2 flex items-center gap-2">
+                                <h4 class="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2.5">
                                     <span class="w-6 h-6 rounded-lg ${theme.accentBg} text-white text-xs font-black flex items-center justify-center shrink-0">${idx + 1}</span>
-                                    ${escapeHtmlStr(item.title)}
+                                    <span>${cleanTitleMarkdown(item.title)}</span>
                                 </h4>` : ''}
-                                <p class="text-xs sm:text-[15px] text-slate-600 leading-[1.8] font-medium">${formatRichEnglishText(item.body)}</p>
+                                <p class="text-sm sm:text-[15px] text-slate-600 leading-[1.8] font-medium ${item.title ? 'pl-8' : ''}">${formatRichEnglishText(item.body)}</p>
                             </div>
                         `).join('')}
                     </div>` : ''}
                 </section>`;
         }
 
+        // 5. FORMULAS / SENTENCE PATTERNS
         if (sec.type === 'formulas') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center text-base shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center text-sm shrink-0">
                             <i class="fas ${sec.icon}"></i>
                         </div>
-                        <div>
-                            <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
-                            <p class="text-xs sm:text-sm font-medium text-slate-500">Pola praktis menyusun kalimat tanpa perlu menghafal rumus yang rumit.</p>
-                        </div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                     </div>
 
                     ${sec.paragraphs.length ? `
-                    <div class="space-y-3 text-slate-700 text-sm sm:text-[15px] leading-[1.85] font-medium px-1">
+                    <div class="space-y-3 text-slate-700 text-sm sm:text-[15px] leading-[1.8] font-medium px-1">
                         ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
                     </div>` : ''}
 
-                    <div class="grid grid-cols-1 gap-4">
+                    <div class="grid grid-cols-1 gap-3.5">
                         ${sec.items.map(f => {
                             let badgeStyle = 'bg-indigo-600 text-white';
-                            let cardBg = 'bg-indigo-50/40 border-indigo-200/80';
+                            let cardBg = 'bg-slate-50/90 border-slate-200/90';
                             let sym = '★';
                             if (f.badge === '[+]') { badgeStyle = 'bg-emerald-600 text-white'; cardBg = 'bg-emerald-50/40 border-emerald-200/80'; sym = '+'; }
                             else if (f.badge === '[-]') { badgeStyle = 'bg-rose-600 text-white'; cardBg = 'bg-rose-50/40 border-rose-200/80'; sym = '−'; }
                             else if (f.badge === '[?]') { badgeStyle = 'bg-blue-600 text-white'; cardBg = 'bg-blue-50/40 border-blue-200/80'; sym = '?'; }
 
-                            const aIdx = f.example ? registerAudio(f.example) : registerAudio(f.formula);
+                            const speechText = f.example && !f.isNote ? f.example : '';
+                            const aIdx = speechText ? registerAudio(speechText) : null;
+
                             return `
-                            <div class="p-5 sm:p-6 rounded-2xl ${cardBg} border flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div class="space-y-2.5 flex-1">
+                            <div class="p-5 rounded-2xl ${cardBg} border flex items-start justify-between gap-4">
+                                <div class="space-y-2 flex-1">
                                     <div class="flex items-center gap-2.5">
-                                        <span class="w-7 h-7 rounded-xl ${badgeStyle} font-black text-xs flex items-center justify-center shrink-0">${sym}</span>
-                                        <span class="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-slate-800">${escapeHtmlStr(f.label)}</span>
+                                        <span class="w-6 h-6 rounded-lg ${badgeStyle} font-black text-xs flex items-center justify-center shrink-0">${sym}</span>
+                                        <span class="text-sm sm:text-[15px] font-extrabold text-slate-900">${cleanTitleMarkdown(f.label)}</span>
                                     </div>
-                                    ${renderFormulaPillsHTML(f.formula)}
+                                    ${f.formula ? renderFormulaPillsHTML(f.formula) : ''}
                                     ${f.example ? `
-                                    <p class="text-xs sm:text-[15px] font-semibold text-slate-700 pt-1 leading-relaxed">
-                                        <i class="fas fa-quote-left text-slate-300 mr-1.5"></i>${formatRichEnglishText(f.example)}
+                                    <p class="text-sm sm:text-[15px] font-medium text-slate-700 leading-[1.8] ${f.formula ? 'pt-1' : 'pl-8'}">
+                                        ${formatRichEnglishText(f.example)}
                                     </p>` : ''}
                                 </div>
-                                ${f.example ? `
-                                <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" class="self-start md:self-center px-4 py-2 rounded-xl bg-white hover:bg-indigo-600 text-indigo-700 hover:text-white border border-slate-200 text-xs font-extrabold transition shrink-0 cursor-pointer shadow-2xs">
-                                    <i class="fas fa-volume-up mr-1.5"></i> Putar Contoh
+                                ${aIdx !== null ? `
+                                <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan Contoh" class="w-9 h-9 rounded-full bg-white hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 flex items-center justify-center transition shrink-0 cursor-pointer shadow-2xs">
+                                    <i class="fas fa-volume-up text-xs"></i>
                                 </button>` : ''}
                             </div>`;
                         }).join('')}
@@ -857,41 +912,44 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
+        // 6. PHRASES & NATURAL EXPRESSIONS
         if (sec.type === 'phrases') {
+            // Gunakan 1 kolom jika ada penjelasan panjang (>90 karakter) supaya tidak sempit seperti di screenshot
+            const hasLongExplanation = sec.items.some(ph => (ph.meaning || '').length > 90 || (ph.phrase || '').length > 45);
+            const gridCols = hasLongExplanation ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2';
+
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 border border-teal-200 flex items-center justify-center text-base shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 border border-teal-200 flex items-center justify-center text-sm shrink-0">
                             <i class="fas ${sec.icon}"></i>
                         </div>
-                        <div>
-                            <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
-                            <p class="text-xs sm:text-sm font-medium text-slate-500">Klik tombol suara untuk mendengar intonasi naturalnya.</p>
-                        </div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                     </div>
 
                     ${sec.paragraphs.length ? `
-                    <div class="space-y-3 text-slate-700 text-sm sm:text-[15px] leading-[1.85] font-medium px-1">
+                    <div class="space-y-3 text-slate-700 text-sm sm:text-[15px] leading-[1.8] font-medium px-1">
                         ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
                     </div>` : ''}
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid ${gridCols} gap-3.5">
                         ${sec.items.map(ph => {
-                            const aIdx = registerAudio(ph.example ? `${ph.phrase}. ${ph.example}` : ph.phrase);
+                            const audioSource = ph.example ? `${ph.phrase}. ${ph.example}` : (ph.phrase || ph.meaning);
+                            const aIdx = registerAudio(audioSource);
                             return `
-                            <div class="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-teal-400 shadow-2xs transition flex flex-col justify-between gap-3">
+                            <div class="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-teal-400 transition flex flex-col justify-between gap-3">
                                 <div class="flex items-start justify-between gap-3">
-                                    <div class="space-y-1">
-                                        <h4 class="text-base sm:text-lg font-extrabold text-teal-950">${escapeHtmlStr(ph.phrase)}</h4>
-                                        ${ph.meaning ? `<p class="text-xs sm:text-sm font-semibold text-teal-700">${escapeHtmlStr(ph.meaning)}</p>` : ''}
+                                    <div class="space-y-1.5 flex-1">
+                                        ${ph.phrase ? `<h4 class="text-base font-extrabold text-slate-900">${cleanTitleMarkdown(ph.phrase)}</h4>` : ''}
+                                        ${ph.meaning ? `<p class="text-sm sm:text-[15px] font-medium text-slate-600 leading-[1.75]">${formatRichEnglishText(ph.meaning)}</p>` : ''}
                                     </div>
-                                    <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" class="w-9 h-9 rounded-xl bg-teal-50 hover:bg-teal-600 text-teal-700 hover:text-white flex items-center justify-center transition shrink-0 cursor-pointer" title="Listen">
+                                    <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-9 h-9 rounded-full bg-teal-50 hover:bg-teal-600 text-teal-700 hover:text-white flex items-center justify-center transition shrink-0 cursor-pointer">
                                         <i class="fas fa-volume-up text-xs"></i>
                                     </button>
                                 </div>
                                 ${ph.example ? `
-                                <div class="pt-3 border-t border-slate-100 text-xs sm:text-sm font-medium text-slate-600 leading-relaxed">
-                                    <span class="font-bold text-slate-400 mr-1">e.g.</span> "${formatRichEnglishText(ph.example)}"
+                                <div class="pt-2.5 border-t border-slate-100 text-xs sm:text-sm font-medium text-slate-600 leading-relaxed">
+                                    <span class="font-bold text-teal-600 mr-1">Contoh:</span> ${formatRichEnglishText(ph.example)}
                                 </div>` : ''}
                             </div>`;
                         }).join('')}
@@ -899,99 +957,90 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
+        // 7. EXAMPLES
         if (sec.type === 'examples') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center text-base shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center text-sm shrink-0">
                             <i class="fas ${sec.icon}"></i>
                         </div>
-                        <div>
-                            <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
-                            <p class="text-xs sm:text-sm font-medium text-slate-500">Perhatikan bagaimana kalimat ini dipakai dalam situasi sehari-hari.</p>
-                        </div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                     </div>
 
                     ${sec.paragraphs.length ? `
-                    <div class="space-y-3 text-slate-700 text-sm sm:text-[15px] leading-[1.85] font-medium px-1">
+                    <div class="space-y-3 text-slate-700 text-sm sm:text-[15px] leading-[1.8] font-medium px-1">
                         ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
                     </div>` : ''}
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-3.5">
                         ${sec.items.map(ex => {
                             const aIdx = registerAudio(ex.sentence);
                             return `
-                            <div class="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 transition flex flex-col justify-between gap-3.5 shadow-2xs">
-                                <div class="space-y-2.5">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <span class="px-3 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-extrabold uppercase tracking-wide">
-                                            ${escapeHtmlStr(ex.tag)}
-                                        </span>
-                                        <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" class="px-3 py-1 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-extrabold transition shrink-0 cursor-pointer">
-                                            <i class="fas fa-volume-up mr-1"></i> Listen
-                                        </button>
-                                    </div>
-                                    <p class="text-sm sm:text-base font-bold text-slate-900 leading-relaxed">${formatRichEnglishText(ex.sentence)}</p>
+                            <div class="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-300 transition flex items-start justify-between gap-4">
+                                <div class="space-y-1.5 flex-1">
+                                    <span class="inline-block px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-extrabold">
+                                        ${cleanTitleMarkdown(ex.tag)}
+                                    </span>
+                                    <p class="text-sm sm:text-[15px] font-semibold text-slate-800 leading-[1.8]">${formatRichEnglishText(ex.sentence)}</p>
+                                    ${ex.note ? `<p class="text-xs sm:text-sm text-slate-500 pt-1"><i class="fas fa-info-circle text-indigo-400 mr-1"></i>${formatRichEnglishText(ex.note)}</p>` : ''}
                                 </div>
-                                ${ex.note ? `
-                                <p class="text-xs font-medium text-slate-500 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-100 leading-relaxed">
-                                    <i class="fas fa-sparkles text-amber-500 mr-1"></i> ${formatRichEnglishText(ex.note)}
-                                </p>` : ''}
+                                <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-9 h-9 rounded-full bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center transition shrink-0 cursor-pointer">
+                                    <i class="fas fa-volume-up text-xs"></i>
+                                </button>
                             </div>`;
                         }).join('')}
                     </div>
                 </section>`;
         }
 
+        // 8. MISTAKES (Don't Say vs Say This)
         if (sec.type === 'mistakes') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center text-base shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center text-sm shrink-0">
                             <i class="fas ${sec.icon}"></i>
                         </div>
-                        <div>
-                            <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
-                            <p class="text-xs sm:text-sm font-medium text-slate-500">Perbandingan kalimat yang sering keliru vs. versi yang lebih natural.</p>
-                        </div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-4">
+                    <div class="grid grid-cols-1 gap-3.5">
                         ${sec.items.map(m => {
                             if (!m.wrong) {
                                 return `
-                                <div class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-start gap-3">
+                                <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-start gap-3">
                                     <i class="fas fa-lightbulb text-amber-500 mt-1"></i>
-                                    <p class="text-sm font-medium text-amber-950 leading-relaxed">${formatRichEnglishText(m.right)}</p>
+                                    <p class="text-sm sm:text-[15px] font-medium text-slate-800 leading-relaxed">${formatRichEnglishText(m.right)}</p>
                                 </div>`;
                             }
                             const aIdx = registerAudio(m.right);
                             return `
-                            <div class="p-5 rounded-2xl bg-slate-50/80 border border-slate-200/90 space-y-3">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                    <div class="p-4 rounded-xl bg-white border border-rose-200 flex items-start gap-3">
+                            <div class="p-5 rounded-2xl bg-white border border-slate-200/90 space-y-3">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div class="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/80 flex items-start gap-3">
                                         <span class="w-6 h-6 rounded-full bg-rose-100 text-rose-600 text-xs font-black flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-times"></i></span>
-                                        <div class="space-y-1">
-                                            <span class="text-[10px] font-extrabold uppercase tracking-wider text-rose-500 block">Don't Say (Kurang Tepat)</span>
-                                            <p class="text-xs sm:text-sm font-semibold text-slate-600 line-through decoration-rose-400 leading-relaxed">${escapeHtmlStr(m.wrong)}</p>
+                                        <div>
+                                            <span class="text-[10px] font-extrabold uppercase tracking-wider text-rose-500 block">Kurang Tepat</span>
+                                            <p class="text-xs sm:text-sm font-semibold text-slate-600 line-through decoration-rose-400 mt-0.5">${cleanTitleMarkdown(m.wrong)}</p>
                                         </div>
                                     </div>
-                                    <div class="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200 flex items-center justify-between gap-3">
+                                    <div class="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/90 flex items-center justify-between gap-3">
                                         <div class="flex items-start gap-3">
                                             <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-check"></i></span>
-                                            <div class="space-y-1">
-                                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">Say This! (Lebih Natural)</span>
-                                                <p class="text-xs sm:text-sm font-extrabold text-emerald-950 leading-relaxed">${escapeHtmlStr(m.right)}</p>
+                                            <div>
+                                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">Lebih Natural</span>
+                                                <p class="text-xs sm:text-sm font-extrabold text-emerald-950 mt-0.5">${cleanTitleMarkdown(m.right)}</p>
                                             </div>
                                         </div>
-                                        <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" class="w-9 h-9 rounded-xl bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 flex items-center justify-center transition shrink-0 cursor-pointer" title="Listen">
+                                        <button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-9 h-9 rounded-full bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 flex items-center justify-center transition shrink-0 cursor-pointer">
                                             <i class="fas fa-volume-up text-xs"></i>
                                         </button>
                                     </div>
                                 </div>
                                 ${m.reason ? `
-                                <p class="text-xs sm:text-sm font-medium text-slate-600 px-1 pt-0.5 leading-relaxed">
-                                    <strong class="text-indigo-600 font-extrabold"><i class="fas fa-info-circle mr-1"></i> Mengapa?</strong> ${formatRichEnglishText(m.reason)}
+                                <p class="text-xs sm:text-sm font-medium text-slate-600 pl-1">
+                                    <strong class="text-indigo-600 font-bold"><i class="fas fa-info-circle mr-1"></i> Catatan:</strong> ${formatRichEnglishText(m.reason)}
                                 </p>` : ''}
                             </div>`;
                         }).join('')}
@@ -999,37 +1048,35 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </section>`;
         }
 
+        // 9. DIALOGUE / CONVERSATION
         if (sec.type === 'dialogue') {
             data.allAudioDialogues[sec.id] = sec.items;
             const chatContainerId = `${domId}-chatbox`;
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
                     <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-base shrink-0">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-sm shrink-0">
                                 <i class="fas ${sec.icon}"></i>
                             </div>
-                            <div>
-                                <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
-                                <p class="text-xs sm:text-sm font-medium text-slate-500">Coba aktifkan <strong>Blur Teks</strong> untuk melatih pendengaranmu sebelum membaca!</p>
-                            </div>
+                            <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <button type="button" onclick="toggleDialogueBlurMode('${chatContainerId}', this)" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-extrabold transition cursor-pointer">
-                                <i class="fas fa-eye-slash mr-1.5"></i> Mode Latihan Listening (Blur Teks)
+                                <i class="fas fa-eye-slash mr-1.5"></i> Blur Teks (Latihan Listening)
                             </button>
-                            <button type="button" onclick="playHandoutSectionDialogue('${prefix}', '${sec.id}', this)" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer">
-                                <i class="fas fa-play mr-1.5"></i> Putar Percakapan
+                            <button type="button" onclick="playHandoutSectionDialogue('${prefix}', '${sec.id}', this)" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer">
+                                <i class="fas fa-volume-up mr-1.5"></i> Putar Dialog
                             </button>
                         </div>
                     </div>
 
                     ${sec.paragraphs.length ? `
-                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 text-xs sm:text-sm text-slate-600 italic leading-relaxed">
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 text-xs sm:text-sm text-slate-600 italic">
                         ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
                     </div>` : ''}
 
-                    <div id="${chatContainerId}" data-blurred="0" class="p-5 sm:p-7 rounded-3xl bg-gradient-to-b from-slate-50 to-blue-50/30 border border-slate-200/90 space-y-4">
+                    <div id="${chatContainerId}" data-blurred="0" class="p-4 sm:p-6 rounded-2xl bg-slate-50/90 border border-slate-200/90 space-y-3.5">
                         ${sec.items.map(line => {
                             const match = line.match(/^([A-Za-z\s.]{1,22})\s*:\s*(.+)$/);
                             const lineAudioIdx = registerAudio(line);
@@ -1038,38 +1085,36 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                                 const txt = match[2].trim();
                                 const isMale = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|boss|manager|a)\b/i.test(spk);
                                 return `
-                                <div class="flex items-start gap-3.5 ${isMale ? '' : 'sm:flex-row-reverse'}">
-                                    <div class="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${isMale ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'}">
-                                        ${isMale ? '👨' : '👩'}
+                                <div class="flex items-start gap-3">
+                                    <div class="w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${isMale ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'}">
+                                        <i class="fas ${isMale ? 'fa-user-tie' : 'fa-user'}"></i>
                                     </div>
-                                    <div onclick="this.querySelector('.dialogue-line-text')?.classList.remove('blur-xs')" class="flex-1 max-w-2xl p-4 sm:p-5 rounded-2xl border shadow-2xs cursor-pointer transition ${isMale ? 'bg-white border-slate-200/90 rounded-tl-xs' : 'bg-blue-600 text-white border-blue-600 rounded-tr-xs'}">
-                                        <div class="flex items-center justify-between gap-2 mb-1.5">
-                                            <span class="text-[11px] font-extrabold uppercase tracking-wider ${isMale ? 'text-blue-600' : 'text-blue-100'}">${escapeHtmlStr(spk)}</span>
-                                            <button type="button" onclick="event.stopPropagation(); playHandoutRegisteredAudio('${prefix}', ${lineAudioIdx}, this)" class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg transition cursor-pointer ${isMale ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-white/20 text-white hover:bg-white/30'}">
-                                                <i class="fas fa-volume-up mr-1"></i> Dengar
-                                            </button>
+                                    <div onclick="this.querySelector('.dialogue-line-text')?.classList.remove('blur-xs')" class="flex-1 p-4 rounded-2xl bg-white border border-slate-200/90 flex items-start justify-between gap-3 cursor-pointer hover:border-indigo-200 transition">
+                                        <div class="space-y-1">
+                                            <span class="text-[11px] font-extrabold uppercase tracking-wider ${isMale ? 'text-blue-600' : 'text-rose-600'}">${cleanTitleMarkdown(spk)}</span>
+                                            <p class="dialogue-line-text text-sm sm:text-[15px] font-medium text-slate-800 leading-relaxed transition duration-200">${formatRichEnglishText(txt)}</p>
                                         </div>
-                                        <p class="dialogue-line-text text-xs sm:text-[15px] font-medium leading-[1.75] transition duration-200 ${isMale ? 'text-slate-800' : 'text-white'}">${escapeHtmlStr(txt)}</p>
+                                        <button type="button" onclick="event.stopPropagation(); playHandoutRegisteredAudio('${prefix}', ${lineAudioIdx}, this)" title="Dengarkan Kalimat" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-indigo-600 text-slate-600 hover:text-white flex items-center justify-center shrink-0 transition cursor-pointer">
+                                            <i class="fas fa-volume-up text-xs"></i>
+                                        </button>
                                     </div>
                                 </div>`;
                             }
-                            return `<p class="text-xs sm:text-sm font-medium text-slate-600">${escapeHtmlStr(line)}</p>`;
+                            return `<p class="text-xs sm:text-sm font-medium text-slate-600">${formatRichEnglishText(line)}</p>`;
                         }).join('')}
                     </div>
                 </section>`;
         }
 
+        // 10. PRACTICE / CHALLENGES
         if (sec.type === 'practice') {
             return `
                 <section id="${domId}" class="space-y-4 scroll-mt-20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-violet-50 text-violet-600 border border-violet-200 flex items-center justify-center text-base shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-violet-50 text-violet-600 border border-violet-200 flex items-center justify-center text-sm shrink-0">
                             <i class="fas ${sec.icon}"></i>
                         </div>
-                        <div>
-                            <h3 class="text-base sm:text-xl font-extrabold text-slate-900">${escapeHtmlStr(sec.title)}</h3>
-                            <p class="text-xs sm:text-sm font-medium text-slate-500">Jawab terlebih dahulu, lalu klik tombol kunci jawaban untuk mencocokkan!</p>
-                        </div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
                     </div>
 
                     ${sec.paragraphs.length ? `
@@ -1077,16 +1122,16 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                         ${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}
                     </div>` : ''}
 
-                    <div class="grid grid-cols-1 gap-4">
+                    <div class="grid grid-cols-1 gap-3.5">
                         ${sec.items.map((pr, i) => {
                             const ansId = `${domId}_ans_${i}`;
                             return `
-                            <div class="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3">
-                                <div class="flex items-start gap-3.5">
-                                    <span class="w-7 h-7 rounded-xl bg-violet-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">${i + 1}</span>
+                            <div class="p-5 rounded-2xl bg-white border border-slate-200/90 space-y-2.5">
+                                <div class="flex items-start gap-3">
+                                    <span class="w-6 h-6 rounded-lg bg-violet-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">${i + 1}</span>
                                     <div class="space-y-2 flex-1">
-                                        <span class="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200/60">
-                                            ${escapeHtmlStr(pr.tag)}
+                                        <span class="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-violet-50 text-violet-700">
+                                            ${cleanTitleMarkdown(pr.tag)}
                                         </span>
                                         <p class="text-sm sm:text-[15px] font-semibold text-slate-800 leading-[1.8]">${formatRichEnglishText(pr.task)}</p>
 
@@ -1111,82 +1156,64 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
     }).join('');
 
     box.innerHTML = `
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-5 bg-slate-900 text-white px-5 py-4 rounded-2xl shadow-sm">
-            <div class="flex items-center gap-3.5">
-                <div class="w-10 h-10 rounded-xl ${theme.accentBg} text-white flex items-center justify-center text-base font-black shrink-0">
+        <!-- Action Bar Atas (Download PDF & Mode Layar Penuh Laptop) -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-white border border-slate-200/90 px-4 sm:px-5 py-3.5 rounded-2xl shadow-2xs">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl ${theme.accentBg} text-white flex items-center justify-center text-sm font-black shrink-0">
                     <i class="fas fa-book-open"></i>
                 </div>
                 <div>
-                    <p class="text-xs sm:text-sm font-extrabold text-white">${docBadge} &bull; Session ${sessionNumber} of 12</p>
-                    <p class="text-[11px] text-slate-300">Desain Mengalir & Interaktif &bull; Siap Diunduh ke PDF A4</p>
+                    <p class="text-xs sm:text-sm font-extrabold text-slate-800">${docBadge} &bull; Session ${sessionNumber}</p>
+                    <p class="text-[11px] font-semibold text-slate-400">Klik ikon speaker untuk mendengar pelafalan</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" class="bg-white hover:bg-blue-50 text-slate-900 font-black text-xs px-4 py-2.5 rounded-xl shadow-xs transition inline-flex items-center gap-2 cursor-pointer">
-                    <i class="fas fa-file-pdf text-rose-600"></i> Download PDF (A4)
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="toggleFullScreenReading()" class="hes-focus-mode-btn hidden md:inline-flex items-center px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-extrabold text-xs transition cursor-pointer">
+                    <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} mr-1.5"></i> ${isCollapsed ? 'Tampilkan Sidebar' : 'Mode Layar Penuh'}
+                </button>
+                <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-file-pdf"></i> Download PDF
                 </button>
                 ${window.HES.userRole === 'admin' ? `
-                <a href="admin.html?tab=materials" class="bg-white/15 hover:bg-white/25 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition" title="Edit Materi di Panel Admin">
+                <a href="admin.html?tab=materials" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition" title="Edit Materi">
                     <i class="fas fa-pen"></i>
                 </a>` : ''}
             </div>
         </div>
 
-        <div id="printable-handout-${prefix}" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;" class="bg-white mx-auto rounded-3xl shadow-md border border-slate-200/90 overflow-hidden text-slate-800 relative">
-            <div class="h-3 w-full bg-gradient-to-r ${theme.barGrad}"></div>
+        <!-- Kontainer Materi Utama -->
+        <div id="printable-handout-${prefix}" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;" class="bg-white mx-auto rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden text-slate-800 relative">
+            <div class="h-2.5 w-full bg-gradient-to-r ${theme.barGrad}"></div>
 
-            <div class="absolute inset-0 flex flex-col items-center justify-around pointer-events-none select-none overflow-hidden opacity-[0.025] -rotate-12">
-                <span class="text-4xl sm:text-6xl font-black tracking-widest text-slate-900 whitespace-nowrap">HAMDI ENGLISH STUDIO</span>
-                <span class="text-4xl sm:text-6xl font-black tracking-widest text-slate-900 whitespace-nowrap">FRIENDLY LEARNING SPACE</span>
-            </div>
-
-            <div class="relative z-10 p-6 sm:p-11 space-y-10">
-                <div class="space-y-6">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div class="space-y-1.5">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span class="px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider border ${theme.badgeBg}">
-                                    ${escapeHtmlStr(data.level)}
-                                </span>
-                                <span class="text-xs font-bold text-slate-400">&bull; Hamdi English Studio</span>
-                            </div>
-                            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">${escapeHtmlStr(data.title)}</h1>
-                        </div>
+            <div class="relative z-10 p-5 sm:p-9 space-y-8">
+                <!-- Header Judul & Goal -->
+                <div class="space-y-4 border-b border-slate-100 pb-6">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider border ${theme.badgeBg}">
+                            ${cleanTitleMarkdown(data.level)}
+                        </span>
+                        <span class="text-xs font-bold text-slate-400">&bull; Hamdi English Studio</span>
                     </div>
+                    <h1 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">${cleanTitleMarkdown(data.title)}</h1>
 
                     ${data.goal ? `
-                    <div class="p-5 sm:p-6 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}">
+                    <div class="p-4 sm:p-5 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}">
                         <p class="text-[11px] font-extrabold uppercase tracking-wider ${theme.accentText} mb-1">
-                            <i class="fas fa-compass mr-1"></i> Fokus Belajar Hari Ini
+                            <i class="fas fa-bullseye mr-1"></i> Target Belajar Hari Ini
                         </p>
-                        <p class="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p>
-                    </div>` : ''}
-
-                    ${data.sections.length > 2 ? `
-                    <div class="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
-                        ${data.sections.map(s => `
-                            <button type="button" onclick="scrollToHandoutSection('${prefix}-${s.id}')" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold whitespace-nowrap transition cursor-pointer">
-                                <i class="fas ${s.icon} mr-1.5 opacity-70"></i>${escapeHtmlStr(s.title)}
-                            </button>
-                        `).join('')}
+                        <p class="text-sm sm:text-[15px] font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p>
                     </div>` : ''}
                 </div>
 
-                <div class="space-y-11">
+                <!-- Isi Materi -->
+                <div class="space-y-9">
                     ${sectionsHTML}
                 </div>
 
-                <div class="pt-6 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div class="flex items-center gap-3.5">
-                        <div class="w-10 h-10 rounded-xl ${theme.badgeBg} border flex items-center justify-center text-base shrink-0">
-                            <i class="fas fa-graduation-cap"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm font-extrabold text-slate-900">Hamdi English Studio</p>
-                            <p class="text-xs font-semibold text-slate-500">Friendly Learning Space &bull; English Course & Private Class</p>
-                        </div>
-                    </div>
-                    <p class="text-xs font-bold text-slate-400">${monthTitle} &bull; Session ${sessionNumber} of 12</p>
+                <!-- Footer -->
+                <div class="pt-5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400 font-bold">
+                    <span>Hamdi English Studio &bull; Friendly Learning Space</span>
+                    <span>${monthTitle} &bull; Session ${sessionNumber} of 12</span>
                 </div>
             </div>
         </div>
@@ -1194,7 +1221,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
 }
 
 // ============================================================================
-// MESIN CETAK PDF A4 MAGAZINE WORKBOOK (100% ANTI-KELUAR KERTAS & KAYA VISUAL)
+// GENERATOR PDF A4 BERSIH & RAPI (1 KOLOM SEKUENSIAL - ANTI MENUMPUK)
 // ============================================================================
 function drawHandoutRoundedRect(ctx, x, y, w, h, r, fillStyle, strokeStyle = null, lineWidth = 1) {
     const rad = Math.min(r, w / 2, h / 2);
@@ -1213,40 +1240,17 @@ function drawHandoutRoundedRect(ctx, x, y, w, h, r, fillStyle, strokeStyle = nul
     if (strokeStyle) { ctx.lineWidth = lineWidth; ctx.strokeStyle = strokeStyle; ctx.stroke(); }
 }
 
-function drawHandoutGradCapIcon(ctx, cx, cy, scale = 1, color = '#FFFFFF') {
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(scale, scale);
-    ctx.fillStyle = color;
-    ctx.strokeStyle = color;
-
-    ctx.beginPath();
-    ctx.moveTo(0, -24); ctx.lineTo(36, -6); ctx.lineTo(0, 12); ctx.lineTo(-36, -6);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(-20, 4); ctx.lineTo(-20, 18);
-    ctx.quadraticCurveTo(0, 30, 20, 18);
-    ctx.lineTo(20, 4); ctx.lineTo(0, 15);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-}
-
 function cleanPlainPdfText(str) {
-    return String(str || '')
-        .replace(/\*\*([^*]+)\*\*/g, '$1')
-        .replace(/\*([^*]+)\*/g, '$1')
+    return sanitizeRawInputString(str)
+        .replace(/\*+/g, '')
         .replace(/->/g, '→')
         .replace(/\s+/g, ' ')
         .trim();
 }
 
-// Strict line wrapper that guarantees NO line ever exceeds maxW pixels
-function wrapPlainLinesStrict(ctx, rawText, maxW, fontStr = null) {
-    if (fontStr) ctx.font = fontStr;
-    const safeMaxW = Math.max(60, maxW - 12);
+function wrapPlainLinesStrict(ctx, rawText, maxW, fontStr) {
+    ctx.font = fontStr;
+    const safeMaxW = Math.max(80, maxW - 10);
     const paragraphs = String(rawText || '').split('\n');
     const lines = [];
 
@@ -1257,16 +1261,6 @@ function wrapPlainLinesStrict(ctx, rawText, maxW, fontStr = null) {
         let cur = '';
 
         words.forEach(word => {
-            if (ctx.measureText(word).width > safeMaxW) {
-                if (cur) { lines.push(cur); cur = ''; }
-                let chunk = '';
-                for (const ch of word) {
-                    if (ctx.measureText(chunk + ch).width <= safeMaxW) chunk += ch;
-                    else { lines.push(chunk); chunk = ch; }
-                }
-                cur = chunk;
-                return;
-            }
             const test = cur ? `${cur} ${word}` : word;
             if (ctx.measureText(test).width <= safeMaxW) {
                 cur = test;
@@ -1278,222 +1272,71 @@ function wrapPlainLinesStrict(ctx, rawText, maxW, fontStr = null) {
         if (cur) lines.push(cur);
     });
 
-    return lines.length ? lines : [''];
+    return lines.length ? lines : [];
 }
 
-// Draws wrapped lines with top baseline and hardware maxWidth clamp
-function drawPlainLinesStrict(ctx, lines, x, startY, lineH, maxW, fontStr = null, color = '#0F172A', strikeThrough = false) {
+function drawPlainLinesStrict(ctx, lines, x, startY, lineH, maxW, fontStr, color = '#0F172A') {
+    if (!lines || !lines.length) return startY;
     ctx.save();
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
-    if (fontStr) ctx.font = fontStr;
+    ctx.font = fontStr;
     ctx.fillStyle = color;
-
     lines.forEach((line, idx) => {
-        const ly = startY + (idx * lineH);
-        ctx.fillText(line, x, ly, maxW);
-        if (strikeThrough && line.trim()) {
-            const w = Math.min(maxW, ctx.measureText(line).width);
-            ctx.strokeStyle = '#F43F5E';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.moveTo(x, ly + (lineH * 0.35));
-            ctx.lineTo(x + w, ly + (lineH * 0.35));
-            ctx.stroke();
-        }
+        ctx.fillText(line, x, startY + (idx * lineH), maxW);
     });
     ctx.restore();
     return startY + (lines.length * lineH);
 }
 
-// Rich Inline Tokenizer for PDF (**bold highlight**, "quoted accent", normal text)
-function tokenizeRichPdfParagraph(rawText) {
-    const clean = String(rawText || '').replace(/->/g, '→').replace(/\s+/g, ' ').trim();
-    const regex = /(\*\*[^*]+\*\*|"[^"]+"|\*[^*]+\*)/g;
-    const parts = clean.split(regex).filter(Boolean);
-    const tokens = [];
-
-    parts.forEach(part => {
-        let style = 'normal';
-        let content = part;
-        if (part.startsWith('**') && part.endsWith('**')) {
-            style = 'highlight';
-            content = part.slice(2, -2).trim();
-        } else if (part.startsWith('"') && part.endsWith('"')) {
-            style = 'quote';
-            content = part.trim();
-        } else if (part.startsWith('*') && part.endsWith('*')) {
-            style = 'italic';
-            content = part.slice(1, -1).trim();
-        }
-        content.split(' ').filter(Boolean).forEach(w => {
-            tokens.push({ word: w, style });
-        });
-    });
-    return tokens;
-}
-
-function layoutRichPdfLines(ctx, rawText, maxW, fontSize, fontStack) {
-    const safeMaxW = Math.max(80, maxW - 16);
-    const tokens = tokenizeRichPdfParagraph(rawText);
-    const lines = [];
-    let currentLine = [];
-    let currentW = 0;
-
-    const getTokenFont = (style) => {
-        if (style === 'highlight') return `800 ${fontSize}px ${fontStack}`;
-        if (style === 'quote') return `italic 700 ${fontSize}px ${fontStack}`;
-        if (style === 'italic') return `italic 600 ${fontSize}px ${fontStack}`;
-        return `500 ${fontSize}px ${fontStack}`;
-    };
-
-    tokens.forEach(tk => {
-        ctx.font = getTokenFont(tk.style);
-        const spaceW = currentLine.length > 0 ? ctx.measureText(' ').width : 0;
-        const wordW = ctx.measureText(tk.word).width + (tk.style === 'highlight' ? 10 : 0);
-
-        if (currentW + spaceW + wordW <= safeMaxW || currentLine.length === 0) {
-            currentLine.push({ ...tk, width: wordW, spaceBefore: spaceW });
-            currentW += spaceW + wordW;
-        } else {
-            lines.push(currentLine);
-            currentLine = [{ ...tk, width: wordW, spaceBefore: 0 }];
-            currentW = wordW;
-        }
-    });
-    if (currentLine.length) lines.push(currentLine);
-    return lines.length ? lines : [[]];
-}
-
-function drawRichPdfLines(ctx, richLines, startX, startY, lineH, fontSize, fontStack, colors = {}) {
-    const normalColor = colors.normal || '#334155';
-    const highlightText = colors.highlightText || '#0F172A';
-    const highlightBg = colors.highlightBg || '#FEF3C7';
-    const quoteColor = colors.quote || '#1D4ED8';
-
-    ctx.save();
-    ctx.textBaseline = 'top';
-    ctx.textAlign = 'left';
-
-    richLines.forEach((lineTokens, rowIdx) => {
-        let curX = startX;
-        const rowY = startY + (rowIdx * lineH);
-
-        lineTokens.forEach(tk => {
-            curX += tk.spaceBefore;
-            if (tk.style === 'highlight') {
-                ctx.font = `800 ${fontSize}px ${fontStack}`;
-                const rawW = ctx.measureText(tk.word).width;
-                drawHandoutRoundedRect(ctx, curX - 2, rowY - 3, rawW + 12, fontSize + 10, 8, highlightBg);
-                ctx.fillStyle = highlightText;
-                ctx.fillText(tk.word, curX + 4, rowY);
-            } else if (tk.style === 'quote') {
-                ctx.font = `italic 700 ${fontSize}px ${fontStack}`;
-                ctx.fillStyle = quoteColor;
-                ctx.fillText(tk.word, curX, rowY);
-            } else if (tk.style === 'italic') {
-                ctx.font = `italic 600 ${fontSize}px ${fontStack}`;
-                ctx.fillStyle = normalColor;
-                ctx.fillText(tk.word, curX, rowY);
-            } else {
-                ctx.font = `500 ${fontSize}px ${fontStack}`;
-                ctx.fillStyle = normalColor;
-                ctx.fillText(tk.word, curX, rowY);
-            }
-            curX += tk.width;
-        });
-    });
-
-    ctx.restore();
-    return startY + (richLines.length * lineH);
-}
-
-function createMagazinePDFPage(W, H, fontStack, monthTitle, sessionNumber, pageNum, theme) {
+function createCleanPDFPage(W, H, fontStack, monthTitle, sessionNumber, pageNum, theme) {
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    // Warm Editorial Paper Background
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, W, H);
 
-    // Subtle Geometric Corner Art
-    ctx.save();
-    ctx.fillStyle = theme.pdfSoft;
-    ctx.beginPath();
-    ctx.arc(W - 60, -40, 260, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(40, H + 40, 240, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Subtle Diagonal Watermark
-    ctx.translate(W / 2, H / 2);
-    ctx.rotate(-Math.PI / 7);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.022)';
-    ctx.font = `800 76px ${fontStack}`;
-    ctx.fillText('HAMDI ENGLISH STUDIO', 0, -420);
-    ctx.fillText('FRIENDLY LEARNING SPACE', 0, 0);
-    ctx.fillText('HAMDI ENGLISH STUDIO', 0, 420);
-    ctx.restore();
-
     // Top Accent Bar
-    const topGrad = ctx.createLinearGradient(0, 0, W, 0);
-    topGrad.addColorStop(0, theme.pdfDark);
-    topGrad.addColorStop(0.5, theme.pdfPrimary);
-    topGrad.addColorStop(1, theme.pdfSecondary);
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, W, 22);
+    ctx.fillStyle = theme.pdfPrimary;
+    ctx.fillRect(0, 0, W, 20);
 
-    // Running Header on Page 2+
-    const padX = 115;
+    const padX = 110;
     if (pageNum > 1) {
         ctx.save();
         ctx.textBaseline = 'top';
         ctx.textAlign = 'left';
         ctx.fillStyle = '#94A3B8';
         ctx.font = `700 18px ${fontStack}`;
-        ctx.fillText(`HAMDI ENGLISH STUDIO  •  ${monthTitle.toUpperCase()} (SESSION ${sessionNumber})`, padX, 52);
-
+        ctx.fillText(`HAMDI ENGLISH STUDIO  •  ${monthTitle.toUpperCase()} (SESSION ${sessionNumber})`, padX, 48);
         ctx.strokeStyle = '#E2E8F0';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(padX, 86);
-        ctx.lineTo(W - padX, 86);
+        ctx.moveTo(padX, 80);
+        ctx.lineTo(W - padX, 80);
         ctx.stroke();
         ctx.restore();
     }
 
-    // Editorial Footer
+    // Footer
     ctx.save();
     ctx.strokeStyle = '#E2E8F0';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(padX, H - 125);
-    ctx.lineTo(W - padX, H - 125);
+    ctx.moveTo(padX, H - 110);
+    ctx.lineTo(W - padX, H - 110);
     ctx.stroke();
-
-    drawHandoutRoundedRect(ctx, padX, H - 102, 52, 52, 14, theme.pdfSoft);
-    drawHandoutGradCapIcon(ctx, padX + 26, H - 77, 0.6, theme.pdfPrimary);
 
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#0F172A';
-    ctx.font = `800 21px ${fontStack}`;
-    ctx.fillText('Hamdi English Studio', padX + 68, H - 98);
-
     ctx.fillStyle = '#64748B';
-    ctx.font = `600 18px ${fontStack}`;
-    ctx.fillText(`Friendly Learning Space  •  ${monthTitle} (Session ${sessionNumber} of 12)`, padX + 68, H - 70);
+    ctx.font = `700 18px ${fontStack}`;
+    ctx.fillText(`Hamdi English Studio  •  Friendly Learning Space (${monthTitle} - Session ${sessionNumber})`, padX, H - 82);
 
-    drawHandoutRoundedRect(ctx, W - padX - 135, H - 98, 135, 44, 22, theme.pdfSoft, theme.pdfBorder, 1.5);
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'right';
     ctx.fillStyle = theme.pdfPrimary;
-    ctx.font = `800 19px ${fontStack}`;
-    ctx.fillText(`Page ${pageNum}`, W - padX - 67.5, H - 86);
+    ctx.font = `800 18px ${fontStack}`;
+    ctx.fillText(`Page ${pageNum}`, W - padX, H - 82);
     ctx.restore();
 
     return { canvas, ctx };
@@ -1507,7 +1350,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
     const origHTML = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Mendesain PDF...`;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Menyiapkan PDF...`;
     }
 
     try {
@@ -1520,636 +1363,153 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
         const theme = getSessionThemePalette(sessionNumber, isRecap, data.style);
 
         const fontStack = '"Plus Jakarta Sans", "Nunito", sans-serif';
-        const W = 1654, H = 2339, padX = 115, contentW = W - (padX * 2), maxY = H - 170;
+        const W = 1654, H = 2339, padX = 110, contentW = W - (padX * 2), maxY = H - 145;
 
         const pages = [];
         let pageNum = 1;
-        let curPage = createMagazinePDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
+        let curPage = createCleanPDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
         pages.push(curPage.canvas);
         let ctx = curPage.ctx;
-        let y = 78;
+        let y = 75;
 
         const startNewPage = () => {
             pageNum++;
-            curPage = createMagazinePDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
+            curPage = createCleanPDFPage(W, H, fontStack, monthObj.title, sessionNumber, pageNum, theme);
             pages.push(curPage.canvas);
             ctx = curPage.ctx;
-            y = 115;
+            y = 110;
         };
 
         const ensureSpace = (neededH) => {
             if (y + neededH > maxY) startNewPage();
         };
 
-        // ====================================================================
-        // MAGAZINE HERO BANNER ON PAGE 1
-        // ====================================================================
-        const titleFont = `800 44px ${fontStack}`;
-        const titleLines = wrapPlainLinesStrict(ctx, data.title, contentW - 120, titleFont);
-        const goalRichLines = data.goal ? layoutRichPdfLines(ctx, data.goal, contentW - 140, 24, fontStack) : [];
+        // Helper menggambar 1 Kartu Penuh (100% Anti-Menumpuk karena diukur per baris sebelum digambar)
+        const drawStructuredCard = (titleText, bodyText, subNoteText = '', bg = '#F8FAFC', border = '#E2E8F0', titleColor = '#0F172A') => {
+            const innerW = contentW - 72;
+            const titleFont = `800 24px ${fontStack}`;
+            const bodyFont = `500 22px ${fontStack}`;
+            const subFont = `600 20px ${fontStack}`;
 
-        const heroTopH = 128 + (titleLines.length * 56);
-        const goalBoxH = goalRichLines.length ? (66 + (goalRichLines.length * 40)) : 0;
-        const totalHeroH = heroTopH + (goalBoxH ? goalBoxH + 28 : 24);
+            const tLines = titleText ? wrapPlainLinesStrict(ctx, titleText, innerW, titleFont) : [];
+            const bLines = bodyText ? wrapPlainLinesStrict(ctx, bodyText, innerW, bodyFont) : [];
+            const sLines = subNoteText ? wrapPlainLinesStrict(ctx, subNoteText, innerW, subFont) : [];
 
-        // Hero Card Background
-        drawHandoutRoundedRect(ctx, padX, y, contentW, totalHeroH, 32, theme.pdfSoft, theme.pdfBorder, 2);
+            const cardH = 44
+                + (tLines.length ? (tLines.length * 34) + 10 : 0)
+                + (bLines.length ? (bLines.length * 34) : 0)
+                + (sLines.length ? (sLines.length * 30) + 14 : 0);
 
-        // Decorative Circle inside Hero Card
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(padX + contentW - 70, y + 70, 130, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.fill();
-        ctx.restore();
+            ensureSpace(cardH + 18);
+            drawHandoutRoundedRect(ctx, padX, y, contentW, cardH, 20, bg, border, 2);
 
-        // Kicker Pill Badge
-        const kickerText = cleanPlainPdfText(`${data.level}  •  WEEK ${week} DAY ${day}`).toUpperCase();
-        ctx.font = `800 18px ${fontStack}`;
-        const kickerW = Math.min(contentW - 100, ctx.measureText(kickerText).width + 44);
-        drawHandoutRoundedRect(ctx, padX + 46, y + 38, kickerW, 40, 20, '#FFFFFF', theme.pdfBorder, 1.5);
+            let cy = y + 22;
+            if (tLines.length) {
+                cy = drawPlainLinesStrict(ctx, tLines, padX + 36, cy, 34, innerW, titleFont, titleColor);
+                cy += 10;
+            }
+            if (bLines.length) {
+                cy = drawPlainLinesStrict(ctx, bLines, padX + 36, cy, 34, innerW, bodyFont, '#334155');
+            }
+            if (sLines.length) {
+                cy += 12;
+                drawPlainLinesStrict(ctx, sLines, padX + 36, cy, 30, innerW, subFont, theme.pdfPrimary);
+            }
+            y += cardH + 18;
+        };
+
+        // HEADER UTAMA HALAMAN 1
+        const titleFont = `800 40px ${fontStack}`;
+        const goalFont = `600 23px ${fontStack}`;
+        const titleLines = wrapPlainLinesStrict(ctx, data.title, contentW - 80, titleFont);
+        const goalLines = data.goal ? wrapPlainLinesStrict(ctx, `Target: ${data.goal}`, contentW - 80, goalFont) : [];
+
+        const headerH = 95 + (titleLines.length * 50) + (goalLines.length ? (goalLines.length * 36) + 24 : 0);
+        drawHandoutRoundedRect(ctx, padX, y, contentW, headerH, 26, theme.pdfSoft, theme.pdfBorder, 2);
+
         ctx.save();
         ctx.textBaseline = 'top';
         ctx.textAlign = 'left';
         ctx.fillStyle = theme.pdfPrimary;
         ctx.font = `800 18px ${fontStack}`;
-        ctx.fillText(kickerText, padX + 68, y + 49, kickerW - 36);
+        ctx.fillText(cleanPlainPdfText(`${data.level}  •  HAMDI ENGLISH STUDIO`).toUpperCase(), padX + 40, y + 28, contentW - 80);
         ctx.restore();
 
-        // Main Title (Strictly Wrapped)
-        drawPlainLinesStrict(ctx, titleLines, padX + 46, y + 98, 56, contentW - 92, titleFont, '#0F172A');
-
-        // Floating Goal Sub-Card inside Hero
-        if (goalRichLines.length) {
-            const gy = y + heroTopH - 6;
-            drawHandoutRoundedRect(ctx, padX + 40, gy, contentW - 80, goalBoxH, 22, '#FFFFFF', theme.pdfBorder, 1.5);
-            drawHandoutRoundedRect(ctx, padX + 40, gy, 10, goalBoxH, 5, theme.pdfPrimary);
-
-            ctx.save();
-            ctx.textBaseline = 'top';
-            ctx.textAlign = 'left';
-            ctx.fillStyle = theme.pdfPrimary;
-            ctx.font = `800 17px ${fontStack}`;
-            ctx.fillText('TODAY\'S LEARNING FOCUS', padX + 72, gy + 20);
-            ctx.restore();
-
-            drawRichPdfLines(ctx, goalRichLines, padX + 72, gy + 48, 40, 24, fontStack, {
-                normal: '#1E293B',
-                highlightBg: theme.pdfHighlight,
-                quote: theme.pdfPrimary
-            });
+        let hy = drawPlainLinesStrict(ctx, titleLines, padX + 40, y + 64, 50, contentW - 80, titleFont, '#0F172A');
+        if (goalLines.length) {
+            drawPlainLinesStrict(ctx, goalLines, padX + 40, hy + 16, 36, contentW - 80, goalFont, theme.pdfPrimary);
         }
+        y += headerH + 38;
 
-        y += totalHeroH + 52;
+        // RENDER SETIAP SEKSI SECARA BERURUTAN
+        data.sections.forEach((sec, sIdx) => {
+            const secFont = `800 28px ${fontStack}`;
+            const secLines = wrapPlainLinesStrict(ctx, `${sIdx + 1}. ${sec.title}`, contentW - 20, secFont);
+            ensureSpace((secLines.length * 38) + 120);
 
-        // ====================================================================
-        // MAGAZINE SECTION HEADER HELPER (Strictly Wrapped & Numbered)
-        // ====================================================================
-        let secCounter = 1;
-        const drawMagazineSectionHeader = (title, subtitle = '', accentColor = theme.pdfPrimary) => {
-            const headFont = `800 31px ${fontStack}`;
-            const headLines = wrapPlainLinesStrict(ctx, title, contentW - 90, headFont);
-            const subFont = `500 20px ${fontStack}`;
-            const subLines = subtitle ? wrapPlainLinesStrict(ctx, subtitle, contentW - 90, subFont) : [];
+            y = drawPlainLinesStrict(ctx, secLines, padX, y, 38, contentW, secFont, theme.pdfPrimary);
+            y += 14;
 
-            const needed = 30 + (headLines.length * 40) + (subLines.length * 30) + 140;
-            ensureSpace(needed);
-
-            const numStr = String(secCounter++).padStart(2, '0');
-            drawHandoutRoundedRect(ctx, padX, y, 56, 56, 16, accentColor);
-            ctx.save();
-            ctx.textBaseline = 'middle';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = `800 23px ${fontStack}`;
-            ctx.fillText(numStr, padX + 28, y + 28);
-            ctx.restore();
-
-            let curY = drawPlainLinesStrict(ctx, headLines, padX + 76, y + (subLines.length ? 2 : 10), 40, contentW - 80, headFont, '#0F172A');
-            if (subLines.length) {
-                curY = drawPlainLinesStrict(ctx, subLines, padX + 76, curY + 2, 30, contentW - 80, subFont, '#64748B');
-            }
-            y = Math.max(y + 62, curY) + 22;
-        };
-
-        // Helper for airy rich paragraphs
-        const drawEditorialParagraphs = (paragraphs, boxBg = '#F8FAFC', boxBorder = '#E2E8F0', leftStripe = null) => {
-            if (!paragraphs || !paragraphs.length) return;
-            const innerW = contentW - 96;
-            const blocks = paragraphs.map(p => layoutRichPdfLines(ctx, p, innerW, 24, fontStack));
-            const totalLines = blocks.reduce((acc, b) => acc + b.length, 0);
-            const paraGaps = Math.max(0, blocks.length - 1) * 22;
-            const boxH = 56 + (totalLines * 42) + paraGaps;
-
-            ensureSpace(boxH + 26);
-            drawHandoutRoundedRect(ctx, padX, y, contentW, boxH, 24, boxBg, boxBorder, 2);
-            if (leftStripe) {
-                drawHandoutRoundedRect(ctx, padX, y, 12, boxH, 6, leftStripe);
+            if (sec.paragraphs && sec.paragraphs.length) {
+                drawStructuredCard('', sec.paragraphs.join('\n'), '', '#F8FAFC', '#E2E8F0');
             }
 
-            let curY = y + 30;
-            blocks.forEach((richLines) => {
-                curY = drawRichPdfLines(ctx, richLines, padX + 48, curY, 42, 24, fontStack, {
-                    normal: '#334155',
-                    highlightBg: '#FEF3C7',
-                    highlightText: '#0F172A',
-                    quote: theme.pdfPrimary
-                });
-                curY += 22;
-            });
-            y += boxH + 28;
-        };
-
-        // ====================================================================
-        // RENDER EACH SECTION WITH ITS OWN GRAPHIC DESIGN LAYOUT
-        // ====================================================================
-        data.sections.forEach(sec => {
-            // 1. STORY / SCENARIO (Editorial Pull-Quote Magazine Card)
-            if (sec.type === 'story') {
-                drawMagazineSectionHeader(sec.title, 'Read this real-life scenario to feel how the language flows naturally.', '#D97706');
-                drawEditorialParagraphs(sec.paragraphs, '#FFFBEB', '#FDE68A', '#F59E0B');
-                y += 16;
-            }
-
-            // 2. CALLOUT / PRO TIP (High-Contrast Dark Navy Spotlight Banner!)
-            else if (sec.type === 'callout') {
-                const innerW = contentW - 140;
-                const blocks = sec.paragraphs.map(p => layoutRichPdfLines(ctx, p, innerW, 23, fontStack));
-                const totalLines = blocks.reduce((a, b) => a + b.length, 0);
-                const boxH = 92 + (totalLines * 40) + (Math.max(0, blocks.length - 1) * 16);
-
-                ensureSpace(boxH + 34);
-                drawHandoutRoundedRect(ctx, padX, y, contentW, boxH, 28, '#0F172A', '#1E293B', 2);
-
-                // Gold Icon Badge
-                drawHandoutRoundedRect(ctx, padX + 38, y + 34, 56, 56, 16, 'rgba(251, 191, 36, 0.18)', '#FBBF24', 1.5);
-                ctx.save();
-                ctx.textBaseline = 'middle';
-                ctx.textAlign = 'center';
-                ctx.fillStyle = '#FBBF24';
-                ctx.font = `800 22px ${fontStack}`;
-                ctx.fillText('TIP', padX + 66, y + 62);
-
-                ctx.textBaseline = 'top';
-                ctx.textAlign = 'left';
-                ctx.fillStyle = '#FBBF24';
-                ctx.font = `800 21px ${fontStack}`;
-                ctx.fillText(cleanPlainPdfText(sec.title).toUpperCase(), padX + 114, y + 34, contentW - 150);
-                ctx.restore();
-
-                let curY = y + 72;
-                blocks.forEach(richLines => {
-                    curY = drawRichPdfLines(ctx, richLines, padX + 114, curY, 40, 23, fontStack, {
-                        normal: '#F8FAFC',
-                        highlightBg: '#FBBF24',
-                        highlightText: '#0F172A',
-                        quote: '#38BDF8'
-                    });
-                    curY += 16;
-                });
-                y += boxH + 36;
-            }
-
-            // 3. WARM UP (Horizontal Numbered Question Cards)
-            else if (sec.type === 'warmup') {
-                drawMagazineSectionHeader(sec.title, 'Warm up your brain by answering these casual questions aloud.', '#D97706');
-
+            if (sec.type === 'warmup') {
                 sec.items.forEach((q, idx) => {
-                    const richLines = layoutRichPdfLines(ctx, q, contentW - 140, 24, fontStack);
-                    const h = Math.max(88, 44 + (richLines.length * 40));
-                    ensureSpace(h + 18);
-
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 22, '#FFFBEB', '#FDE68A', 2);
-                    drawHandoutRoundedRect(ctx, padX + 28, y + 22, 54, 44, 12, '#F59E0B');
-
-                    ctx.save();
-                    ctx.textBaseline = 'middle';
-                    ctx.textAlign = 'center';
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.font = `800 20px ${fontStack}`;
-                    ctx.fillText(`Q${idx + 1}`, padX + 55, y + 44);
-                    ctx.restore();
-
-                    drawRichPdfLines(ctx, richLines, padX + 104, y + 24, 40, 24, fontStack, {
-                        normal: '#78350F',
-                        highlightBg: '#FEF3C7',
-                        quote: '#B45309'
-                    });
-                    y += h + 18;
+                    drawStructuredCard(`Question #${idx + 1}`, q, '', '#FFFBEB', '#FDE68A', '#B45309');
                 });
-                y += 22;
-            }
-
-            // 4. EDITORIAL / CONCEPT (Flowing Article + 2-Column Bento Grid)
-            else if (sec.type === 'editorial') {
-                drawMagazineSectionHeader(sec.title, 'Key insights explained in simple, everyday English.', theme.pdfPrimary);
-                drawEditorialParagraphs(sec.paragraphs, '#F8FAFC', '#E2E8F0', theme.pdfPrimary);
-
-                if (sec.items.length) {
-                    const gapX = 28;
-                    const colW = Math.floor((contentW - gapX) / 2);
-
-                    for (let i = 0; i < sec.items.length; i += 2) {
-                        const leftIt = sec.items[i];
-                        const rightIt = sec.items[i + 1];
-                        const isSingleWide = !rightIt;
-                        const cardW = isSingleWide ? contentW : colW;
-
-                        const measureBento = (it, w) => {
-                            if (!it) return null;
-                            const tLines = it.title ? wrapPlainLinesStrict(ctx, it.title, w - 76, `800 24px ${fontStack}`) : [];
-                            const bLines = layoutRichPdfLines(ctx, it.body, w - 76, 22, fontStack);
-                            const h = 58 + (tLines.length * 36) + (bLines.length * 36);
-                            return { tLines, bLines, h };
-                        };
-
-                        const mL = measureBento(leftIt, cardW);
-                        const mR = measureBento(rightIt, colW);
-                        const rowH = Math.max(mL?.h || 0, mR?.h || 0);
-                        ensureSpace(rowH + 22);
-
-                        const drawBento = (mObj, xPos, w, num) => {
-                            drawHandoutRoundedRect(ctx, xPos, y, w, rowH, 22, '#FFFFFF', '#CBD5E1', 2);
-                            drawHandoutRoundedRect(ctx, xPos, y, w, 10, 5, theme.pdfPrimary);
-
-                            let cy = y + 28;
-                            if (mObj.tLines.length) {
-                                cy = drawPlainLinesStrict(ctx, mObj.tLines, xPos + 36, cy, 36, w - 72, `800 24px ${fontStack}`, theme.pdfPrimary);
-                                cy += 8;
-                            }
-                            drawRichPdfLines(ctx, mObj.bLines, xPos + 36, cy, 36, 22, fontStack, {
-                                normal: '#334155',
-                                highlightBg: theme.pdfSoft,
-                                highlightText: theme.pdfPrimary
-                            });
-                        };
-
-                        if (mL && mR) {
-                            drawBento(mL, padX, colW, i + 1);
-                            drawBento(mR, padX + colW + gapX, colW, i + 2);
-                        } else if (mL) {
-                            drawBento(mL, padX, contentW, i + 1);
-                        }
-                        y += rowH + 22;
-                    }
-                }
-                y += 20;
-            }
-
-            // 5. FORMULAS / PATTERNS (Visual Pill Diagram Blocks!)
-            else if (sec.type === 'formulas') {
-                drawMagazineSectionHeader(sec.title, 'Visual building blocks to put sentences together naturally.', '#4F46E5');
-                drawEditorialParagraphs(sec.paragraphs);
-
+            } else if (sec.type === 'editorial') {
+                sec.items.forEach((it, idx) => {
+                    drawStructuredCard(it.title ? `${idx + 1}. ${it.title}` : '', it.body, '', '#FFFFFF', '#CBD5E1', theme.pdfPrimary);
+                });
+            } else if (sec.type === 'formulas') {
                 sec.items.forEach(f => {
-                    const parts = f.formula.includes('+')
-                        ? f.formula.split('+').map(s => cleanPlainPdfText(s)).filter(Boolean)
-                        : [cleanPlainPdfText(f.formula)];
-
-                    // Layout visual formula pills into rows that never exceed contentW - 84
-                    const maxRowW = contentW - 88;
-                    const pillRows = [];
-                    let curRow = [];
-                    let curRowW = 0;
-
-                    ctx.font = `800 22px ${fontStack}`;
-                    parts.forEach((pText, pIdx) => {
-                        const textW = Math.min(maxRowW - 40, ctx.measureText(pText).width);
-                        const pillW = textW + 40;
-                        const plusW = pIdx < parts.length - 1 ? 42 : 0;
-
-                        if (curRowW + pillW + plusW <= maxRowW || curRow.length === 0) {
-                            curRow.push({ text: pText, pillW, hasPlus: pIdx < parts.length - 1 });
-                            curRowW += pillW + plusW;
-                        } else {
-                            pillRows.push(curRow);
-                            curRow = [{ text: pText, pillW, hasPlus: pIdx < parts.length - 1 }];
-                            curRowW = pillW + plusW;
-                        }
-                    });
-                    if (curRow.length) pillRows.push(curRow);
-
-                    const exLines = f.example ? layoutRichPdfLines(ctx, `"${f.example}"`, contentW - 96, 23, fontStack) : [];
-                    const cardH = 74 + (pillRows.length * 60) + (exLines.length ? 22 + (exLines.length * 38) : 12);
-                    ensureSpace(cardH + 22);
-
-                    let accent = '#4F46E5', softBg = '#EEF2FF', brd = '#C7D2FE', tagTxt = 'PATTERN';
-                    if (f.badge === '[+]') { accent = '#059669'; softBg = '#ECFDF5'; brd = '#A7F3D0'; tagTxt = '+ POSITIVE'; }
-                    else if (f.badge === '[-]') { accent = '#E11D48'; softBg = '#FFF1F2'; brd = '#FECDD3'; tagTxt = '− NEGATIVE'; }
-                    else if (f.badge === '[?]') { accent = '#2563EB'; softBg = '#EFF6FF'; brd = '#BFDBFE'; tagTxt = '? QUESTION'; }
-
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, cardH, 24, softBg, brd, 2);
-
-                    // Badge + Label
-                    ctx.font = `800 17px ${fontStack}`;
-                    const badgeW = ctx.measureText(tagTxt).width + 32;
-                    drawHandoutRoundedRect(ctx, padX + 38, y + 24, badgeW, 34, 10, accent);
-                    ctx.save();
-                    ctx.textBaseline = 'top';
-                    ctx.textAlign = 'left';
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillText(tagTxt, padX + 54, y + 32);
-
-                    ctx.fillStyle = '#0F172A';
-                    ctx.font = `800 23px ${fontStack}`;
-                    ctx.fillText(cleanPlainPdfText(f.label).toUpperCase(), padX + 52 + badgeW, y + 28, contentW - badgeW - 96);
-                    ctx.restore();
-
-                    // Draw Pill Rows
-                    let py = y + 72;
-                    pillRows.forEach(row => {
-                        let px = padX + 38;
-                        row.forEach(pill => {
-                            drawHandoutRoundedRect(ctx, px, py, pill.pillW, 48, 14, '#FFFFFF', accent, 2);
-                            ctx.save();
-                            ctx.textBaseline = 'top';
-                            ctx.textAlign = 'left';
-                            ctx.fillStyle = '#0F172A';
-                            ctx.font = `800 22px ${fontStack}`;
-                            ctx.fillText(pill.text, px + 20, py + 13, pill.pillW - 36);
-                            ctx.restore();
-                            px += pill.pillW;
-
-                            if (pill.hasPlus) {
-                                ctx.save();
-                                ctx.textBaseline = 'middle';
-                                ctx.textAlign = 'center';
-                                ctx.fillStyle = accent;
-                                ctx.font = `800 26px ${fontStack}`;
-                                ctx.fillText('+', px + 21, py + 24);
-                                ctx.restore();
-                                px += 42;
-                            }
-                        });
-                        py += 60;
-                    });
-
-                    if (exLines.length) {
-                        drawRichPdfLines(ctx, exLines, padX + 42, py + 4, 38, 23, fontStack, {
-                            normal: '#1E293B',
-                            quote: accent
-                        });
-                    }
-                    y += cardH + 22;
+                    const body = f.formula ? `${f.formula}${f.example ? '\n' + f.example : ''}` : f.example;
+                    drawStructuredCard(f.label, body, '', '#EEF2FF', '#C7D2FE', '#4338CA');
                 });
-                y += 20;
-            }
-
-            // 6. PHRASES & EXPRESSIONS (2-Column Flashcard Grid)
-            else if (sec.type === 'phrases') {
-                drawMagazineSectionHeader(sec.title, 'Natural expressions to sound more fluent in daily conversation.', '#0D9488');
-                drawEditorialParagraphs(sec.paragraphs);
-
-                const gapX = 28;
-                const colW = Math.floor((contentW - gapX) / 2);
-
-                for (let i = 0; i < sec.items.length; i += 2) {
-                    const leftIt = sec.items[i];
-                    const rightIt = sec.items[i + 1];
-                    const isSingle = !rightIt;
-                    const cardW = isSingle ? contentW : colW;
-
-                    const measurePhrase = (it, w) => {
-                        if (!it) return null;
-                        const pLines = wrapPlainLinesStrict(ctx, it.phrase, w - 68, `800 25px ${fontStack}`);
-                        const mLines = it.meaning ? wrapPlainLinesStrict(ctx, `= ${it.meaning}`, w - 68, `600 21px ${fontStack}`) : [];
-                        const eLines = it.example ? wrapPlainLinesStrict(ctx, `"${it.example}"`, w - 68, `italic 500 20px ${fontStack}`) : [];
-                        const h = 58 + (pLines.length * 36) + (mLines.length * 32) + (eLines.length ? 16 + (eLines.length * 32) : 0);
-                        return { pLines, mLines, eLines, h };
-                    };
-
-                    const mL = measurePhrase(leftIt, cardW);
-                    const mR = measurePhrase(rightIt, colW);
-                    const rowH = Math.max(mL?.h || 0, mR?.h || 0);
-                    ensureSpace(rowH + 22);
-
-                    const drawPhrase = (mObj, xPos, w) => {
-                        drawHandoutRoundedRect(ctx, xPos, y, w, rowH, 22, '#F0FDFA', '#99F6E4', 2);
-                        drawHandoutRoundedRect(ctx, xPos, y, 10, rowH, 5, '#0D9488');
-
-                        let cy = y + 26;
-                        cy = drawPlainLinesStrict(ctx, mObj.pLines, xPos + 34, cy, 36, w - 64, `800 25px ${fontStack}`, '#134E4A');
-                        if (mObj.mLines.length) {
-                            cy = drawPlainLinesStrict(ctx, mObj.mLines, xPos + 34, cy + 4, 32, w - 64, `600 21px ${fontStack}`, '#0F766E');
-                        }
-                        if (mObj.eLines.length) {
-                            drawPlainLinesStrict(ctx, mObj.eLines, xPos + 34, cy + 12, 32, w - 64, `italic 500 20px ${fontStack}`, '#334155');
-                        }
-                    };
-
-                    if (mL && mR) {
-                        drawPhrase(mL, padX, colW);
-                        drawPhrase(mR, padX + colW + gapX, colW);
-                    } else if (mL) {
-                        drawPhrase(mL, padX, contentW);
-                    }
-                    y += rowH + 22;
-                }
-                y += 20;
-            }
-
-            // 7. EXAMPLES (2-Column Context Cards with Pill Tags)
-            else if (sec.type === 'examples') {
-                drawMagazineSectionHeader(sec.title, 'Real-world sentences showing how to use this topic in context.', '#059669');
-                drawEditorialParagraphs(sec.paragraphs);
-
-                const gapX = 28;
-                const colW = Math.floor((contentW - gapX) / 2);
-
-                for (let i = 0; i < sec.items.length; i += 2) {
-                    const leftIt = sec.items[i];
-                    const rightIt = sec.items[i + 1];
-                    const isSingle = !rightIt;
-                    const cardW = isSingle ? contentW : colW;
-
-                    const measureEx = (it, w) => {
-                        if (!it) return null;
-                        const sLines = wrapPlainLinesStrict(ctx, it.sentence, w - 68, `700 23px ${fontStack}`);
-                        const nLines = it.note ? wrapPlainLinesStrict(ctx, `💡 ${it.note}`, w - 68, `500 19px ${fontStack}`) : [];
-                        const h = 82 + (sLines.length * 36) + (nLines.length ? 14 + (nLines.length * 30) : 0);
-                        return { tag: cleanPlainPdfText(it.tag || 'EXAMPLE').toUpperCase(), sLines, nLines, h };
-                    };
-
-                    const mL = measureEx(leftIt, cardW);
-                    const mR = measureEx(rightIt, colW);
-                    const rowH = Math.max(mL?.h || 0, mR?.h || 0);
-                    ensureSpace(rowH + 22);
-
-                    const drawEx = (mObj, xPos, w) => {
-                        drawHandoutRoundedRect(ctx, xPos, y, w, rowH, 22, '#FFFFFF', '#CBD5E1', 2);
-
-                        ctx.font = `800 16px ${fontStack}`;
-                        const tagW = Math.min(w - 64, ctx.measureText(mObj.tag).width + 30);
-                        drawHandoutRoundedRect(ctx, xPos + 32, y + 24, tagW, 32, 10, '#ECFDF5', '#A7F3D0', 1.5);
-                        ctx.save();
-                        ctx.textBaseline = 'top';
-                        ctx.textAlign = 'left';
-                        ctx.fillStyle = '#047857';
-                        ctx.fillText(mObj.tag, xPos + 47, y + 32, tagW - 24);
-                        ctx.restore();
-
-                        let cy = drawPlainLinesStrict(ctx, mObj.sLines, xPos + 32, y + 68, 36, w - 64, `700 23px ${fontStack}`, '#0F172A');
-                        if (mObj.nLines.length) {
-                            drawPlainLinesStrict(ctx, mObj.nLines, xPos + 32, cy + 10, 30, w - 64, `500 19px ${fontStack}`, '#64748B');
-                        }
-                    };
-
-                    if (mL && mR) {
-                        drawEx(mL, padX, colW);
-                        drawEx(mR, padX + colW + gapX, colW);
-                    } else if (mL) {
-                        drawEx(mL, padX, contentW);
-                    }
-                    y += rowH + 22;
-                }
-                y += 20;
-            }
-
-            // 8. MISTAKES (True Side-by-Side Split Comparison Card: ❌ DON'T SAY vs ✅ SAY THIS)
-            else if (sec.type === 'mistakes') {
-                drawMagazineSectionHeader(sec.title, 'Side-by-side comparison to help you sound natural and avoid common traps.', '#E11D48');
-
-                const halfW = Math.floor((contentW - 68) / 2);
+            } else if (sec.type === 'phrases') {
+                sec.items.forEach(ph => {
+                    const ex = ph.example ? `Example: "${ph.example}"` : '';
+                    drawStructuredCard(ph.phrase, ph.meaning, ex, '#F0FDFA', '#99F6E4', '#0F766E');
+                });
+            } else if (sec.type === 'examples') {
+                sec.items.forEach(ex => {
+                    drawStructuredCard(ex.tag, ex.sentence, ex.note, '#FFFFFF', '#CBD5E1', '#047857');
+                });
+            } else if (sec.type === 'mistakes') {
                 sec.items.forEach(m => {
                     if (!m.wrong) {
-                        drawEditorialParagraphs([m.right], '#FFFBEB', '#FDE68A', '#F59E0B');
-                        return;
+                        drawStructuredCard('Tip', m.right, '', '#FFFBEB', '#FDE68A', '#B45309');
+                    } else {
+                        drawStructuredCard(
+                            `Don't Say: "${m.wrong}"`,
+                            `Say This: "${m.right}"`,
+                            m.reason ? `Note: ${m.reason}` : '',
+                            '#FFF1F2', '#FECDD3', '#BE123C'
+                        );
                     }
-
-                    const wLines = wrapPlainLinesStrict(ctx, m.wrong, halfW - 36, `600 22px ${fontStack}`);
-                    const rLines = wrapPlainLinesStrict(ctx, m.right, halfW - 36, `800 23px ${fontStack}`);
-                    const whyLines = m.reason ? wrapPlainLinesStrict(ctx, `Why: ${m.reason}`, contentW - 84, `600 20px ${fontStack}`) : [];
-
-                    const splitBoxH = 68 + (Math.max(wLines.length, rLines.length) * 36);
-                    const totalCardH = splitBoxH + (whyLines.length ? 30 + (whyLines.length * 32) : 24) + 24;
-                    ensureSpace(totalCardH + 20);
-
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, totalCardH, 24, '#F8FAFC', '#CBD5E1', 2);
-
-                    // Left Box: DON'T SAY
-                    const leftX = padX + 24;
-                    const topY = y + 22;
-                    drawHandoutRoundedRect(ctx, leftX, topY, halfW, splitBoxH, 18, '#FFF1F2', '#FECDD3', 2);
-                    ctx.save();
-                    ctx.textBaseline = 'top';
-                    ctx.textAlign = 'left';
-                    ctx.fillStyle = '#E11D48';
-                    ctx.font = `800 16px ${fontStack}`;
-                    ctx.fillText('✕  DON\'T SAY (AVOID)', leftX + 22, topY + 18);
-                    ctx.restore();
-                    drawPlainLinesStrict(ctx, wLines, leftX + 22, topY + 48, 36, halfW - 44, `600 22px ${fontStack}`, '#881337', true);
-
-                    // Right Box: SAY THIS
-                    const rightX = leftX + halfW + 20;
-                    drawHandoutRoundedRect(ctx, rightX, topY, halfW, splitBoxH, 18, '#ECFDF5', '#A7F3D0', 2);
-                    ctx.save();
-                    ctx.textBaseline = 'top';
-                    ctx.textAlign = 'left';
-                    ctx.fillStyle = '#059669';
-                    ctx.font = `800 16px ${fontStack}`;
-                    ctx.fillText('✓  SAY THIS (NATURAL)', rightX + 22, topY + 18);
-                    ctx.restore();
-                    drawPlainLinesStrict(ctx, rLines, rightX + 22, topY + 48, 36, halfW - 44, `800 23px ${fontStack}`, '#064E3B', false);
-
-                    if (whyLines.length) {
-                        drawPlainLinesStrict(ctx, whyLines, padX + 36, topY + splitBoxH + 16, 32, contentW - 72, `600 20px ${fontStack}`, '#475569');
-                    }
-                    y += totalCardH + 20;
                 });
-                y += 20;
-            }
-
-            // 9. DIALOGUE / CONVERSATION (Messenger Chat Bubbles + Avatars)
-            else if (sec.type === 'dialogue') {
-                drawMagazineSectionHeader(sec.title, 'Read aloud or roleplay this natural conversation.', '#0284C7');
-                drawEditorialParagraphs(sec.paragraphs);
-
-                const avatarSize = 54;
-                const bubbleW = Math.floor(contentW * 0.78);
-
-                sec.items.forEach((line, lIdx) => {
+            } else if (sec.type === 'dialogue') {
+                sec.items.forEach(line => {
                     const match = line.match(/^([A-Za-z\s.]{1,22})\s*:\s*(.+)$/);
-                    const spk = match ? match[1].trim() : `Speaker ${(lIdx % 2) + 1}`;
-                    const txt = match ? match[2].trim() : line;
-                    const isLeft = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|a)\b/i.test(spk) || (lIdx % 2 === 0);
-
-                    const lines = wrapPlainLinesStrict(ctx, txt, bubbleW - 76, `500 23px ${fontStack}`);
-                    const h = 68 + (lines.length * 36);
-                    ensureSpace(h + 20);
-
-                    const avatarX = isLeft ? padX : (padX + contentW - avatarSize);
-                    const bubbleX = isLeft ? (padX + avatarSize + 18) : (padX + contentW - avatarSize - 18 - bubbleW);
-
-                    // Draw Avatar Circle
-                    drawHandoutRoundedRect(ctx, avatarX, y + 6, avatarSize, avatarSize, 18, isLeft ? '#2563EB' : '#E11D48');
-                    ctx.save();
-                    ctx.textBaseline = 'middle';
-                    ctx.textAlign = 'center';
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.font = `800 22px ${fontStack}`;
-                    ctx.fillText(spk.charAt(0).toUpperCase(), avatarX + (avatarSize / 2), y + 33);
-                    ctx.restore();
-
-                    // Draw Speech Bubble
-                    drawHandoutRoundedRect(ctx, bubbleX, y, bubbleW, h, 24, isLeft ? '#F8FAFC' : '#EFF6FF', isLeft ? '#CBD5E1' : '#93C5FD', 2);
-
-                    ctx.save();
-                    ctx.textBaseline = 'top';
-                    ctx.textAlign = 'left';
-                    ctx.fillStyle = isLeft ? '#2563EB' : '#1D4ED8';
-                    ctx.font = `800 17px ${fontStack}`;
-                    ctx.fillText(spk.toUpperCase(), bubbleX + 34, y + 18, bubbleW - 68);
-                    ctx.restore();
-
-                    drawPlainLinesStrict(ctx, lines, bubbleX + 34, y + 46, 36, bubbleW - 68, `500 23px ${fontStack}`, '#0F172A');
-                    y += h + 20;
-                });
-                y += 20;
-            }
-
-            // 10. PRACTICE / WORKSHEET CHALLENGES
-            else if (sec.type === 'practice') {
-                drawMagazineSectionHeader(sec.title, 'Test your understanding and practice speaking aloud.', '#7C3AED');
-                drawEditorialParagraphs(sec.paragraphs);
-
-                sec.items.forEach((pr, idx) => {
-                    const qLines = layoutRichPdfLines(ctx, pr.task, contentW - 130, 23, fontStack);
-                    const aLines = pr.answerKey ? wrapPlainLinesStrict(ctx, `Answer Key: ${pr.answerKey}`, contentW - 130, `600 19px ${fontStack}`) : [];
-
-                    const h = 76 + (qLines.length * 38) + (aLines.length ? 16 + (aLines.length * 30) : 0);
-                    ensureSpace(h + 20);
-
-                    drawHandoutRoundedRect(ctx, padX, y, contentW, h, 22, '#F5F3FF', '#DDD6FE', 2);
-
-                    // Number Circle
-                    drawHandoutRoundedRect(ctx, padX + 28, y + 24, 48, 48, 14, '#7C3AED');
-                    ctx.save();
-                    ctx.textBaseline = 'middle';
-                    ctx.textAlign = 'center';
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.font = `800 21px ${fontStack}`;
-                    ctx.fillText(String(idx + 1), padX + 52, y + 48);
-
-                    // Tag Pill
-                    ctx.textBaseline = 'top';
-                    ctx.textAlign = 'left';
-                    ctx.fillStyle = '#6D28D9';
-                    ctx.font = `800 17px ${fontStack}`;
-                    ctx.fillText(cleanPlainPdfText(pr.tag).toUpperCase(), padX + 94, y + 22, contentW - 130);
-                    ctx.restore();
-
-                    let cy = drawRichPdfLines(ctx, qLines, padX + 94, y + 50, 38, 23, fontStack, {
-                        normal: '#1E1B4B',
-                        highlightBg: '#FEF3C7',
-                        quote: '#6D28D9'
-                    });
-
-                    if (aLines.length) {
-                        drawPlainLinesStrict(ctx, aLines, padX + 94, cy + 12, 30, contentW - 130, `600 19px ${fontStack}`, '#059669');
+                    if (match) {
+                        drawStructuredCard(match[1].trim(), match[2].trim(), '', '#F8FAFC', '#CBD5E1', '#1D4ED8');
+                    } else {
+                        drawStructuredCard('', line, '', '#F8FAFC', '#CBD5E1');
                     }
-                    y += h + 20;
+                });
+            } else if (sec.type === 'practice') {
+                sec.items.forEach((pr, idx) => {
+                    drawStructuredCard(
+                        `${idx + 1}. ${pr.tag}`,
+                        pr.task,
+                        pr.answerKey ? `Answer Key: ${pr.answerKey}` : '',
+                        '#F5F3FF', '#DDD6FE', '#6D28D9'
+                    );
                 });
             }
+
+            y += 18;
         });
 
         if (window.jspdf && window.jspdf.jsPDF) {
@@ -2159,9 +1519,9 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
                 if (idx > 0) pdf.addPage();
                 pdf.addImage(cv.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297);
             });
-            const cleanTitle = data.title.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
+            const cleanTitle = cleanPlainPdfText(data.title).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
             pdf.save(`HES_${monthObj.title.replace(/\s+/g, '')}_Session${sessionNumber}_${cleanTitle}.pdf`);
-            showToast('PDF Magazine Workbook berhasil diunduh!', 'success');
+            showToast('PDF Materi berhasil diunduh!', 'success');
         }
     } catch (e) {
         console.error(e);
@@ -2242,7 +1602,7 @@ function renderVocabQuiz() {
                 <p class="text-[11px] font-black uppercase text-indigo-500 mb-1">Apa arti dari kata ini?</p>
                 <div class="flex items-center justify-center gap-3">
                     <h4 class="text-2xl sm:text-3xl font-black text-slate-800">${currentItem.eng}</h4>
-                    <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center cursor-pointer">
+                    <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center cursor-pointer">
                         <i class="fas fa-volume-up text-xs"></i>
                     </button>
                 </div>
