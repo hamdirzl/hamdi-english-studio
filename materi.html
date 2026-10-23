@@ -52,14 +52,14 @@
                     </div>
                 </div>
 
-                <!-- 3 Tab Mode Belajar (Agar Tidak Perlu Scroll Panjang) -->
+                <!-- 3 Tab Mode Belajar -->
                 <div class="grid grid-cols-3 gap-2 sm:gap-3">
                     <button onclick="switchMateriMode('vocab')" id="mode-btn-vocab" class="py-3 px-3 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2"></button>
                     <button onclick="switchMateriMode('presentation')" id="mode-btn-presentation" class="py-3 px-3 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2"></button>
                     <button onclick="switchMateriMode('recap')" id="mode-btn-recap" class="py-3 px-3 rounded-2xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2"></button>
                 </div>
 
-                <!-- PANEL 1: KOSAKATA (FLASHCARD 3D + KUIS TEBAK KATA) -->
+                <!-- PANEL 1: KOSAKATA & KUIS -->
                 <section id="panel-materi-vocab" class="hes-card">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
                         <div>
@@ -67,13 +67,12 @@
                                 <h3 class="text-base sm:text-lg font-black text-slate-800">🎯 Latihan Kosakata Harian</h3>
                                 <span id="vocab-count-badge" class="text-xs font-black bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full">0 Kata</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-400 mt-0.5">Hafalkan dengan kartu balik, lalu uji ingatanmu di mode kuis!</p>
+                            <p class="text-xs font-bold text-slate-400 mt-0.5">Pelajari daftar kosakata dengan suara, lalu uji ingatanmu di mode kuis!</p>
                         </div>
 
-                        <!-- Switcher Kartu Flip vs Mode Kuis -->
                         <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
-                            <button onclick="switchVocabSubmode('deck')" id="submode-deck" class="px-3 py-1.5 rounded-lg text-xs font-black transition">🃏 Kartu Hafalan</button>
-                            <button onclick="switchVocabSubmode('quiz')" id="submode-quiz" class="px-3 py-1.5 rounded-lg text-xs font-black transition">🎮 Kuis Tebak Arti</button>
+                            <button onclick="switchVocabSubmode('list')" id="submode-deck" class="px-3 py-1.5 rounded-lg text-xs font-black transition">📋 Daftar Kata</button>
+                            <button onclick="switchVocabSubmode('quiz')" id="submode-quiz" class="px-3 py-1.5 rounded-lg text-xs font-black transition">🎮 Kuis Singkat</button>
                         </div>
                     </div>
 

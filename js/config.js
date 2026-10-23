@@ -7,6 +7,15 @@ window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
 const TELEGRAM_BOT_TOKEN = "8783483454:AAFIMaNa4Z5-uUMXHOeqHZgkk2S9EK4gC0Y";
 const TELEGRAM_CHAT_ID = "1225652735";
 
+// Wajib agar streaming suara Cloud Neural Google tidak terkena blokir 403 di HP
+if (!document.getElementById('hes-no-referrer')) {
+    const meta = document.createElement('meta');
+    meta.id = 'hes-no-referrer';
+    meta.name = 'referrer';
+    meta.content = 'no-referrer';
+    document.head.appendChild(meta);
+}
+
 function sendTelegramNotification(text) {
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
     fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -60,7 +69,7 @@ function logoutUser() {
     window.location.href = 'index.html';
 }
 
-// SINKRONISASI CLOUD
+// SINKRONISASI CLOUD TERPADU
 async function syncFromCloud() {
     updateCloudStatusUI('syncing');
     try {
@@ -94,6 +103,21 @@ async function saveToCloud(key, value) {
     return { error: error || null };
 }
 
+async function safeSaveMaterialsToCloud(mutatorFn) {
+    updateCloudStatusUI('syncing');
+    try {
+        const { data, error } = await window.supabaseClient.from('app_data').select('value').eq('key', 'hes_materials').maybeSingle();
+        if (!error && data?.value) {
+            window.HES.materials = Object.assign({}, data.value, window.HES.materials);
+        }
+    } catch (e) {}
+    if (typeof mutatorFn === 'function') mutatorFn(window.HES.materials);
+    try { localStorage.setItem('hes_cache_materials', JSON.stringify(window.HES.materials)); } catch (e) {}
+    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: window.HES.materials }]);
+    updateCloudStatusUI(error ? 'offline' : 'online');
+    return { error: error || null };
+}
+
 function updateCloudStatusUI(status) {
     const badge = document.getElementById('cloud-status-indicator');
     if (!badge) return;
@@ -105,6 +129,190 @@ function updateCloudStatusUI(status) {
     badge.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${cfg[0]}`;
     badge.innerHTML = cfg[1];
 }
+
+// ============================================================================
+// MESIN SUARA MANUSIA (CLOUD NEURAL TTS) - NATURAL DI HP & LAPTOP
+// ============================================================================
+let _ttsSessionId = 0;
+let _sharedAudioEl = null;
+
+function getSharedTTSAudio() {
+    if (!_sharedAudioEl) {
+        _sharedAudioEl = new Audio();
+        _sharedAudioEl.referrerPolicy = 'no-referrer';
+        _sharedAudioEl.preload = 'auto';
+    }
+    return _sharedAudioEl;
+}
+
+function splitIntoChunks(text, maxLen = 165) {
+    const safe = String(text || '').replace(/\b(Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr)\.\s+/gi, '$1__DOT__ ');
+    const sentences = safe.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [safe];
+    const chunks = [];
+    sentences.forEach(raw => {
+        const s = raw.replace(/__DOT__/g, '.').trim();
+        if (!s) return;
+        if (s.length <= maxLen) {
+            chunks.push(s);
+        } else {
+            let cur = '';
+            s.split(/(?<=[,;:])\s+|\s+(?=(?:and|but|because|so|when|while|before|after)\b)/i).forEach(p => {
+                if ((cur + ' ' + p).trim().length <= maxLen) cur = (cur + ' ' + p).trim();
+                else { if (cur) chunks.push(cur); cur = p.trim(); }
+            });
+            if (cur) chunks.push(cur);
+        }
+    });
+    return chunks;
+}
+
+function parseDialogueSegments(rawText) {
+    const cleaned = String(rawText || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\*+/g, '')
+        .replace(/^(?:AUDIO|SCRIPT|TEKS AUDIO)\s*:\s*/gim, '')
+        .replace(/\s*[\/|]\s*/g, '\n')
+        .replace(/(^|\s+)(?=(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Customer|Waiter)\s*:)/gi, '\n');
+
+    const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+    const segments = [];
+    let lastGender = 'female';
+
+    lines.forEach(line => {
+        let gender = 'female';
+        let text = line.replace(/^(?:AUDIO|SCRIPT|TEKS AUDIO)\s*:\s*/i, '').trim();
+        const match = text.match(/^([A-Za-z\s.]{1,22}?)\s*:\s*(.+)$/);
+
+        if (match) {
+            const speaker = match[1].trim().toLowerCase();
+            text = match[2].trim();
+            if (/^(man|male|boy|mr|father|dad|waiter|husband|son|brother|uncle|kevin|david|raka|budi|andi|john|tom|alex|speaker a|a)\b/.test(speaker)) {
+                gender = 'male';
+            } else if (/^(woman|female|girl|mrs|ms|miss|mother|mom|waitress|wife|daughter|sister|aunt|sarah|dina|nadia|sinta|rina|dinda|lisa|anna|speaker b|b)\b/.test(speaker)) {
+                gender = 'female';
+            } else {
+                gender = lastGender === 'male' ? 'female' : 'male';
+            }
+        } else if (lines.length > 1) {
+            gender = lastGender === 'male' ? 'female' : 'male';
+        }
+        lastGender = gender;
+        splitIntoChunks(text).forEach(chunk => { if (chunk) segments.push({ text: chunk, gender }); });
+    });
+    return segments;
+}
+
+function playCloudNeuralChunk(text, gender, sessionId) {
+    return new Promise(resolve => {
+        if (sessionId !== _ttsSessionId) return resolve();
+
+        // Gunakan Google Neural TTS MP3 (en-US untuk Wanita, en-GB dengan nada natural lebih rendah untuk Pria)
+        const tl = gender === 'male' ? 'en-GB' : 'en-US';
+        const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
+        const audio = getSharedTTSAudio();
+        let done = false;
+
+        const finish = () => {
+            if (done) return;
+            done = true;
+            audio.onended = null;
+            audio.onerror = null;
+            resolve();
+        };
+
+        const fallbackBrowserTTS = () => {
+            if (done) return;
+            done = true;
+            audio.onended = null;
+            audio.onerror = null;
+            if (!('speechSynthesis' in window) || sessionId !== _ttsSessionId) return resolve();
+            try {
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = tl;
+                u.rate = 0.95;
+                u.pitch = gender === 'male' ? 0.92 : 1.02; // Pitch manusia normal (bukan 0.52 yang seperti robot)
+                u.onend = u.onerror = () => resolve();
+                window.speechSynthesis.speak(u);
+            } catch (e) { resolve(); }
+        };
+
+        audio.onended = finish;
+        audio.onerror = fallbackBrowserTTS;
+        audio.src = url;
+
+        // Bedakan warna vokal pria secara halus tanpa efek robot
+        const preserve = gender !== 'male';
+        if ('preservesPitch' in audio) audio.preservesPitch = preserve;
+        if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = preserve;
+        if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = preserve;
+        audio.playbackRate = gender === 'male' ? 0.93 : 1.0;
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(fallbackBrowserTTS);
+        }
+    });
+}
+
+window.stopNaturalEnglishTTS = function() {
+    _ttsSessionId++;
+    if (_sharedAudioEl) {
+        try {
+            _sharedAudioEl.onended = null;
+            _sharedAudioEl.onerror = null;
+            _sharedAudioEl.pause();
+            _sharedAudioEl.removeAttribute('src');
+        } catch (e) {}
+    }
+    if ('speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
+};
+
+window.playNaturalEnglishTTS = async function(text, btnEl = null) {
+    const cleanText = String(text || '').trim();
+    if (!cleanText) return showToast('Tulis naskah audio terlebih dahulu.', 'error');
+
+    if (btnEl && btnEl.dataset.playing === '1') {
+        window.stopNaturalEnglishTTS();
+        btnEl.dataset.playing = '0';
+        btnEl.classList.remove('speaking-pulse');
+        btnEl.innerHTML = btnEl.dataset.origHtml || `<i class="fas fa-play mr-1"></i> Putar Audio`;
+        return;
+    }
+
+    window.stopNaturalEnglishTTS();
+    const session = ++_ttsSessionId;
+    const segments = parseDialogueSegments(cleanText);
+    if (!segments.length) return;
+
+    const origHTML = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+        btnEl.dataset.origHtml = origHTML;
+        btnEl.dataset.playing = '1';
+        btnEl.classList.add('speaking-pulse');
+    }
+
+    for (let i = 0; i < segments.length; i++) {
+        if (session !== _ttsSessionId) break;
+        const seg = segments[i];
+        if (btnEl && segments.length > 1) {
+            btnEl.innerHTML = seg.gender === 'male'
+                ? `<i class="fas fa-stop mr-1"></i> 👨 Speaker A...`
+                : `<i class="fas fa-stop mr-1"></i> 👩 Speaker B...`;
+        }
+        await playCloudNeuralChunk(seg.text, seg.gender, session);
+        if (session !== _ttsSessionId) break;
+        if (i < segments.length - 1) await new Promise(r => setTimeout(r, 200));
+    }
+
+    if (btnEl && session === _ttsSessionId) {
+        btnEl.dataset.playing = '0';
+        btnEl.classList.remove('speaking-pulse');
+        btnEl.innerHTML = origHTML;
+    }
+};
 
 // MASTER WORDBANK ENGINE
 function getCleanMasterWordbankArray() {
@@ -378,19 +586,43 @@ function getDriveDirectStreamLink(url) {
     return m?.[1] ? `https://drive.google.com/uc?export=download&id=${m[1]}` : url;
 }
 
-function calculateCategoryScore(cat, examData, examResult) {
+// PERHITUNGAN SKOR UJIAN TERPADU (DIPAKAI OLEH ADMIN & MURID)
+function computeExamSectionScore(cat, examData, examResult) {
     const list = examData?.[cat] || [];
     if (!list.length) return 0;
-    let total = 0;
+    let totalPoints = 0;
+    const maxPerQ = 100 / list.length;
+
     list.forEach((q, idx) => {
-        const ans = examResult.answers?.[`${cat}_${idx}`];
+        const key = `${cat}_${idx}`;
+        const ans = examResult?.answers?.[key];
+        const manualPoint = examResult?.scores?.[key];
+
         if (q.type === 'mcq') {
-            if (ans !== undefined && ans !== '' && ans == q.answer) total += 100;
-        } else {
-            total += parseFloat(examResult.scores?.[`${cat}_${idx}`]) || 0;
+            if (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) {
+                totalPoints += maxPerQ;
+            }
+        } else if (manualPoint !== undefined && manualPoint !== null && manualPoint !== '') {
+            const num = parseFloat(manualPoint) || 0;
+            totalPoints += (num <= 10 ? (num / 10) * maxPerQ : (num / 100) * maxPerQ);
+        } else if (ans && String(ans).trim() !== '') {
+            if (cat === 'speaking' && String(ans).startsWith('data:audio')) {
+                totalPoints += maxPerQ * 0.85;
+            } else {
+                const target = String(q.answer || '').trim().toLowerCase();
+                const studentStr = String(ans).trim().toLowerCase();
+                if (target && studentStr === target) totalPoints += maxPerQ;
+                else if (target) {
+                    const kws = target.split(/[,/|\s]+/).filter(w => w.length > 2);
+                    if (kws.length > 0) {
+                        const matched = kws.filter(kw => studentStr.includes(kw)).length;
+                        totalPoints += maxPerQ * Math.min(1, Math.max(0.5, matched / kws.length));
+                    } else totalPoints += maxPerQ * 0.8;
+                } else totalPoints += maxPerQ * 0.85;
+            }
         }
     });
-    return Math.round(total / list.length);
+    return Math.min(100, Math.round(totalPoints));
 }
 
 function showToast(message, type = 'success') {

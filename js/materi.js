@@ -1,8 +1,8 @@
 // js/materi.js
 
 let activeMateriState = { monthId: 'm1', week: 1, day: 1 };
-let activeMateriMode = 'vocab'; // 'vocab' | 'presentation' | 'recap'
-let activeVocabSubmode = 'list'; // 'list' | 'quiz'
+let activeMateriMode = 'vocab';
+let activeVocabSubmode = 'list';
 
 let currentVocabItems = [];
 let quizState = { index: 0, score: 0, answered: false };
@@ -68,14 +68,21 @@ window.switchMateriMode = function(mode) {
 };
 
 window.switchVocabSubmode = function(sub) {
-    activeVocabSubmode = sub;
-    document.getElementById('submode-deck').innerHTML = '<i class="fas fa-list-ul mr-1"></i> Daftar Kata';
-    document.getElementById('submode-quiz').innerHTML = '<i class="fas fa-gamepad mr-1"></i> Kuis Singkat';
-    
-    document.getElementById('submode-deck').className = `px-3 py-1.5 rounded-lg text-xs font-bold transition ${sub === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`;
-    document.getElementById('submode-quiz').className = `px-3 py-1.5 rounded-lg text-xs font-bold transition ${sub === 'quiz' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`;
+    const normalized = sub === 'deck' ? 'list' : sub;
+    activeVocabSubmode = normalized;
 
-    if (sub === 'quiz') {
+    const btnList = document.getElementById('submode-deck');
+    const btnQuiz = document.getElementById('submode-quiz');
+    if (btnList) {
+        btnList.innerHTML = '<i class="fas fa-list-ul mr-1"></i> Daftar Kata';
+        btnList.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition ${normalized === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`;
+    }
+    if (btnQuiz) {
+        btnQuiz.innerHTML = '<i class="fas fa-gamepad mr-1"></i> Kuis Singkat';
+        btnQuiz.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition ${normalized === 'quiz' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`;
+    }
+
+    if (normalized === 'quiz') {
         quizState = { index: 0, score: 0, answered: false };
         renderVocabQuiz();
     } else {
@@ -89,9 +96,7 @@ function renderMateriContent() {
     const isStu = window.HES.userRole === 'student';
     const maxM = isStu ? parseInt(window.HES.materials[`profile-${email}`]?.maxMonth || 1) : 99;
 
-    if (isStu && parseInt(monthId.replace('m', '')) > maxM) {
-        activeMateriState.monthId = 'm1';
-    }
+    if (isStu && parseInt(monthId.replace('m', '')) > maxM) activeMateriState.monthId = 'm1';
 
     const monthObj = window.HES.months.find(m => m.id === activeMateriState.monthId) || { title: 'Month 1' };
     const timeline = isStu ? getStudentCurriculumTimeline(email) : null;
@@ -124,10 +129,7 @@ function renderMateriContent() {
             if (info?.status === 'current') cls = 'bg-amber-50 text-amber-900 border-amber-300';
             if (isSelected) cls = 'bg-indigo-600 text-white border-indigo-700 shadow-sm';
 
-            stonesHTML += `
-                <a href="materi.html?month=${monthId}&week=${w}&day=${d}" title="Minggu ${w} Hari ${d} ${info?.shortDate ? `(${info.shortDate})` : ''}" class="py-2 rounded-lg border text-center text-xs font-black transition ${cls}">
-                    ${i + 1}
-                </a>`;
+            stonesHTML += `<a href="materi.html?month=${monthId}&week=${w}&day=${d}" title="Minggu ${w} Hari ${d} ${info?.shortDate ? `(${info.shortDate})` : ''}" class="py-2 rounded-lg border text-center text-xs font-black transition ${cls}">${i + 1}</a>`;
         }
         stonesEl.innerHTML = stonesHTML;
     }
@@ -193,28 +195,24 @@ function renderVocabList() {
         return;
     }
 
-    let listHTML = currentVocabItems.map((item, idx) => {
-        const safeWord = item.eng.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        return `
-            <div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all duration-200">
-                <div class="flex flex-col">
-                    <span class="text-base font-extrabold text-slate-800">${item.eng}</span>
-                    <span class="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">${item.ind}</span>
-                </div>
-                <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition shrink-0">
-                    <i class="fas fa-volume-up"></i>
-                </button>
-            </div>
-        `;
-    }).join('');
-
     container.innerHTML = `
         <div class="max-w-3xl mx-auto fade-in mt-2">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-4">
-                ${listHTML}
+                ${currentVocabItems.map(item => {
+                    const safeWord = item.eng.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    return `
+                        <div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all duration-200">
+                            <div class="flex flex-col">
+                                <span class="text-base font-extrabold text-slate-800">${item.eng}</span>
+                                <span class="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">${item.ind}</span>
+                            </div>
+                            <button type="button" onclick="speakVocabWord(event, '${safeWord}', this)" class="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition shrink-0">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                        </div>`;
+                }).join('')}
             </div>
-        </div>
-    `;
+        </div>`;
 }
 
 function renderVocabQuiz() {
@@ -269,8 +267,7 @@ function renderVocabQuiz() {
                     return `<button onclick="answerVocabQuiz(this, ${isCorr})" class="quiz-opt-btn w-full p-3.5 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 text-left text-xs sm:text-sm font-bold text-slate-700 transition">${opt}</button>`;
                 }).join('')}
             </div>
-        </div>
-    `;
+        </div>`;
 }
 
 window.answerVocabQuiz = function(btnEl, isCorrect) {
@@ -294,21 +291,16 @@ window.answerVocabQuiz = function(btnEl, isCorrect) {
 };
 
 window.speakVocabWord = function(event, word, btnEl) {
-    event.stopPropagation();
-    if (!('speechSynthesis' in window)) return showToast('Browser belum mendukung fitur suara.', 'error');
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(word);
-    u.lang = 'en-US'; u.rate = 0.9;
-    btnEl?.classList.add('speaking-pulse');
-    u.onend = u.onerror = () => btnEl?.classList.remove('speaking-pulse');
-    window.speechSynthesis.speak(u);
+    event?.stopPropagation();
+    window.playNaturalEnglishTTS(word, btnEl);
 };
 
 window.submitVocab = async function(btn, m, w, d) {
     const email = window.HES.currentUser.email;
-    window.HES.materials[`vocab_status-${email}-${m}-w${w}-d${d}`] = { status: 'submitted', feedback: '' };
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
-    const { error } = await saveToCloud('hes_materials', window.HES.materials);
+    const { error } = await safeSaveMaterialsToCloud(materials => {
+        materials[`vocab_status-${email}-${m}-w${w}-d${d}`] = { status: 'submitted', feedback: '' };
+    });
     if (!error) { showToast('Hafalan tercatat! +10 XP', 'success'); renderMateriContent(); }
     else { showToast('Gagal menyimpan: ' + error.message, 'error'); btn.disabled = false; }
 };

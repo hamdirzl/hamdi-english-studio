@@ -3,47 +3,6 @@
 let currentAdminTab = 'overview';
 let adminExamState = { student: '', month: '', activeTab: 'listening', data: null };
 let currentAdminGradingTab = 'reading';
-let cachedBrowserVoices = [];
-let adminAudioSessionId = 0;
-let sharedAdminAudioEl = null;
-window._hesAdminUtterance = null;
-
-if (!document.getElementById('hes-no-referrer')) {
-    const meta = document.createElement('meta');
-    meta.id = 'hes-no-referrer';
-    meta.name = 'referrer';
-    meta.content = 'no-referrer';
-    document.head.appendChild(meta);
-}
-
-function initBrowserVoices() {
-    if (!('speechSynthesis' in window)) return;
-    cachedBrowserVoices = window.speechSynthesis.getVoices() || [];
-    window.speechSynthesis.onvoiceschanged = () => {
-        cachedBrowserVoices = window.speechSynthesis.getVoices() || [];
-    };
-}
-initBrowserVoices();
-
-function ensureAdminVoicesLoaded() {
-    return new Promise(resolve => {
-        if (!('speechSynthesis' in window)) return resolve([]);
-        let list = window.speechSynthesis.getVoices() || [];
-        if (list.length) {
-            cachedBrowserVoices = list;
-            return resolve(list);
-        }
-        const timer = setTimeout(() => {
-            cachedBrowserVoices = window.speechSynthesis.getVoices() || [];
-            resolve(cachedBrowserVoices);
-        }, 500);
-        window.speechSynthesis.onvoiceschanged = () => {
-            clearTimeout(timer);
-            cachedBrowserVoices = window.speechSynthesis.getVoices() || [];
-            resolve(cachedBrowserVoices);
-        };
-    });
-}
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!requireAuth('admin')) return;
@@ -58,295 +17,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateAllAdminDropdowns();
     switchAdminTab(currentAdminTab);
 });
-
-async function safeSaveMaterialsToCloud(mutatorFn) {
-    updateCloudStatusUI('syncing');
-    try {
-        const { data, error } = await window.supabaseClient.from('app_data').select('value').eq('key', 'hes_materials').maybeSingle();
-        if (!error && data?.value) {
-            window.HES.materials = Object.assign({}, data.value, window.HES.materials);
-        }
-    } catch (e) {}
-    if (typeof mutatorFn === 'function') mutatorFn(window.HES.materials);
-    try { localStorage.setItem('hes_cache_materials', JSON.stringify(window.HES.materials)); } catch (e) {}
-    const { error } = await window.supabaseClient.from('app_data').upsert([{ key: 'hes_materials', value: window.HES.materials }]);
-    updateCloudStatusUI(error ? 'offline' : 'online');
-    return { error: error || null };
-}
-
-// ============================================================================
-// 100% DUAL-ENGINE AMERICAN ENGLISH (MAN = PRIA US, WOMAN = WANITA US)
-// ============================================================================
-function splitTextIntoSafeChunks(text, maxLen = 155) {
-    const safeText = String(text || '')
-        .replace(/\b(Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr)\.\s+/gi, '$1__DOT__ ');
-
-    const rawSentences = safeText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [safeText];
-    const chunks = [];
-
-    rawSentences.forEach(rawSent => {
-        const s = rawSent.replace(/__DOT__/g, '.').trim();
-        if (!s) return;
-        if (s.length <= maxLen) {
-            chunks.push(s);
-        } else {
-            const parts = s.split(/(?<=[,;:])\s+|\s+(?=(?:and|but|because|so|although|when|while|before|after)\b)/i);
-            let current = '';
-            parts.forEach(p => {
-                if ((current + ' ' + p).trim().length <= maxLen) {
-                    current = (current + ' ' + p).trim();
-                } else {
-                    if (current) chunks.push(current);
-                    current = p.trim();
-                }
-            });
-            if (current) chunks.push(current);
-        }
-    });
-    return chunks;
-}
-
-function parseDialogueSegments(rawText) {
-    // Paksa baris baru setiap kali bertemu kata kunci pembicara (Man:, Woman:, Kevin:, Sarah:, dll.)
-    const cleanedRaw = String(rawText || '')
-        .replace(/\r\n/g, '\n')
-        .replace(/\*+/g, '')
-        .replace(/^(?:AUDIO|SCRIPT|TEKS AUDIO)\s*:\s*/gim, '')
-        .replace(/\s*[\/|]\s*/g, '\n')
-        .replace(/(^|\s+)(?=(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Customer|Waiter)\s*:)/gi, '\n');
-
-    const lines = cleanedRaw.split('\n').map(l => l.trim()).filter(Boolean);
-    const segments = [];
-    let lastGender = 'female';
-
-    lines.forEach(line => {
-        let gender = null;
-        let cleanLine = line.replace(/^(?:AUDIO|SCRIPT|TEKS AUDIO)\s*:\s*/i, '').trim();
-
-        const prefixMatch = cleanLine.match(/^([A-Za-z\s.]{1,22}?)\s*:\s*(.+)$/);
-        if (prefixMatch) {
-            const speaker = prefixMatch[1].trim().toLowerCase();
-            cleanLine = prefixMatch[2].trim();
-            if (/^(man|male|boy|mr|father|dad|waiter|husband|son|brother|uncle|kevin|david|raka|budi|andi|john|tom|alex|speaker a|a)\b/.test(speaker)) {
-                gender = 'male';
-            } else if (/^(woman|female|girl|mrs|ms|miss|mother|mom|waitress|wife|daughter|sister|aunt|sarah|dina|nadia|sinta|rina|dinda|lisa|anna|speaker b|b)\b/.test(speaker)) {
-                gender = 'female';
-            } else {
-                gender = lastGender === 'male' ? 'female' : 'male';
-            }
-        } else {
-            gender = lastGender === 'male' ? 'female' : 'male';
-        }
-        lastGender = gender;
-
-        const safeChunks = splitTextIntoSafeChunks(cleanLine, 155);
-        safeChunks.forEach(chunk => {
-            if (chunk) segments.push({ text: chunk, gender });
-        });
-    });
-    return segments;
-}
-
-function getSharedAdminAudio() {
-    if (!sharedAdminAudioEl) {
-        sharedAdminAudioEl = new Audio();
-        sharedAdminAudioEl.referrerPolicy = 'no-referrer';
-        sharedAdminAudioEl.preload = 'auto';
-    }
-    return sharedAdminAudioEl;
-}
-
-function pickBestUSVoiceForGender(voices, gender) {
-    const allEn = voices.filter(v => /^en/i.test(String(v.lang || '')));
-    const usPool = allEn.filter(v => /us/i.test(String(v.lang || '')) || /united states|us/i.test(String(v.name || '')));
-    const pool = usPool.length ? usPool : allEn;
-    if (!pool.length) return { voice: null, isExplicitMale: false };
-
-    if (gender === 'male') {
-        const maleRegex = /\b(guy|christopher|eric|roger|steffan|andrew|brian|davis|tony|jason|jacob|aaron|alex|fred|david|mark|daniel|iom|tpd|iol|male)\b/i;
-        const femaleBlock = /\b(female|woman|zira|aria|jenny|michelle|ana|ava|emma|samantha|victoria|sfg|iob|tpf)\b/i;
-
-        // Utamakan localService agar Android patuh pada pitch bariton
-        const explicitLocal = pool.find(v => v.localService && maleRegex.test(`${v.name} ${v.voiceURI}`) && !femaleBlock.test(`${v.name} ${v.voiceURI}`));
-        if (explicitLocal) return { voice: explicitLocal, isExplicitMale: true };
-
-        const explicitAny = pool.find(v => maleRegex.test(`${v.name} ${v.voiceURI}`) && !femaleBlock.test(`${v.name} ${v.voiceURI}`));
-        if (explicitAny) return { voice: explicitAny, isExplicitMale: true };
-
-        // Di Android Chrome jika semua suara bernama "English (United States)", pilih suara local / index ke-2 (bukan index 0 yang cewek)
-        const localNonFirst = pool.slice(1).find(v => v.localService) || pool.find(v => v.localService);
-        if (localNonFirst) return { voice: localNonFirst, isExplicitMale: false };
-
-        return { voice: pool[1] || pool[0], isExplicitMale: false };
-    } else {
-        const femaleRegex = /\b(aria|jenny|michelle|ana|ava|emma|samantha|victoria|zira|google us english|sfg|iob|tpf|female)\b/i;
-        const maleBlock = /\b(guy|christopher|eric|roger|steffan|aaron|alex|fred|david|mark|iom|tpd|iol|\bmale\b)\b/i;
-        const explicitFemale = pool.find(v => femaleRegex.test(`${v.name} ${v.voiceURI}`) && !maleBlock.test(`${v.name} ${v.voiceURI}`));
-        return { voice: explicitFemale || pool[0], isExplicitMale: false };
-    }
-}
-
-// SUARA WANITA (WOMAN): Cloud US Female MP3 -> Fallback ke High-Pitch Female SpeechSynthesis
-function playFemaleChunkUS(text, sessionId) {
-    return new Promise(resolve => {
-        if (sessionId !== adminAudioSessionId) return resolve();
-        const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=en-US&dt=t&q=${encodeURIComponent(text)}`;
-        const audio = getSharedAdminAudio();
-        let settled = false;
-
-        const cleanup = () => {
-            audio.onended = null;
-            audio.onerror = null;
-        };
-
-        audio.onended = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            resolve();
-        };
-
-        audio.onerror = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            playSpeechSynthesisByGender(text, 'female', sessionId).then(resolve);
-        };
-
-        audio.src = url;
-        audio.playbackRate = 1.0;
-        const p = audio.play();
-        if (p !== undefined) {
-            p.catch(() => {
-                if (settled) return;
-                settled = true;
-                cleanup();
-                playSpeechSynthesisByGender(text, 'female', sessionId).then(resolve);
-            });
-        }
-    });
-}
-
-// SUARA PRIA (MAN): Dedicated US Male SpeechSynthesis dengan Penguncian Pitch Bariton (TIDAK PERNAH PAKAI GOOGLE TRANSLATE CEWEK)
-function playSpeechSynthesisByGender(text, gender, sessionId) {
-    return new Promise(resolve => {
-        if (sessionId !== adminAudioSessionId || !('speechSynthesis' in window)) return resolve();
-        const voices = cachedBrowserVoices.length ? cachedBrowserVoices : (window.speechSynthesis.getVoices() || []);
-        const { voice, isExplicitMale } = pickBestUSVoiceForGender(voices, gender);
-
-        const u = new SpeechSynthesisUtterance(text);
-        window._hesAdminUtterance = u;
-
-        if (voice) {
-            u.voice = voice;
-            // PENTING UNTUK ANDROID: Gunakan string voice.lang asli (misal en_US) agar suara tidak di-reset!
-            u.lang = voice.lang || 'en-US';
-        } else {
-            u.lang = 'en-US';
-        }
-
-        if (gender === 'male') {
-            u.pitch = isExplicitMale ? 0.80 : 0.52; // Bariton Pria yang berat dan jelas berbeda dari wanita
-            u.rate = 0.94;
-        } else {
-            u.pitch = 1.22; // Wanita
-            u.rate = 0.98;
-        }
-
-        const keepAlive = setInterval(() => {
-            if (sessionId !== adminAudioSessionId) {
-                clearInterval(keepAlive);
-                return;
-            }
-            if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-                window.speechSynthesis.pause();
-                window.speechSynthesis.resume();
-            }
-        }, 5000);
-
-        u.onend = () => {
-            clearInterval(keepAlive);
-            window._hesAdminUtterance = null;
-            resolve();
-        };
-        u.onerror = () => {
-            clearInterval(keepAlive);
-            window._hesAdminUtterance = null;
-            resolve();
-        };
-
-        window.speechSynthesis.speak(u);
-    });
-}
-
-window.stopNaturalEnglishTTS = function() {
-    adminAudioSessionId++;
-    if (sharedAdminAudioEl) {
-        try {
-            sharedAdminAudioEl.onended = null;
-            sharedAdminAudioEl.onerror = null;
-            sharedAdminAudioEl.pause();
-            sharedAdminAudioEl.removeAttribute('src');
-        } catch (e) {}
-    }
-    if ('speechSynthesis' in window) {
-        try { window.speechSynthesis.cancel(); } catch (e) {}
-    }
-    window._hesAdminUtterance = null;
-};
-
-window.playNaturalEnglishTTS = async function(text, btnEl = null) {
-    const cleanText = String(text || '').trim();
-    if (!cleanText) return showToast('Tulis naskah audio terlebih dahulu.', 'error');
-
-    if (btnEl && btnEl.dataset.playing === '1') {
-        window.stopNaturalEnglishTTS();
-        btnEl.dataset.playing = '0';
-        btnEl.innerHTML = btnEl.dataset.origHtml || `<i class="fas fa-play mr-1"></i> Tes Suara US`;
-        return;
-    }
-
-    window.stopNaturalEnglishTTS();
-    const currentSession = ++adminAudioSessionId;
-    getSharedAdminAudio();
-    await ensureAdminVoicesLoaded();
-
-    const segments = parseDialogueSegments(cleanText);
-    if (!segments.length) return;
-
-    const origHTML = btnEl ? btnEl.innerHTML : '';
-    if (btnEl) {
-        btnEl.dataset.origHtml = origHTML;
-        btnEl.dataset.playing = '1';
-    }
-
-    for (let i = 0; i < segments.length; i++) {
-        if (currentSession !== adminAudioSessionId) break;
-        const seg = segments[i];
-
-        if (btnEl) {
-            btnEl.innerHTML = seg.gender === 'male'
-                ? `<i class="fas fa-stop mr-1"></i> 👨 Man (US Male)...`
-                : `<i class="fas fa-stop mr-1"></i> 👩 Woman (US Female)...`;
-        }
-
-        if (seg.gender === 'male') {
-            // Pria selalu menggunakan Mesin Suara Pria (SpeechSynthesis Male Baritone)
-            await playSpeechSynthesisByGender(seg.text, 'male', currentSession);
-        } else {
-            // Wanita menggunakan Cloud US Female MP3 (atau Female SpeechSynthesis)
-            await playFemaleChunkUS(seg.text, currentSession);
-        }
-
-        if (currentSession !== adminAudioSessionId) break;
-        await new Promise(r => setTimeout(r, 220));
-    }
-
-    if (btnEl && currentSession === adminAudioSessionId) {
-        btnEl.dataset.playing = '0';
-        btnEl.innerHTML = origHTML;
-    }
-};
 
 window.refreshAdminCloudData = async function() {
     await syncFromCloud();
@@ -657,52 +327,6 @@ window.updateVocabStatus = async function(email, m, w, d, status) {
 };
 
 // TAB 4: EXAM BUILDER, SMART BULK IMPORT & GRADING
-function computeAccurateCategoryScore(cat, examData, examResult) {
-    const list = examData?.[cat] || [];
-    if (!list.length) return 0;
-    let totalPoints = 0;
-    const maxPerQuestion = 100 / list.length;
-
-    list.forEach((q, idx) => {
-        const key = `${cat}_${idx}`;
-        const ans = examResult?.answers?.[key];
-        const manualPoint = examResult?.scores?.[key];
-
-        if (q.type === 'mcq') {
-            if (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) {
-                totalPoints += maxPerQuestion;
-            }
-        } else {
-            if (manualPoint !== undefined && manualPoint !== null && manualPoint !== '') {
-                const num = parseFloat(manualPoint) || 0;
-                totalPoints += (num <= 10 ? (num / 10) * maxPerQuestion : (num / 100) * maxPerQuestion);
-            } else if (ans && String(ans).trim() !== '') {
-                if (cat === 'speaking' && String(ans).startsWith('data:audio')) {
-                    totalPoints += maxPerQuestion * 0.85;
-                } else {
-                    const target = String(q.answer || '').trim().toLowerCase();
-                    const studentStr = String(ans).trim().toLowerCase();
-                    if (target && studentStr === target) {
-                        totalPoints += maxPerQuestion;
-                    } else if (target) {
-                        const keywords = target.split(/[,/|\s]+/).filter(w => w.length > 2);
-                        if (keywords.length > 0) {
-                            const matched = keywords.filter(kw => studentStr.includes(kw)).length;
-                            const ratio = Math.max(0.5, matched / keywords.length);
-                            totalPoints += maxPerQuestion * Math.min(1, ratio);
-                        } else {
-                            totalPoints += maxPerQuestion * 0.8;
-                        }
-                    } else {
-                        totalPoints += maxPerQuestion * 0.85;
-                    }
-                }
-            }
-        }
-    });
-    return Math.min(100, Math.round(totalPoints));
-}
-
 window.loadAdminExamData = async function() {
     await syncFromCloud();
     adminExamState.student = document.getElementById('admin-exam-student').value;
@@ -768,16 +392,13 @@ KEY: [Kunci jawaban bahasa Inggris]
 EXP: [Pembahasan singkat bahasa Indonesia]
 ===`;
 
-    navigator.clipboard.writeText(promptText).then(() => {
-        showToast('Prompt Gemini berhasil disalin! Tempelkan ke Gemini untuk membuat soal.', 'success');
-    }).catch(() => {
-        showToast('Gagal menyalin otomatis.', 'error');
-    });
+    navigator.clipboard.writeText(promptText)
+        .then(() => showToast('Prompt Gemini berhasil disalin!', 'success'))
+        .catch(() => showToast('Gagal menyalin otomatis.', 'error'));
 };
 
 window.toggleBulkImportBox = function() {
-    const box = document.getElementById('bulk-import-box');
-    if (box) box.classList.toggle('hidden');
+    document.getElementById('bulk-import-box')?.classList.toggle('hidden');
 };
 
 window.processBulkExamImport = async function(replaceExisting = true) {
@@ -791,52 +412,30 @@ window.processBulkExamImport = async function(replaceExisting = true) {
     }
 
     const parsedQuestions = [];
-
     blocks.forEach((block, bIdx) => {
         const lines = block.split('\n').map(l => l.trim()).filter(l => l && !/^soal\s*#?\d+/i.test(l));
         if (!lines.length) return;
 
-        let audioLines = [], question = '', optA = '', optB = '', optC = '', optD = '', key = '', exp = '';
-        let currentField = '';
-
+        let audioLines = [], question = '', optA = '', optB = '', optC = '', optD = '', key = '', exp = '', currentField = '';
         lines.forEach(line => {
             if (/^(?:AUDIO|SCRIPT|TEKS AUDIO)\s*:/i.test(line)) {
                 currentField = 'audio';
                 const rest = line.replace(/^(?:AUDIO|SCRIPT|TEKS AUDIO)\s*:\s*/i, '').trim();
                 if (rest) audioLines.push(rest);
             } else if (/^(?:Q|QUESTION|PERTANYAAN|SOAL)\s*:/i.test(line)) {
-                currentField = 'q';
-                question = line.replace(/^(?:Q|QUESTION|PERTANYAAN|SOAL)\s*:\s*/i, '');
+                currentField = 'q'; question = line.replace(/^(?:Q|QUESTION|PERTANYAAN|SOAL)\s*:\s*/i, '');
             } else if (/^A\s*[.:)]\s*/i.test(line)) {
-                currentField = 'a';
-                optA = line.replace(/^A\s*[.:)]\s*/i, '');
+                currentField = 'a'; optA = line.replace(/^A\s*[.:)]\s*/i, '');
             } else if (/^B\s*[.:)]\s*/i.test(line)) {
-                currentField = 'b';
-                optB = line.replace(/^B\s*[.:)]\s*/i, '');
+                currentField = 'b'; optB = line.replace(/^B\s*[.:)]\s*/i, '');
             } else if (/^C\s*[.:)]\s*/i.test(line)) {
-                currentField = 'c';
-                optC = line.replace(/^C\s*[.:)]\s*/i, '');
+                currentField = 'c'; optC = line.replace(/^C\s*[.:)]\s*/i, '');
             } else if (/^D\s*[.:)]\s*/i.test(line)) {
-                currentField = 'd';
-                optD = line.replace(/^D\s*[.:)]\s*/i, '');
+                currentField = 'd'; optD = line.replace(/^D\s*[.:)]\s*/i, '');
             } else if (/^(?:KEY|ANSWER|TARGET|KUNCI|JAWABAN)\s*:/i.test(line)) {
-                currentField = 'key';
-                key = line.replace(/^(?:KEY|ANSWER|TARGET|KUNCI|JAWABAN)\s*:\s*/i, '');
+                currentField = 'key'; key = line.replace(/^(?:KEY|ANSWER|TARGET|KUNCI|JAWABAN)\s*:\s*/i, '');
             } else if (/^(?:EXP|EXPLANATION|PEMBAHASAN|TIPS)\s*:/i.test(line)) {
-                currentField = 'exp';
-                exp = line.replace(/^(?:EXP|EXPLANATION|PEMBAHASAN|TIPS)\s*:\s*/i, '');
-            } else if (/^1\s*:\s*/.test(line)) {
-                currentField = 'q';
-                question = line.replace(/^1\s*:\s*/, '');
-            } else if (/^2\s*:\s*/.test(line)) {
-                currentField = 'key';
-                key = line.replace(/^2\s*:\s*/, '');
-            } else if (/^3\s*:\s*/.test(line)) {
-                currentField = 'exp';
-                exp = line.replace(/^3\s*:\s*/, '');
-            } else if (/^4\s*:\s*/.test(line) && tab === 'listening') {
-                currentField = 'audio';
-                audioLines.push(line.replace(/^4\s*:\s*/, ''));
+                currentField = 'exp'; exp = line.replace(/^(?:EXP|EXPLANATION|PEMBAHASAN|TIPS)\s*:\s*/i, '');
             } else if (tab === 'listening' && (currentField === 'audio' || /^(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB])\s*:/i.test(line))) {
                 audioLines.push(line);
             } else if (currentField === 'q') {
@@ -844,26 +443,18 @@ window.processBulkExamImport = async function(replaceExisting = true) {
             }
         });
 
-        const audioScript = audioLines.join('\n')
-            .replace(/\s*[\/|]\s*/g, '\n')
-            .replace(/(^|\s+)(?=(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Customer|Waiter)\s*:)/gi, '\n')
-            .trim();
+        const audioScript = audioLines.join('\n').replace(/\s*[\/|]\s*/g, '\n').trim();
         if (!question && !audioScript) return;
 
-        const hasMCQOptions = Boolean(optA || optB || optC || optD);
-        const qType = (tab === 'speaking' || tab === 'writing') ? 'essay' : (hasMCQOptions ? 'mcq' : 'essay');
-
-        let finalAnswer = key;
-        if (qType === 'mcq') {
-            const letter = String(key || 'A').trim().toUpperCase().charAt(0);
-            finalAnswer = { A: 0, B: 1, C: 2, D: 3 }[letter] ?? 0;
-        }
+        const hasMCQ = Boolean(optA || optB || optC || optD);
+        const qType = (tab === 'speaking' || tab === 'writing') ? 'essay' : (hasMCQ ? 'mcq' : 'essay');
+        const finalAnswer = qType === 'mcq' ? ({ A: 0, B: 1, C: 2, D: 3 }[String(key || 'A').trim().toUpperCase().charAt(0)] ?? 0) : key;
 
         parsedQuestions.push({
             id: `${Date.now()}_${bIdx}`,
             type: qType,
             question: question || `Question #${bIdx + 1}`,
-            audioScript: audioScript,
+            audioScript,
             mediaUrl: '',
             options: qType === 'mcq' ? [optA, optB, optC, optD] : [],
             answer: finalAnswer,
@@ -871,19 +462,12 @@ window.processBulkExamImport = async function(replaceExisting = true) {
         });
     });
 
-    if (!parsedQuestions.length) {
-        return showToast('Format teks belum sesuai. Gunakan format Q:, KEY:, EXP: sesuai contoh.', 'error');
-    }
-
-    if (replaceExisting) {
-        adminExamState.data[tab] = parsedQuestions;
-    } else {
-        adminExamState.data[tab] = [...(adminExamState.data[tab] || []), ...parsedQuestions];
-    }
+    if (!parsedQuestions.length) return showToast('Format teks belum sesuai contoh.', 'error');
+    adminExamState.data[tab] = replaceExisting ? parsedQuestions : [...(adminExamState.data[tab] || []), ...parsedQuestions];
 
     switchExamTab(tab);
     await saveAdminExamData();
-    showToast(`${parsedQuestions.length} soal ${tab.toUpperCase()} berhasil diinput & disimpan sekaligus!`, 'success');
+    showToast(`${parsedQuestions.length} soal ${tab.toUpperCase()} berhasil diinput & disimpan!`, 'success');
 };
 
 window.addExamQuestion = function(type) {
@@ -891,13 +475,9 @@ window.addExamQuestion = function(type) {
     const defaultType = tab === 'speaking' ? 'essay' : type;
     adminExamState.data[tab].push({
         id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
-        type: defaultType,
-        question: '',
-        audioScript: '',
-        mediaUrl: '',
+        type: defaultType, question: '', audioScript: '', mediaUrl: '',
         options: defaultType === 'mcq' ? ['', '', '', ''] : [],
-        answer: defaultType === 'mcq' ? 0 : '',
-        explanation: ''
+        answer: defaultType === 'mcq' ? 0 : '', explanation: ''
     });
     switchExamTab(tab);
 };
@@ -912,27 +492,9 @@ window.updateExamField = function(idx, field, val, optIdx = null) {
     if (!q) return;
     if (optIdx !== null) q.options[optIdx] = val;
     else if (field === 'answer' && q.type === 'mcq') q.answer = parseInt(val) || 0;
-    else if (field === 'audioScript') {
-        q.audioScript = String(val || '')
-            .replace(/^(?:AUDIO|SCRIPT|TEKS AUDIO)\s*:\s*/gim, '')
-            .replace(/\s*[\/|]\s*/g, '\n')
-            .replace(/(^|\s+)(?=(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Customer|Waiter)\s*:)/gi, '\n')
-            .trim();
-    } else q[field] = val;
+    else if (field === 'audioScript') q.audioScript = String(val || '').replace(/\s*[\/|]\s*/g, '\n').trim();
+    else q[field] = val;
 };
-
-function getFormatPlaceholderForTab(tab) {
-    if (tab === 'listening') {
-        return `AUDIO: Man: Do you want to watch the new movie tonight? / Woman: I really want to go, but I have to finish my report.\nQ: Why can't the woman go to the cinema tonight?\nA: She doesn't like movies.\nB: She has to finish her report.\nC: She wants to visit her parents.\nD: She already watched it.\nKEY: B\nEXP: Pembahasan singkat...\n===\n(Tempelkan soal ke-2 s/d ke-10 di bawahnya...)`;
-    }
-    if (tab === 'speaking') {
-        return `Q: Read the following sentence aloud clearly: "I like to learn new languages in my free time."\nTARGET: I like to learn new languages in my free time.\nEXP: Perhatikan pelafalan akhiran -s pada languages.\n===\n(Tempelkan soal ke-2 s/d ke-10 di bawahnya...)`;
-    }
-    if (tab === 'reading') {
-        return `Q: Please don't knock on the door at 10 AM tomorrow because the students ___ their speaking test.\nA: will take\nB: will be taking\nC: have taken\nD: took\nKEY: B\nEXP: Kegiatan yang sedang berlangsung di masa depan menggunakan will be + V-ing.\n===\n(Tempelkan soal ke-2 s/d ke-10 di bawahnya...)`;
-    }
-    return `Q: Complete using Simple Future Tense: "I __________ (send) the meeting link in five minutes."\nKEY: will send\nEXP: Janji spontan menggunakan will + V1.\n===\n(Tempelkan soal ke-2 s/d ke-10 di bawahnya...)`;
-}
 
 function renderExamQuestions() {
     const box = document.getElementById('admin-exam-questions-container');
@@ -944,42 +506,32 @@ function renderExamQuestions() {
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
                     <h4 class="text-xs sm:text-sm font-extrabold text-indigo-950 uppercase flex items-center gap-1.5">
-                        <i class="fas fa-bolt text-amber-500"></i> Bagian ${tab} • ${list.length} / 10 Soal (Dual Engine: 👨 Man & 👩 Woman US)
+                        <i class="fas fa-bolt text-amber-500"></i> Bagian ${tab} • ${list.length} / 10 Soal (Suara Cloud Neural Natural)
                     </h4>
-                    <p class="text-xs text-slate-600 mt-0.5">
-                        Klik <strong>Input Cepat 10 Soal Sekaligus</strong> untuk menempelkan 10 soal langsung dari Gemini.
-                    </p>
+                    <p class="text-xs text-slate-600 mt-0.5">Klik <strong>Input Cepat 10 Soal</strong> untuk menempelkan soal langsung dari Gemini.</p>
                 </div>
                 <div class="flex flex-wrap gap-2 shrink-0">
                     <button type="button" onclick="copyGeminiExamPrompt()" class="px-3 py-2 rounded-xl bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-extrabold transition cursor-pointer">
                         <i class="fas fa-copy mr-1"></i> Salin Prompt Gemini
                     </button>
                     <button type="button" onclick="toggleBulkImportBox()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer">
-                        <i class="fas fa-paste mr-1"></i> Input Cepat 10 Soal Sekaligus
+                        <i class="fas fa-paste mr-1"></i> Input Cepat 10 Soal
                     </button>
                 </div>
             </div>
-
             <div id="bulk-import-box" class="hidden pt-3 border-t border-indigo-200/70 space-y-2.5">
-                <div class="flex items-center justify-between text-[11px] font-bold text-indigo-900">
-                    <span>Tempelkan 10 soal untuk bagian <strong>${tab.toUpperCase()}</strong> di bawah ini (pisahkan antar soal dengan <code>===</code>):</span>
-                    <span class="text-slate-500">Mendukung format <code>Q: / KEY: / EXP:</code> maupun <code>1: / 2: / 3:</code></span>
-                </div>
-                <textarea id="bulk-import-textarea" rows="8" class="hes-input !bg-white font-mono text-xs" placeholder="${getFormatPlaceholderForTab(tab)}"></textarea>
+                <textarea id="bulk-import-textarea" rows="7" class="hes-input !bg-white font-mono text-xs" placeholder="Tempelkan soal ${tab.toUpperCase()} di sini (pisahkan antar soal dengan ===)..."></textarea>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" onclick="processBulkExamImport(true)" class="hes-btn-primary !bg-emerald-600 hover:!bg-emerald-700 flex-1 !py-2.5 !text-xs cursor-pointer">
-                        <i class="fas fa-magic"></i> Proses & Ganti Semua Soal ${tab.toUpperCase()} Sekaligus
+                    <button type="button" onclick="processBulkExamImport(true)" class="hes-btn-primary !bg-emerald-600 flex-1 !py-2.5 !text-xs cursor-pointer">
+                        <i class="fas fa-magic"></i> Proses & Ganti Semua Soal ${tab.toUpperCase()}
                     </button>
-                    <button type="button" onclick="processBulkExamImport(false)" class="hes-btn-soft !bg-white !py-2.5 !text-xs cursor-pointer">
-                        + Tambahkan ke Daftar Bawah
-                    </button>
+                    <button type="button" onclick="processBulkExamImport(false)" class="hes-btn-soft !bg-white !py-2.5 !text-xs cursor-pointer">+ Tambahkan ke Bawah</button>
                 </div>
             </div>
-        </div>
-    `;
+        </div>`;
 
     if (!list.length) {
-        box.innerHTML = bulkImportUI + `<p class="text-xs text-slate-400 text-center py-8">Belum ada soal di bagian ${tab.toUpperCase()}. Klik tombol <strong>Input Cepat 10 Soal Sekaligus</strong> di atas untuk menempelkan 10 soal langsung.</p>`;
+        box.innerHTML = bulkImportUI + `<p class="text-xs text-slate-400 text-center py-8">Belum ada soal di bagian ${tab.toUpperCase()}.</p>`;
         return;
     }
 
@@ -993,7 +545,6 @@ function renderExamQuestions() {
                 <div class="flex items-center gap-2">
                     <span class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-extrabold">Soal #${idx + 1}</span>
                     <span class="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold">10 Poin</span>
-                    <span class="text-xs font-bold text-slate-400">(${q.type === 'mcq' ? 'Pilihan Ganda' : (tab === 'speaking' ? 'Rekaman Suara' : 'Essay / Isian')})</span>
                 </div>
                 <button type="button" onclick="removeExamQuestion(${idx})" class="text-xs text-red-500 hover:text-red-700 font-bold"><i class="fas fa-trash mr-1"></i>Hapus</button>
             </div>
@@ -1001,13 +552,13 @@ function renderExamQuestions() {
             ${tab === 'listening' ? `
                 <div class="p-3.5 rounded-xl bg-white border border-indigo-200 space-y-2">
                     <div class="flex items-center justify-between">
-                        <label class="text-xs font-extrabold text-indigo-700"><i class="fas fa-headphones-alt mr-1"></i> Naskah Audio Listening (👨 Man = Pria US, 👩 Woman = Wanita US)</label>
+                        <label class="text-xs font-extrabold text-indigo-700"><i class="fas fa-headphones-alt mr-1"></i> Naskah Audio Listening (Man / Woman)</label>
                         <button type="button" onclick="playNaturalEnglishTTS(document.getElementById('script_${idx}').value, this)" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold transition cursor-pointer">
-                            <i class="fas fa-play mr-1"></i> Tes Suara US
+                            <i class="fas fa-play mr-1"></i> Tes Suara
                         </button>
                     </div>
                     <textarea id="script_${idx}" oninput="updateExamField(${idx},'audioScript',this.value)" rows="2" placeholder="Man: ...&#10;Woman: ..." class="hes-input !bg-slate-50 text-xs">${scriptVal}</textarea>
-                    <input type="text" onchange="updateExamField(${idx},'mediaUrl',this.value)" value="${mp3Val}" placeholder="Opsional: Kosongkan saja jika memakai suara otomatis di atas" class="hes-input !bg-slate-50 !py-1.5 text-[11px]">
+                    <input type="text" onchange="updateExamField(${idx},'mediaUrl',this.value)" value="${mp3Val}" placeholder="Opsional: Link file MP3 eksternal" class="hes-input !bg-slate-50 !py-1.5 text-[11px]">
                 </div>
             ` : ''}
 
@@ -1029,8 +580,8 @@ function renderExamQuestions() {
             ` : `
                 <div>
                     <div class="flex items-center justify-between mb-1">
-                        <label class="text-[11px] font-bold text-emerald-700 uppercase">${tab === 'speaking' ? 'Kalimat Target / Kunci Pelafalan US' : 'Kunci Jawaban / Kriteria'}</label>
-                        ${tab === 'speaking' ? `<button type="button" onclick="playNaturalEnglishTTS(document.getElementById('ans_key_${idx}').value, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Tes Pelafalan US</button>` : ''}
+                        <label class="text-[11px] font-bold text-emerald-700 uppercase">${tab === 'speaking' ? 'Kalimat Target Pelafalan' : 'Kunci Jawaban / Kriteria'}</label>
+                        ${tab === 'speaking' ? `<button type="button" onclick="playNaturalEnglishTTS(document.getElementById('ans_key_${idx}').value, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Tes Pelafalan</button>` : ''}
                     </div>
                     <textarea id="ans_key_${idx}" oninput="updateExamField(${idx},'answer',this.value)" rows="2" class="hes-input !bg-white">${q.answer || ''}</textarea>
                 </div>
@@ -1043,9 +594,7 @@ function renderExamQuestions() {
 
 window.saveAdminExamData = async function() {
     const key = `exam-${adminExamState.student}-${adminExamState.month}`;
-    const { error } = await safeSaveMaterialsToCloud(materials => {
-        materials[key] = adminExamState.data;
-    });
+    const { error } = await safeSaveMaterialsToCloud(materials => { materials[key] = adminExamState.data; });
     if (!error) showToast('Seluruh soal ujian berhasil disimpan ke Cloud!', 'success');
     else showToast('Gagal menyimpan soal: ' + error.message, 'error');
 };
@@ -1053,21 +602,17 @@ window.saveAdminExamData = async function() {
 window.resetStudentExam = async function() {
     const s = document.getElementById('admin-exam-student').value, m = document.getElementById('admin-exam-month').value;
     if (!confirm(`Reset hasil ujian ${s} pada ${m.toUpperCase()}?`)) return;
-    await safeSaveMaterialsToCloud(materials => {
-        delete materials[`exam_result-${s}-${m}`];
-    });
+    await safeSaveMaterialsToCloud(materials => { delete materials[`exam_result-${s}-${m}`]; });
     document.getElementById('admin-grading-workspace').classList.add('hidden');
     showToast('Hasil ujian murid berhasil direset.', 'info');
 };
 
 window.loadStudentExamForGrading = async function() {
-    const s = document.getElementById('admin-exam-student').value;
-    const m = document.getElementById('admin-exam-month').value;
+    const s = document.getElementById('admin-exam-student').value, m = document.getElementById('admin-exam-month').value;
     document.getElementById('admin-exam-workspace').classList.add('hidden');
     const ws = document.getElementById('admin-grading-workspace');
     ws.classList.remove('hidden');
-    ws.innerHTML = `<div class="p-8 text-center text-xs font-bold text-slate-500"><i class="fas fa-sync fa-spin mr-1.5"></i> Mengambil data ujian terbaru dari Cloud...</div>`;
-
+    ws.innerHTML = `<div class="p-8 text-center text-xs font-bold text-slate-500"><i class="fas fa-sync fa-spin mr-1.5"></i> Mengambil data ujian dari Cloud...</div>`;
     await syncFromCloud();
     renderAdminGradingView(s, m);
 };
@@ -1076,11 +621,10 @@ window.updateQuestionManualPoint = function(email, monthId, cat, idx, val10) {
     const res = window.HES.materials[`exam_result-${email}-${monthId}`];
     if (!res) return;
     res.scores = res.scores || {};
-    const num10 = Math.max(0, Math.min(10, parseFloat(val10) || 0));
-    res.scores[`${cat}_${idx}`] = num10;
+    res.scores[`${cat}_${idx}`] = Math.max(0, Math.min(10, parseFloat(val10) || 0));
     const examData = window.HES.materials[`exam-${email}-${monthId}`];
     res.sectionScores = res.sectionScores || {};
-    res.sectionScores[cat] = computeAccurateCategoryScore(cat, examData, res);
+    res.sectionScores[cat] = computeExamSectionScore(cat, examData, res);
     const badgeEl = document.getElementById(`grade-tab-btn-${cat}`);
     if (badgeEl) badgeEl.innerText = `${cat} (${res.sectionScores[cat]}/100)`;
 };
@@ -1105,7 +649,7 @@ window.renderAdminGradingView = function(email, monthId) {
         ws.innerHTML = `
             <div class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3">
                 <p class="text-xs font-bold text-slate-500">Murid belum mengumpulkan jawaban ujian pada bulan ini.</p>
-                <button onclick="loadStudentExamForGrading()" class="hes-btn-soft !py-2 !px-4 !text-xs"><i class="fas fa-sync-alt mr-1"></i> Muat Ulang Data Cloud</button>
+                <button onclick="loadStudentExamForGrading()" class="hes-btn-soft !py-2 !px-4 !text-xs"><i class="fas fa-sync-alt mr-1"></i> Muat Ulang</button>
             </div>`;
         return;
     }
@@ -1116,9 +660,7 @@ window.renderAdminGradingView = function(email, monthId) {
     res.sectionScores = res.sectionScores || {};
 
     const cats = ['reading', 'writing', 'speaking', 'listening'];
-    cats.forEach(c => {
-        res.sectionScores[c] = computeAccurateCategoryScore(c, examData, res);
-    });
+    cats.forEach(c => { res.sectionScores[c] = computeExamSectionScore(c, examData, res); });
 
     const cat = currentAdminGradingTab;
     const questions = examData[cat] || [];
@@ -1161,12 +703,12 @@ window.renderAdminGradingView = function(email, monthId) {
                         <div class="space-y-2 mt-1">
                             <audio controls preload="metadata" class="h-10 w-full max-w-md rounded-lg" src="${ans}"></audio>
                             <div class="flex flex-wrap items-center gap-3">
-                                <a href="${ans}" download="rekaman_${email}_soal_${idx + 1}.webm" class="text-[11px] font-extrabold text-indigo-600 hover:underline"><i class="fas fa-download mr-1"></i>Unduh Audio Rekaman</a>
-                                ${transcript ? `<span class="text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg"><strong>Transkrip Otomatis:</strong> "${transcript}"</span>` : ''}
+                                <a href="${ans}" download="rekaman_${email}_soal_${idx + 1}.webm" class="text-[11px] font-extrabold text-indigo-600 hover:underline"><i class="fas fa-download mr-1"></i>Unduh Audio</a>
+                                ${transcript ? `<span class="text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg"><strong>Transkrip:</strong> "${transcript}"</span>` : ''}
                             </div>
                         </div>`;
                 } else {
-                    disp = ans ? `<p class="whitespace-pre-line font-semibold text-slate-800">${ans}</p>` : '<span class="text-red-500 italic">Tidak mengumpulkan rekaman / jawaban</span>';
+                    disp = ans ? `<p class="whitespace-pre-line font-semibold text-slate-800">${ans}</p>` : '<span class="text-red-500 italic">Tidak dijawab</span>';
                 }
 
                 return `
@@ -1182,8 +724,8 @@ window.renderAdminGradingView = function(email, monthId) {
                         </div>
                         ${isMCQ ? `
                             <div class="flex items-center justify-between pt-1">
-                                <span class="text-slate-500">Kunci Jawaban: <strong>${['A','B','C','D'][q.answer] || 'A'}. ${q.options?.[q.answer] || ''}</strong></span>
-                                <span class="font-extrabold ${currentPoint10 === 10 ? 'text-emerald-600' : 'text-red-600'}">${currentPoint10 === 10 ? '✓ Benar (+10 / 10 Poin Otomatis)' : '✗ Salah (0 / 10 Poin)'}</span>
+                                <span class="text-slate-500">Kunci: <strong>${['A','B','C','D'][q.answer] || 'A'}. ${q.options?.[q.answer] || ''}</strong></span>
+                                <span class="font-extrabold ${currentPoint10 === 10 ? 'text-emerald-600' : 'text-red-600'}">${currentPoint10 === 10 ? '✓ Benar (+10 Poin)' : '✗ Salah (0 Poin)'}</span>
                             </div>
                         ` : `
                             <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 items-center">
@@ -1193,7 +735,7 @@ window.renderAdminGradingView = function(email, monthId) {
                                     <span class="text-slate-400 font-bold">/ 10</span>
                                 </div>
                                 <div class="sm:col-span-8">
-                                    <input type="text" value="${res.questionNotes?.[key] || ''}" oninput="updateQuestionNote('${email}','${monthId}','${cat}',${idx},this.value)" placeholder="Catatan koreksi untuk murid di soal #${idx + 1} (opsional)..." class="hes-input !py-1.5 !bg-white text-xs">
+                                    <input type="text" value="${res.questionNotes?.[key] || ''}" oninput="updateQuestionNote('${email}','${monthId}','${cat}',${idx},this.value)" placeholder="Catatan koreksi soal #${idx + 1} (opsional)..." class="hes-input !py-1.5 !bg-white text-xs">
                                 </div>
                             </div>
                         `}
@@ -1205,8 +747,8 @@ window.renderAdminGradingView = function(email, monthId) {
                     <i class="fas fa-file-signature text-indigo-600"></i> Pengaturan Rapor (Report Card)
                 </h4>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Kelas / Level Program (Ditulis Manual)</label>
-                    <input type="text" id="admin-exam-level" value="${res.classLevel || ''}" oninput="window.HES.materials['exam_result-${email}-${monthId}'].classLevel=this.value" placeholder="Contoh: Beginner / Intermediate / Advanced / Conversation" class="hes-input !bg-white">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Kelas / Level Program</label>
+                    <input type="text" id="admin-exam-level" value="${res.classLevel || ''}" oninput="window.HES.materials['exam_result-${email}-${monthId}'].classLevel=this.value" placeholder="Contoh: Beginner / Intermediate / Advanced" class="hes-input !bg-white">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Tutor's Note (Catatan Evaluasi Pengajar)</label>
@@ -1230,16 +772,14 @@ window.saveExamGrades = async function(email, monthId) {
     res.gradedAt = new Date().toISOString();
     res.sectionScores = res.sectionScores || {};
     ['reading', 'writing', 'speaking', 'listening'].forEach(c => {
-        res.sectionScores[c] = computeAccurateCategoryScore(c, examData, res);
+        res.sectionScores[c] = computeExamSectionScore(c, examData, res);
     });
     res.isGraded = true;
 
-    const { error } = await safeSaveMaterialsToCloud(materials => {
-        materials[rKey] = res;
-    });
+    const { error } = await safeSaveMaterialsToCloud(materials => { materials[rKey] = res; });
     if (!error) {
         renderAdminGradingView(email, monthId);
-        showToast('Nilai disimpan & Rapor berhasil diterbitkan ke murid!', 'success');
+        showToast('Nilai disimpan & Rapor berhasil diterbitkan!', 'success');
     } else {
         showToast('Gagal menyimpan nilai: ' + error.message, 'error');
     }
