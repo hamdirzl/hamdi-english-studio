@@ -131,10 +131,21 @@ function updateCloudStatusUI(status) {
 }
 
 // ============================================================================
-// MESIN SUARA MANUSIA (CLOUD NEURAL TTS) - NATURAL DI HP & LAPTOP
+// MESIN SUARA 100% AMERICAN ENGLISH (US MALE & US FEMALE NATURAL DI HP)
 // ============================================================================
 let _ttsSessionId = 0;
 let _sharedAudioEl = null;
+let _audioUnlocked = false;
+let _cachedVoices = [];
+
+function initTTSVoices() {
+    if (!('speechSynthesis' in window)) return;
+    _cachedVoices = window.speechSynthesis.getVoices() || [];
+    window.speechSynthesis.onvoiceschanged = () => {
+        _cachedVoices = window.speechSynthesis.getVoices() || [];
+    };
+}
+initTTSVoices();
 
 function getSharedTTSAudio() {
     if (!_sharedAudioEl) {
@@ -145,7 +156,21 @@ function getSharedTTSAudio() {
     return _sharedAudioEl;
 }
 
-function splitIntoChunks(text, maxLen = 165) {
+// Buka kunci audio di Chrome HP tepat saat tombol disentuh
+function unlockMobileAudio() {
+    if (_audioUnlocked) return;
+    const audio = getSharedTTSAudio();
+    audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+    const p = audio.play();
+    if (p !== undefined) {
+        p.then(() => {
+            audio.pause();
+            _audioUnlocked = true;
+        }).catch(() => {});
+    }
+}
+
+function splitIntoChunks(text, maxLen = 160) {
     const safe = String(text || '').replace(/\b(Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr)\.\s+/gi, '$1__DOT__ ');
     const sentences = safe.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [safe];
     const chunks = [];
@@ -202,13 +227,64 @@ function parseDialogueSegments(rawText) {
     return segments;
 }
 
-function playCloudNeuralChunk(text, gender, sessionId) {
+function pickBestUSVoice(gender) {
+    const voices = _cachedVoices.length ? _cachedVoices : (window.speechSynthesis?.getVoices() || []);
+    // Kunci HANYA ke bahasa Inggris Amerika (en-US / en_US), jangan pernah ambil en-GB (British)
+    const usVoices = voices.filter(v => /en[-_]us/i.test(String(v.lang || '')) || /united states|\bus\b/i.test(String(v.name || '')));
+    const pool = usVoices.length ? usVoices : voices.filter(v => /^en/i.test(String(v.lang || '')) && !/gb|uk|au|in/i.test(String(v.lang || '')));
+    if (!pool.length) return { voice: null, isExplicitMale: false };
+
+    if (gender === 'male') {
+        const maleRegex = /\b(guy|christopher|eric|roger|steffan|andrew|brian|davis|tony|jason|jacob|aaron|alex|fred|david|mark|daniel|iom|tpd|iol|male)\b/i;
+        const femaleBlock = /\b(female|woman|zira|aria|jenny|michelle|ana|ava|emma|samantha|victoria|sfg|iob|tpf)\b/i;
+
+        // Utamakan suara Online/Natural (!v.localService) agar tidak terdengar seperti robot
+        const naturalMale = pool.find(v => !v.localService && maleRegex.test(`${v.name} ${v.voiceURI}`) && !femaleBlock.test(`${v.name} ${v.voiceURI}`));
+        if (naturalMale) return { voice: naturalMale, isExplicitMale: true };
+
+        const anyMale = pool.find(v => maleRegex.test(`${v.name} ${v.voiceURI}`) && !femaleBlock.test(`${v.name} ${v.voiceURI}`));
+        if (anyMale) return { voice: anyMale, isExplicitMale: true };
+
+        // Jika di Chrome HP nama suaranya hanya "English (United States)", utamakan yang Online (!localService)
+        const naturalUS = pool.find(v => !v.localService) || pool[1] || pool[0];
+        return { voice: naturalUS, isExplicitMale: false };
+    } else {
+        const femaleRegex = /\b(aria|jenny|michelle|ana|ava|emma|samantha|victoria|zira|google us english|sfg|iob|tpf|female)\b/i;
+        const naturalFemale = pool.find(v => !v.localService && femaleRegex.test(`${v.name} ${v.voiceURI}`)) || pool.find(v => !v.localService) || pool[0];
+        return { voice: naturalFemale, isExplicitMale: false };
+    }
+}
+
+// SUARA PRIA (MAN): 100% American English dengan nada bariton natural (0.72, bukan 0.52 robot)
+function playUSMaleChunk(text, sessionId) {
+    return new Promise(resolve => {
+        if (sessionId !== _ttsSessionId || !('speechSynthesis' in window)) return resolve();
+        try {
+            window.speechSynthesis.cancel();
+            const { voice, isExplicitMale } = pickBestUSVoice('male');
+            const u = new SpeechSynthesisUtterance(text);
+            if (voice) {
+                u.voice = voice;
+                u.lang = voice.lang || 'en-US';
+            } else {
+                u.lang = 'en-US';
+            }
+            // Pitch 0.72 mengubah vokal ke frekuensi pria dewasa secara natural tanpa distorsi robot
+            u.pitch = isExplicitMale ? 0.95 : 0.72;
+            u.rate = 0.98;
+            u.onend = u.onerror = () => resolve();
+            window.speechSynthesis.speak(u);
+        } catch (e) {
+            resolve();
+        }
+    });
+}
+
+// SUARA WANITA (WOMAN): 100% American English Cloud Neural MP3 (en-US) -> Fallback ke US Female
+function playUSFemaleChunk(text, sessionId) {
     return new Promise(resolve => {
         if (sessionId !== _ttsSessionId) return resolve();
-
-        // Gunakan Google Neural TTS MP3 (en-US untuk Wanita, en-GB dengan nada natural lebih rendah untuk Pria)
-        const tl = gender === 'male' ? 'en-GB' : 'en-US';
-        const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
+        const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=en-US&dt=t&q=${encodeURIComponent(text)}`;
         const audio = getSharedTTSAudio();
         let done = false;
 
@@ -220,7 +296,7 @@ function playCloudNeuralChunk(text, gender, sessionId) {
             resolve();
         };
 
-        const fallbackBrowserTTS = () => {
+        const fallbackUSFemale = () => {
             if (done) return;
             done = true;
             audio.onended = null;
@@ -228,30 +304,28 @@ function playCloudNeuralChunk(text, gender, sessionId) {
             if (!('speechSynthesis' in window) || sessionId !== _ttsSessionId) return resolve();
             try {
                 window.speechSynthesis.cancel();
+                const { voice } = pickBestUSVoice('female');
                 const u = new SpeechSynthesisUtterance(text);
-                u.lang = tl;
-                u.rate = 0.95;
-                u.pitch = gender === 'male' ? 0.92 : 1.02; // Pitch manusia normal (bukan 0.52 yang seperti robot)
+                if (voice) {
+                    u.voice = voice;
+                    u.lang = voice.lang || 'en-US';
+                } else {
+                    u.lang = 'en-US';
+                }
+                u.pitch = 1.06;
+                u.rate = 0.98;
                 u.onend = u.onerror = () => resolve();
                 window.speechSynthesis.speak(u);
             } catch (e) { resolve(); }
         };
 
         audio.onended = finish;
-        audio.onerror = fallbackBrowserTTS;
+        audio.onerror = fallbackUSFemale;
         audio.src = url;
+        audio.playbackRate = 1.0;
 
-        // Bedakan warna vokal pria secara halus tanpa efek robot
-        const preserve = gender !== 'male';
-        if ('preservesPitch' in audio) audio.preservesPitch = preserve;
-        if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = preserve;
-        if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = preserve;
-        audio.playbackRate = gender === 'male' ? 0.93 : 1.0;
-
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(fallbackBrowserTTS);
-        }
+        const p = audio.play();
+        if (p !== undefined) p.catch(fallbackUSFemale);
     });
 }
 
@@ -282,6 +356,7 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
         return;
     }
 
+    unlockMobileAudio();
     window.stopNaturalEnglishTTS();
     const session = ++_ttsSessionId;
     const segments = parseDialogueSegments(cleanText);
@@ -299,12 +374,18 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null) {
         const seg = segments[i];
         if (btnEl && segments.length > 1) {
             btnEl.innerHTML = seg.gender === 'male'
-                ? `<i class="fas fa-stop mr-1"></i> 👨 Speaker A...`
-                : `<i class="fas fa-stop mr-1"></i> 👩 Speaker B...`;
+                ? `<i class="fas fa-stop mr-1"></i> 👨 Man (US)...`
+                : `<i class="fas fa-stop mr-1"></i> 👩 Woman (US)...`;
         }
-        await playCloudNeuralChunk(seg.text, seg.gender, session);
+
+        if (seg.gender === 'male') {
+            await playUSMaleChunk(seg.text, session);
+        } else {
+            await playUSFemaleChunk(seg.text, session);
+        }
+
         if (session !== _ttsSessionId) break;
-        if (i < segments.length - 1) await new Promise(r => setTimeout(r, 200));
+        if (i < segments.length - 1) await new Promise(r => setTimeout(r, 220));
     }
 
     if (btnEl && session === _ttsSessionId) {
