@@ -217,7 +217,7 @@ window.deleteStudentAccount = async function(email) {
 };
 
 // ============================================================================
-// TAB 3: BUILDER MODUL MATERI PINTAR & MASTER WORDBANK
+// TAB 3: BUILDER MODUL MATERI BILINGUAL (BOOK-FLOW) & MASTER WORDBANK
 // ============================================================================
 window.switchAdminMaterialSubtab = function(sub) {
     currentAdminMaterialSubtab = sub;
@@ -274,142 +274,135 @@ window.copyGeminiModulePrompt = function(mode = 'single') {
     const sNum = ((parseInt($('admin-week')?.value || '1') - 1) * 3) + parseInt($('admin-day')?.value || '1');
 
     const prompts = {
-        single: `Act as a warm, charismatic, and modern private English coach at "Hamdi English Studio".
-Create an engaging, relaxed, and natural-flowing English Study Guide for ${m} - Session ${sNum} on the topic: [ISI TOPIK MATERI DI SINI].
+        single: `Bertindaklah sebagai penulis buku panduan Bahasa Inggris best-seller sekaligus mentor privat yang hangat di "Hamdi English Studio".
+Buatkan materi panduan belajar yang MENDALAM, MENGALIR, dan TIDAK KAKU untuk ${m} - Session ${sNum} dengan topik: [ISI TOPIK MATERI DI SINI].
 
-IMPORTANT STYLE RULES:
-- DO NOT make it stiff, robotic, or overly academic. Write like a friendly mentor chatting directly with the student ("Imagine you're at a coffee shop...", "Here is the secret native speakers use...").
-- Vary the flow naturally based on the topic! Mix warm storytelling paragraphs with visual blocks so it feels like a modern magazine workbook, not a boring list of bullet points.
-- Put the output inside a single code block using a flexible mix of these section headers (you can reorder them or use custom "## Headings" to fit the topic naturally):
+ATURAN BAHASA & KEDALAMAN MATERI (WAJIB DIIKUTI):
+1. BILINGUAL (CAMPUR INDONESIA - INGGRIS YANG NATURAL):
+   - Gunakan Bahasa Indonesia yang santai, akrab, dan jernih untuk menjelaskan logika konsep, nuansa rasa bahasa, budaya penutur asli (native speaker), dan alasan mengapa suatu kalimat dipakai.
+   - Gunakan Bahasa Inggris natural untuk semua kalimat contoh, ungkapan, rumus, dan percakapan (berikan terjemahan/arti Indonesia di dalam kurung setelah kalimat Inggris).
+2. JANGAN MONOTON / JANGAN PAKAI TEMPLATE KAKU:
+   - Susun alur bab ("## Judul Bab") dan sub-bab ("### Sub-judul") secara kreatif dan bervariasi menyesuaikan karakter topik ini, layaknya buku panduan belajar bahasa Inggris populer!
+   - Jelaskan secara MENDALAM dan DETAIL: kupas tuntas perbedaan nuansa kata, kapan waktu yang pas menggunakannya (situasi formal vs santai), serta jebakan terjemahan harfiah (Bahasa Indonesia ke Inggris) yang sering bikin kalimat terdengar aneh.
+   - Kamu bebas memadukan paragraf cerita/penjelasan, kotak catatan (> Catatan: ...), rumus visual, perbandingan kalimat, daftar ekspresi, beberapa simulasi dialog pendek di situasi berbeda, hingga latihan interaktif di tengah maupun di akhir materi.
 
-TITLE: [Catchy, Modern Topic Title]
+FORMAT KOMPONEN VISUAL YANG DIDUKUNG SISTEM KAMI (Gunakan & racik secara fleksibel sesuai kebutuhan topik di dalam 1 code block):
+
+TITLE: [Judul Topik yang Menarik & Modern]
 LEVEL: [${m} • Session ${sNum} of 12]
-STYLE: [Choose one theme: ocean / indigo / teal / amber]
-GOAL: [1 warm sentence about what the student will be able to do naturally after today]
+STYLE: [Pilih warna tema: ocean / indigo / teal / amber]
+GOAL: [1-2 kalimat hangat (Bilingual) tentang apa yang akan dikuasai murid setelah membaca bab ini]
 
-STORY:
-[Write 1-2 relaxed, relatable storytelling paragraphs setting a real-life scene or situation where this English topic happens naturally. Include a few **bold** expressions in context.]
+## [Judul Bab 1 yang Kreatif Sesuai Topik, misal: Mengapa Terjemahan Harfiah Sering Terdengar Kaku?]
+[Tulis 2-3 paragraf penjelasan mendalam dengan gaya bercerita yang asyik. Gunakan **bold** untuk menyorot kata penting dan "tanda kutip" untuk contoh kalimat Inggris.]
+> **Kunci Pemahaman**: [Tulis insight penting, rahasia native speaker, atau jembatan keledai agar murid langsung paham konsep intinya.]
 
-## [Custom Engaging Heading Explaining the Core Idea]
-[Write 1-2 clear, conversational paragraphs explaining how this works in real life without stiff grammar jargon. Then optionally add 2-3 key highlights:]
-- [Key Insight 1]: [Friendly explanation]
-- [Key Insight 2]: [Friendly explanation]
+## [Judul Bab 2 Sesuai Topik, misal: Bedah Logika / Skenario Situasi / Anatomi Ungkapan]
+[Penjelasan pengantar bab yang detail dan mudah dicerna...]
+### [Sub-bab Opsional untuk Memecah Pembahasan Detail]
+- **[Poin / Nuansa 1]**: [Penjelasan detail dalam Bahasa Indonesia + contoh kalimat "English sentence" (Arti Indonesia).]
+- **[Poin / Nuansa 2]**: [Penjelasan detail dalam Bahasa Indonesia + contoh kalimat "English sentence" (Arti Indonesia).]
 
-PATTERNS:
-[+] [Pattern Name] | [Visual building blocks separated by +, e.g., Subject + usually + Verb 1 + Object] | [1 natural example sentence]
-[-] [Negative / Alternative Pattern] | [Building blocks separated by +] | [1 natural example sentence]
-[?] [Question Pattern] | [Building blocks separated by +] | [1 natural example sentence]
+(Jika topik membutuhkan rumus/pola kalimat, gunakan blok ini:)
+[+] [Nama Pola Positif/Utama] | [Blok 1 + Blok 2 + Blok 3] | [Contoh kalimat Inggris natural (Terjemahan Indonesia)]
+[-] [Nama Pola Negatif/Alternatif] | [Blok 1 + Blok 2 + Blok 3] | [Contoh kalimat Inggris natural (Terjemahan Indonesia)]
+[?] [Nama Pola Pertanyaan] | [Blok 1 + Blok 2 + Blok 3] | [Contoh kalimat Inggris natural (Terjemahan Indonesia)]
 
-PHRASES:
-- [Natural Expression 1] | [Simple English meaning] | [Natural example sentence]
-- [Natural Expression 2] | [Simple English meaning] | [Natural example sentence]
-- [Natural Expression 3] | [Simple English meaning] | [Natural example sentence]
-- [Natural Expression 4] | [Simple English meaning] | [Natural example sentence]
+## [Judul Bab 3 Sesuai Topik, misal: Koleksi Ekspresi Natural / Variasi Formal vs Nongkrong]
+[Paragraf penjelasan tentang bagaimana membedakan nada bicara...]
+- [Ungkapan Inggris 1] | [Penjelasan arti, nuansa, & kapan dipakai (Indonesia)] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
+- [Ungkapan Inggris 2] | [Penjelasan arti, nuansa, & kapan dipakai (Indonesia)] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
+- [Ungkapan Inggris 3] | [Penjelasan arti, nuansa, & kapan dipakai (Indonesia)] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
+- [Ungkapan Inggris 4] | [Penjelasan arti, nuansa, & kapan dipakai (Indonesia)] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
+- [Ungkapan Inggris 5] | [Penjelasan arti, nuansa, & kapan dipakai (Indonesia)] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
 
-PRO TIP:
-[Write a short, memorable "insider tip" or cultural note from a tutor's perspective so the student sounds more natural.]
+(Jika ingin membandingkan Terjemahan Kaku vs Natural, atau Formal vs Santai, gunakan format perbandingan ini:)
+- [Kaku: Kalimat Inggris kaku/salah] | [Natural: Kalimat Inggris natural (Arti Indonesia)] | [Alasan detail dalam Bahasa Indonesia mengapa versi kanan terdengar lebih natural]
+- [Formal: Kalimat Inggris sopan/kantor] | [Santai: Kalimat Inggris kasual (Arti Indonesia)] | [Penjelasan situasi penggunaannya]
 
-MISTAKES:
-- [Stiff or Wrong Sentence 1] | [Natural English Upgrade 1] | [Friendly 1-sentence reason]
-- [Stiff or Wrong Sentence 2] | [Natural English Upgrade 2] | [Friendly 1-sentence reason]
+## [Judul Bab 4: Simulasi Percakapan Nyata di Lapangan]
+[1 kalimat pengantar konteks suasana percakapan dalam Bahasa Indonesia]
+Man: [Kalimat Inggris natural 1] ([Terjemahan Indonesia])
+Woman: [Kalimat Inggris natural 2] ([Terjemahan Indonesia])
+Man: [Kalimat Inggris natural 3] ([Terjemahan Indonesia])
+Woman: [Kalimat Inggris natural 4] ([Terjemahan Indonesia])
+Man: [Kalimat Inggris natural 5] ([Terjemahan Indonesia])
+Woman: [Kalimat Inggris natural 6] ([Terjemahan Indonesia])
 
-DIALOGUE:
-[Optional: 1 short sentence setting the scene of the conversation]
-Man: [Natural spoken line 1]
-Woman: [Natural spoken line 2]
-Man: [Natural spoken line 3]
-Woman: [Natural spoken line 4]
-Man: [Natural spoken line 5]
-Woman: [Natural spoken line 6]
+## [Judul Bab 5: Tantangan Interaktif & Praktek Mandiri]
+1. [Detektif Nuansa / Terjemahan Natural]: [Soal latihan kontekstual] (Answer: [Kunci jawaban Bahasa Inggris + pembahasan singkat dalam Bahasa Indonesia])
+2. [Upgrade Kalimat Kaku]: [Minta murid mengubah kalimat kaku/Indonesia ke ekspresi natural hari ini] (Answer: [Contoh jawaban natural + alasannya])
+3. [Tantangan Respon Situasi]: [Berikan skenario nyata dan minta murid merespon dengan suara lantang] (Answer: [Contoh respon yang bisa dipakai murid])`,
 
-PRACTICE:
-1. [Quick Brain Check]: [Interactive fill-in-the-blank or sentence upgrade question] (Answer: [Provide the answer key here so the app turns it into a Click-to-Reveal button])
-2. [Fix the Vibe]: [Ask the student to make a stiff sentence sound more natural] (Answer: [Sample natural answer])
-3. [Real-Life Speaking Mission]: [A fun, relatable speaking prompt to discuss aloud with the tutor]`,
+        bulk: `Bertindaklah sebagai penulis buku kurikulum Bahasa Inggris best-seller untuk "Hamdi English Studio".
+Buatkan 12 Bab Materi Panduan Belajar (Session 1 s/d Session 12) untuk ${m} yang BILINGUAL (Penjelasan Bahasa Indonesia mendalam + Contoh/Dialog Bahasa Inggris), DETAIL, dan SANGAT BERVARIASI.
+Tema / Level Bulan Ini: [ISI TEMA / LEVEL BULAN INI, MISAL: PERCAKAPAN SEHARI-HARI & PENGUASAAN TENSES NATURAL].
 
-        bulk: `Act as a creative curriculum designer for "Hamdi English Studio".
-Create 12 varied, engaging, and natural-flowing English Study Guides for ${m} (Session 1 to Session 12).
-Theme / Level for this month: [ISI TEMA / LEVEL BULAN INI, MISAL: CASUAL DAILY SPEAKING & CONFIDENCE BUILDER].
+ATURAN UTAMA AGAR 12 SESI TIDAK MONOTON & TIDAK TERASA TEMPLATE:
+1. GANTI PENDEKATAN BELAJAR DI SETIAP SESI! Jangan gunakan urutan bab yang sama terus-menerus:
+   - Sesi 1, 5, 9 (Gaya Bedah Konsep & Logika Bahasa): Fokus membongkar cara berpikir bahasa Inggris vs Indonesia, dilengkapi rumus visual [+]/[-]/[?], jebakan kesalahan umum, dan dialog aplikasi.
+   - Sesi 2, 6, 10 (Gaya Skenario Situasional & Survival): Fokus pada situasi nyata (misal di kafe, kantor, bandara, telepon), tahapan obrolan dari buka suara sampai pamit, perbandingan [Formal: ...] vs [Santai: ...], dan multi-dialog.
+   - Sesi 3, 7, 11 (Gaya Storytelling & Bedah Ekspresi Native): Dibuka dengan cerita pendek yang seru, lalu membedah idiom/phrasal verbs yang muncul di cerita tersebut beserta nuansa emosinya.
+   - Sesi 4, 8, 12 (Gaya Klinik Kelancaran & Roleplay): Fokus mengubah kalimat "buku teks kaku" menjadi bahasa ngobrol yang luwes ([Kaku: ...] | [Natural: ...]), tips pelafalan/intonasi (> Tips: ...), dan simulasi tanya-jawab.
+2. BILINGUAL & DETAIL: Jelaskan konsep dengan Bahasa Indonesia yang hangat dan mendalam. Untuk setiap kalimat dialog atau contoh, sertakan terjemahan Indonesia di dalam kurung (...) di akhir baris agar murid mudah memahami artinya tanpa mengganggu mesin suara Inggris.
+3. Pisahkan setiap sesi dengan tanda === di baris baru.
 
-CRITICAL RULES TO PREVENT BOREDOM:
-- DO NOT make all 12 sessions look identical! Vary the structure and vibe across sessions.
-- Write in warm, relaxed paragraphs—never just dry bullet points.
-- Separate each session with === on a new line.
-
-Use this structure for each session inside a single code block:
+Gunakan struktur fleksibel ini di dalam 1 code block:
 
 SESSION: 1
-TITLE: [Engaging Title]
+TITLE: [Judul Menarik Sesi 1]
 LEVEL: [${m} • Session 1 of 12]
 STYLE: [ocean / indigo / teal / amber]
-GOAL: [Warm 1-sentence goal]
+GOAL: [Target belajar sesi ini dalam Bahasa Indonesia & Inggris]
 
-STORY:
-[Relatable real-life story or scenario in 1-2 flowing paragraphs]
+## [Judul Bab Kreatif 1]
+[Paragraf penjelasan mendalam Bilingual...]
+> **[Judul Catatan]**: [Tips penting / nuansa budaya]
 
-## [Engaging Custom Section Title]
-[Conversational explanation paragraph]
-- [Highlight 1]: [Friendly note]
-- [Highlight 2]: [Friendly note]
+## [Judul Bab Kreatif 2]
+[Kombinasi sub-bab ###, poin penjelasan, rumus [+]/[-]/[?], atau daftar ekspresi: Frasa Inggris | Penjelasan Indo | Contoh Inggris (Arti Indo)]
 
-PATTERNS:
-[+] [Name] | [Block 1 + Block 2 + Block 3] | [Natural example]
-[?] [Name] | [Block 1 + Block 2 + Block 3] | [Natural example]
+## [Judul Bab Kreatif 3]
+[Perbandingan [Kaku: ...] | [Natural: ...] | [Alasan] ATAU Simulasi Dialog Man:/Woman: dengan terjemahan di dalam kurung (...)]
 
-PHRASES:
-- [Expression 1] | [Simple meaning] | [Example sentence]
-- [Expression 2] | [Simple meaning] | [Example sentence]
-- [Expression 3] | [Simple meaning] | [Example sentence]
-- [Expression 4] | [Simple meaning] | [Example sentence]
-
-MISTAKES:
-- [Wrong/Stiff 1] | [Natural 1] | [Short reason]
-- [Wrong/Stiff 2] | [Natural 2] | [Short reason]
-
-DIALOGUE:
-Man: [Line 1]
-Woman: [Line 2]
-Man: [Line 3]
-Woman: [Line 4]
-
-PRACTICE:
-1. [Quick Check]: [Question] (Answer: [Key])
-2. [Speaking Mission]: [Fun speaking prompt]
+## [Judul Bab Latihan]
+1. [Tipe Soal 1]: [Pertanyaan] (Answer: [Kunci & Pembahasan])
+2. [Tipe Soal 2]: [Pertanyaan] (Answer: [Kunci & Pembahasan])
+3. [Praktek Speaking]: [Tantangan bicara] (Answer: [Contoh respon])
 ===
 SESSION: 2
-... (continue up to SESSION: 12)`,
+... (lanjutkan dengan gaya penyajian yang berbeda hingga SESSION: 12)`,
 
-        recap: `Write a warm, personal, and encouraging Class Recap & Coaching Note (in friendly English) for my student after Session ${sNum} (${m}) about: [ISI TOPIK / CATATAN SINGKAT KELAS HARI INI].
+        recap: `Buatkan Catatan Evaluasi & Rangkuman Kelas (Class Recap) yang hangat, personal, dan mendalam (Bilingual: Bahasa Indonesia santai + Bahasa Inggris) untuk murid saya setelah menyelesaikan Session ${sNum} (${m}) tentang: [ISI TOPIK / CATATAN KELAS HARI INI].
 
-Put the result inside a code block using this natural format:
+Tulis hasilnya di dalam code block dengan format mengalir berikut:
 
-TITLE: Personal Class Recap • Session ${sNum}
-LEVEL: ${m} • Coaching Summary
+TITLE: Rangkuman & Evaluasi Kelas • Session ${sNum}
+LEVEL: ${m} • Personal Coaching Summary
 STYLE: emerald
-GOAL: Celebrate today's speaking wins and lock in your new expressions.
+GOAL: Mengulas kembali poin terbaik dari sesi latihan hari ini dan mengunci koreksi kalimat agar makin luwes.
 
-STORY:
-[Write a warm, personal note praising the student's effort and energy in class today, written like a supportive coach.]
+## Apresiasi & Catatan Perkembangan Hari Ini
+[Tulis 1-2 paragraf hangat dalam Bahasa Indonesia yang mengapresiasi keberanian dan perkembangan murid di kelas hari ini, layaknya mentor pribadi yang suportif.]
 
-PHRASES:
-- [Best Expression Practiced 1] | [Meaning] | [Example from today's topic]
-- [Best Expression Practiced 2] | [Meaning] | [Example from today's topic]
-- [Best Expression Practiced 3] | [Meaning] | [Example from today's topic]
+## Ungkapan & Kosakata Emas yang Kita Praktekkan
+- [Ungkapan Inggris 1] | [Arti & catatan kapan menggunakannya] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
+- [Ungkapan Inggris 2] | [Arti & catatan kapan menggunakannya] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
+- [Ungkapan Inggris 3] | [Arti & catatan kapan menggunakannya] | [Contoh kalimat Inggris (Terjemahan Indonesia)]
 
-MISTAKES:
-- [What was said in class 1] | [Smoother, natural version 1] | [Friendly coaching note]
-- [What was said in class 2] | [Smoother, natural version 2] | [Friendly coaching note]
+## Upgrade Kalimat: Dari Kaku Menjadi Natural
+- [Tadi Terucap: Kalimat yang masih kurang pas 1] | [Versi Natural: Kalimat perbaikan 1 (Arti Indonesia)] | [Penjelasan ramah dalam Bahasa Indonesia mengapa versi ini lebih tepat]
+- [Tadi Terucap: Kalimat yang masih kurang pas 2] | [Versi Natural: Kalimat perbaikan 2 (Arti Indonesia)] | [Penjelasan ramah dalam Bahasa Indonesia mengapa versi ini lebih tepat]
 
-PRO TIP:
-[1 encouraging tip on pronunciation or fluency for the week ahead.]
+> **Tips Pelafalan & Kelancaran Minggu Ini**: [1 tips praktis tentang cara baca, intonasi, atau trik menyambung kata (linking sound) untuk dilatih di rumah.]
 
-PRACTICE:
-1. [Quick Recall]: [1 mini review question from today's lesson] (Answer: [Answer key])
-2. [2-Minute Voice Note]: [A light, fun speaking challenge before the next class]`
+## Misi Latihan Ringan Sebelum Pertemuan Berikutnya
+1. [Cek Ingatan Cepat]: [1 pertanyaan review singkat dari materi hari ini] (Answer: [Kunci jawaban & penjelasan])
+2. [Tantangan Voice Note 1 Menit]: [Instruksi santai untuk latihan bicara mandiri]`
     };
 
     navigator.clipboard.writeText(prompts[mode] || prompts.single)
-        .then(() => showToast('Prompt Gaya Baru (Mengalir & Interaktif) berhasil disalin!', 'success'))
+        .then(() => showToast('Prompt Buku Panduan Bilingual (Detail & Variatif) berhasil disalin!', 'success'))
         .catch(() => showToast('Gagal menyalin otomatis.', 'error'));
 };
 
@@ -418,85 +411,82 @@ window.insertSampleModuleTemplate = function(type = 'module') {
     const sNum = ((parseInt($('admin-week')?.value || '1') - 1) * 3) + parseInt($('admin-day')?.value || '1');
 
     if (type === 'module') {
-        $('admin-link').value = `TITLE: Small Talk & Talking About Your Daily Rhythm
-LEVEL: ${m} • Session ${sNum} of 12 • Conversational English
+        $('admin-link').value = `TITLE: Seni "Small Talk" & Menceritakan Keseharian Tanpa Terdengar Kaku
+LEVEL: ${m} • Session ${sNum} of 12 • Conversational Fluency
 STYLE: ocean
-GOAL: Chat naturally about your morning vibe, work routine, and how you unwind without sounding like a textbook.
+GOAL: Mampu ngobrol santai tentang rutinitas pagi, kesibukan kerja, dan cara melepas lelah dengan ekspresi natural ala penutur asli (native speaker).
 
-WARM UP:
-- Are you a morning person who loves sunrise, or do you need two cups of coffee just to function?
-- What is one small ritual you never skip before starting your day?
+## Mengapa Kalimat Kita Sering Terdengar Seperti Robot?
+Pernahkah kamu ditanya **"How's your day going?"** lalu secara refleks menjawab **"I wake up at 6 AM, I take a bath, and I go to the office by car"**? Secara aturan *grammar*, kalimat itu tidak salah. Tapi di telinga penutur asli, kalimat seperti itu terdengar seperti laporan absensi sekolah!
 
-STORY:
-Imagine you just bumped into an international colleague at a cozy coffee shop on Monday morning. Instead of saying stiff textbook sentences like **"I wake up at 6:00 AM every day,"** native speakers love sharing the *feeling* and *rhythm* of their day.
+Dalam percakapan nyata, orang bule jarang menyebutkan daftar kegiatan menit demi menit. Mereka lebih suka menceritakan **suasana (*vibe*)** dan **kebiasaan unik** mereka menggunakan kata keterangan frekuensi yang luwes seperti **"usually"**, **"pretty much always"**, atau **"hardly ever"**.
 
-They might smile and say, **"Honestly, I'm a bit of a slow starter in the morning, so I always grab a quick coffee before I dive into work."** Notice how relaxed and human that sounds? Today, we are going to upgrade the way you talk about your everyday life.
+> **Kunci Pemahaman**: Jangan hanya menerjemahkan kata per kata dari Bahasa Indonesia ("mandi" = *take a bath*, "naik mobil" = *go by car*). Gunakan **kesatuan frasa (chunks)** yang memang dipakai sehari-hari, seperti **"hop in the shower"** (mandi cepat) atau **"drive to work"** (berangkat kerja naik mobil).
 
-## The Secret to Natural Routine Talk
-When we talk about habits and routines in English, we use the **Simple Present**. The trick is not just memorizing grammar rules, but pairing your action verbs with natural **frequency words** (*usually, pretty much always, hardly ever*) and conversational time phrases.
-- The "I / You / We / They" Flow: Keep the verb in its pure, base form. It is super clean and effortless, like "I usually **start** work around nine."
-- The "He / She / It" Touch: Whenever you talk about one other person (your boss, your sister, your best friend), just add a gentle **-s / -es** sound to the action verb, like "She **runs** her own design studio."
+## Bedah Logika: Cara Kerja "Simple Present" untuk Kebiasaan
+Saat kita membicarakan rutinitas yang berulang (harian, mingguan, atau karakter diri), kita menggunakan pola **Simple Present**. Rahasia agar terdengar natural ada pada penempatan *kata frekuensi* tepat sebelum kata kerja utamanya:
 
-PATTERNS:
-[+] Sharing Your Habit | Subject + Frequency Word + Verb 1 + Rest of Idea | I usually wind down by watching Netflix at night.
-[+] Talking About Someone Else | He / She + Verb 1 (-s/es) + Rest of Idea | My brother works remotely from a café almost every day.
-[-] Saying What You Don't Do | Subject + don't / doesn't + Verb 1 | I don't really check work emails after 8 PM.
-[?] Casual Routine Question | How often + do / does + Subject + Verb 1? | How often do you work out during the week?
+[+] Menceritakan Kebiasaan Sendiri (I / You / We / They) | Subject + Frequency Word + Verb 1 + Pelengkap | I usually grab a quick coffee before diving into work. (Aku biasanya beli kopi sebentar sebelum mulai fokus kerja.)
+[+] Menceritakan Kebiasaan Orang Lain (He / She / It) | He / She + Frequency Word + Verb 1 (-s/es) + Pelengkap | My manager almost always replies to emails within five minutes. (Manajerku hampir selalu membalas email dalam lima menit.)
+[-] Mengatakan Hal yang Jarang / Tidak Dilakukan | Subject + don't / doesn't + really + Verb 1 | I don't really check work messages after 8 PM. (Aku nggak terlalu ngecek pesan kerjaan lagi lewat jam 8 malam.)
+[?] Bertanya Rutinitas Secara Santai | How often / What time + do / does + Subject + usually + Verb 1? | What time do you usually wrap up work on Fridays? (Biasanya kamu selesai kerja jam berapa kalau hari Jumat?)
 
-PHRASES:
-- Grab a quick bite | Eat something fast because you are busy | I usually grab a quick bite before my morning meeting.
-- Dive into work | Start working with focus and energy | After my coffee, I'm ready to dive into work.
-- Take a breather | Take a short, relaxing break | Let's take a quick breather and get some fresh air.
-- Wind down | Relax slowly after a long, busy day | Listening to acoustic music helps me wind down at night.
+### Jebakan "Am / Is / Are" yang Paling Sering Terjadi
+Banyak pelajar Indonesia tidak sengaja menambahkan **am / is / are** di depan kata kerja karena merasa kalimatnya belum lengkap. Ingat aturan emas ini: jika sudah ada kata kerja aksi (*wake up, work, eat, agree*), **jangan pernah** menaruh *am/is/are* di depannya!
 
-PRO TIP:
-Native speakers rarely say "I do not" in casual conversation. Always blend it into **"I don't"** or **"He doesn't"**—and remember, once you use **doesn't**, the main verb goes right back to normal (say **"She doesn't drink coffee"**, never *"She doesn't drinks"*!).
+- [Kaku: I am usually wake up at 6 AM.] | [Natural: I usually wake up around 6 AM. (Aku biasanya bangun sekitar jam 6 pagi.)] | Karena "wake up" sudah kata kerja aksi, kita tidak boleh memakai "am" lagi. Tambahkan kata "around" agar terdengar lebih santai.
+- [Kaku: She goes to the office by car every day.] | [Natural: She drives to work every day. (Dia menyetir ke tempat kerja setiap hari.)] | Dalam bahasa Inggris, "naik mobil sendiri" langsung diungkapkan dengan kata kerja "drive", sedangkan kalau naik transportasi umum gunakan "take the train / bus" atau "commute".
+- [Formal: I want to stop working now.] | [Santai: Let's call it a day! (Yuk kita sudahi kerjaan hari ini!)] | Di lingkungan kantor internasional, "call it a day" adalah ungkapan favorit untuk mengajak pulang atau menutup rapat dengan ramah.
 
-MISTAKES:
-- I am usually wake up at 6 AM. | I usually wake up at 6 AM. | "Wake up" is already an action verb, so you don't need "am" before it.
-- My manager don't like long meetings. | My manager doesn't like long meetings. | Since "My manager" is one person (he/she), use "doesn't".
-- She goes to office by car. | She drives to the office. | Using "drives" or "commutes" sounds much more natural than "goes by car".
+## 5 Ungkapan Emas untuk Menceritakan Harimu
+Coba ganti kosakata buku teks lama dengan 5 ungkapan natural berikut saat mengobrol:
 
-DIALOGUE:
-Kevin and Sarah are chatting while waiting for their morning coffee at the office pantry.
-Man: Morning, Sarah! You look super energized today. Are you naturally an early bird?
-Woman: Haha, not at all! Honestly, I hit the snooze button at least twice every morning.
-Man: Really? How do you always get to the office so early then?
-Woman: Well, I prep my clothes the night before, and I usually grab a quick breakfast on the way. What about you?
-Man: I'm the opposite. I wake up around 5:30 AM, go for a short jog, and then take my time getting ready.
-Woman: Wow, I respect that! By the time evening comes, I just want to wind down on the couch.
+- A slow starter | Orang yang butuh waktu untuk mengumpulkan nyawa/energi di pagi hari | Honestly, I'm a bit of a slow starter in the morning. (Jujur, aku agak lambat panas kalau masih pagi.)
+- Grab a quick bite | Makan sesuatu dengan cepat karena sedang buru-buru | Let's grab a quick bite before the meeting starts. (Yuk cari makan sebentar sebelum rapatnya mulai.)
+- Swamped with work | Sangat sibuk karena pekerjaan sedang menumpuk | I've been totally swamped with work all week. (Kerjaanku lagi numpuk banget sepanjang minggu ini.)
+- Take a breather | Istirahat sejenak untuk menarik napas dan menyegarkan pikiran | You look exhausted—go take a quick breather! (Kamu kelihatan capek banget—sana istirahat sebentar!)
+- Wind down | Melepas lelah dan bersantai perlahan setelah seharian beraktivitas | I usually wind down by watching a series before bed. (Aku biasanya bersantai dengan nonton serial sebelum tidur.)
 
-PRACTICE:
-1. [Quick Brain Check]: Complete this natural sentence -> "My best friend _____ (don't / doesn't) _____ (work / works) on Saturdays." (Answer: doesn't work — because after doesn't, the verb returns to base form!)
-2. [Upgrade the Vibe]: How would you make "I eat fast because I am busy" sound more natural using today's phrases? (Answer: "I usually grab a quick bite because I'm on a tight schedule.")
-3. [Coffee Shop Roleplay]: Tell your tutor what your ideal Sunday looks like from morning to night using at least 2 new expressions from today!`;
+## Simulasi Percakapan: Ngobrol Pagi di Pantry Kantor
+Perhatikan bagaimana Kevin dan Sarah memadukan kalimat pendek, kata penghubung santai (*Honestly, Well, Haha*), dan ungkapan yang baru kita pelajari:
+
+Man: Morning, Sarah! You look super energized today. Are you naturally an early bird? (Pagi, Sarah! Kamu kelihatan segar banget hari ini. Memangnya kamu tipe orang yang suka bangun pagi ya?)
+Woman: Haha, not at all! Honestly, I'm a slow starter and I hit the snooze button twice every morning. (Haha, nggak sama sekali! Jujur aku tipe yang lambat panas dan selalu menunda alarm dua kali tiap pagi.)
+Man: Really? How do you always get to the office so early then? (Masa sih? Terus kok kamu bisa sampai kantor pagi terus?)
+Woman: Well, I prep my clothes the night before, and I just grab a quick bite on the way. What about you? (Yah, aku sudah siapkan baju dari malam sebelumnya, terus cuma beli sarapan praktis di jalan. Kalau kamu gimana?)
+Man: I'm the opposite. I wake up around 5:30, go for a short jog, and take my time getting ready. (Aku kebalikannya. Aku bangun sekitar jam 5:30, lari pagi sebentar, terus santai-santai siap-siapnya.)
+Woman: Wow, I respect that! By the time evening comes, I just want to wind down on the couch. (Wah, salut deh! Kalau sudah malam, aku sih cuma pengen selonjoran santai di sofa.)
+
+## Tantangan Interaktif: Uji Pemahamanmu!
+1. [Detektif Grammar]: Manakah kalimat yang paling tepat dan natural? A) "My boss don't likes morning meetings" atau B) "My boss doesn't like morning meetings"? (Answer: B! "My boss doesn't like morning meetings." Karena "My boss" adalah tunggal (He/She), gunakan "doesn't", dan kata kerja setelah "doesn't" wajib kembali ke bentuk dasar "like" tanpa -s.)
+2. [Upgrade ke Bahasa Native]: Bagaimana cara mengatakan "Hari ini kerjaanku lagi numpuk banget, jadi aku cuma makan siang cepat" menggunakan ekspresi yang kita pelajari? (Answer: "I'm really swamped with work today, so I'll just grab a quick bite for lunch.")
+3. [Praktek Bicara Mandiri]: Coba ceritakan dengan suara lantang selama 30 detik: Apa 2 hal yang selalu kamu lakukan di pagi hari, dan bagaimana caramu melepas lelah (wind down) di malam hari? (Answer: Contoh: "Every morning, I usually drink a glass of warm water and check my schedule. At night, I like to wind down by listening to music or chatting with my family.")`;
     } else {
-        $('admin-recap-pdf').value = `TITLE: Personal Class Recap • Session ${sNum}
-LEVEL: ${m} • Coaching & Feedback Summary
+        $('admin-recap-pdf').value = `TITLE: Rangkuman & Evaluasi Kelas • Session ${sNum}
+LEVEL: ${m} • Personal Coaching Summary
 STYLE: emerald
-GOAL: Celebrate today's speaking wins and lock in your natural phrasing upgrades.
+GOAL: Mengulas kembali poin terbaik dari sesi latihan hari ini dan mengunci koreksi kalimat agar makin luwes.
 
-STORY:
-Awesome energy in class today! You were much more relaxed when answering spontaneous questions, and you didn't pause to translate word-by-word nearly as much as last week. Your storytelling about your morning routine sounded genuinely engaging!
+## Apresiasi & Catatan Perkembangan Hari Ini
+Kerja bagus di sesi kelas hari ini! Kamu sudah jauh lebih rileks saat menjawab pertanyaan spontan tanpa harus menerjemahkan kata demi kata di kepala. Ceritamu tentang rutinitas pagi dan kesibukan harian terdengar sangat mengalir!
 
-PHRASES:
-- Grab a quick breakfast | Eat a fast, simple meal in the morning | I usually grab a quick breakfast before leaving home.
-- Stuck in traffic | Unable to move fast on a busy road | I was stuck in traffic for thirty minutes this morning.
-- Call it a day | Stop working for the day | Let's finish this report and call it a day!
+## Ungkapan & Kosakata Emas yang Kita Praktekkan
+- Grab a quick breakfast | Sarapan cepat & praktis karena buru-buru | I usually grab a quick breakfast before leaving home. (Aku biasanya sarapan cepat sebelum berangkat dari rumah.)
+- Stuck in traffic | Terjebak kemacetan di jalan | I was stuck in traffic for thirty minutes this morning. (Aku terjebak macet selama tiga puluh menit tadi pagi.)
+- Call it a day | Menyudahi pekerjaan untuk hari ini | Let's finish this report and call it a day! (Yuk selesaikan laporan ini lalu kita pulang/istirahat!)
 
-MISTAKES:
-- My friend don't live here anymore. | My friend doesn't live here anymore. | Use "doesn't" whenever you talk about one person (he/she).
-- I am agree with your opinion. | I completely agree with you. | "Agree" is already a verb, so we never put "am" in front of it.
+## Upgrade Kalimat: Dari Kaku Menjadi Natural
+- [Tadi Terucap: My friend don't live here anymore.] | [Versi Natural: My friend doesn't live here anymore. (Temanku sudah tidak tinggal di sini lagi.)] | Ingat, karena "My friend" itu satu orang (setara He/She), kita gunakan "doesn't", bukan "don't".
+- [Tadi Terucap: I am agree with your opinion.] | [Versi Natural: I completely agree with you. (Aku sangat setuju denganmu.)] | Kata "agree" sudah merupakan kata kerja (verb), jadi tidak perlu tambahan "am" di depannya.
 
-PRO TIP:
-When you want to sound extra natural in conversation, try starting your answers with casual connectors like **"Honestly,"**, **"To be fair,"**, or **"Well, most of the time..."**—it gives your brain an extra second to think while sounding super fluent!
+> **Tips Kelancaran Minggu Ini**: Saat kamu butuh waktu 1-2 detik untuk berpikir sebelum menjawab pertanyaan dalam Bahasa Inggris, biasakan membuka kalimat dengan filler natural seperti **"Honestly,"**, **"Well, most of the time..."**, atau **"To be fair,"**—ini membuatmu terdengar jauh lebih fasih!
 
-PRACTICE:
-1. [Quick Recall]: Which one is natural? A) "She doesn't likes tea" or B) "She doesn't like tea"? (Answer: B! "She doesn't like tea.")
-2. [Home Voice Note]: Send a relaxed 45-second voice note describing how you usually wind down on Friday nights.`;
+## Misi Latihan Ringan Sebelum Pertemuan Berikutnya
+1. [Cek Ingatan Cepat]: Kalimat mana yang benar? A) "She doesn't drinks coffee" atau B) "She doesn't drink coffee"? (Answer: B! "She doesn't drink coffee" — setelah kata "doesn't", kata kerja kembali ke bentuk murni tanpa huruf -s.)
+2. [Tantangan Voice Note]: Kirimkan voice note santai berdurasi 45 detik yang menceritakan bagaimana caramu bersantai (wind down) di akhir pekan!`;
     }
     updateAdminMaterialStatusBadge();
-    showToast('Contoh Materi Mengalir & Interaktif berhasil dimasukkan! Klik Simpan untuk mencoba.', 'info');
+    showToast('Contoh Materi Bilingual (Detail & Mengalir) berhasil dimasukkan! Klik Simpan untuk mencoba.', 'info');
 };
 
 window.saveMaterialData = async function(isBulk = false) {

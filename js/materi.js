@@ -170,11 +170,41 @@ function renderMateriContent() {
 }
 
 // ============================================================================
-// PEMBERSIH TEKS, TEMA WARNA & PARSER PINTAR
+// PEMBERSIH TEKS, FILTER SUARA BILINGUAL & TEMA WARNA
 // ============================================================================
 const sanitizeRawInputString = s => String(s || '').replace(/"font-extrabold[^"]*">/g, '').replace(/"italic text-slate-\d+[^"]*">/g, '').replace(/<[^>]+>/g, '');
 const escapeHtmlStr = s => sanitizeRawInputString(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const cleanTitleMarkdown = s => escapeHtmlStr(s).replace(/\*+/g, '').replace(/^["']|["']$/g, '').trim();
+
+// Memisahkan kalimat Bahasa Inggris dari terjemahan Indonesia di dalam kurung (...)
+function splitBilingualLine(str) {
+    const clean = String(str || '').trim();
+    const match = clean.match(/^(.*?)\s*\(([^()]{3,})\)\s*$/);
+    if (match && match[1].trim()) {
+        return { eng: match[1].trim(), ind: match[2].trim() };
+    }
+    return { eng: clean, ind: '' };
+}
+
+// Ekstraktor suara pintar: Hanya mengambil bagian Bahasa Inggris agar TTS tidak membaca teks Indonesia
+function extractEnglishForTTS(rawText) {
+    let s = sanitizeRawInputString(rawText)
+        .replace(/\([^)]*\)/g, ' ') // Hapus terjemahan di dalam kurung (...)
+        .replace(/\[[^\]]*\]/g, ' ') // Hapus tag [...]
+        .replace(/\*+/g, '')
+        .trim();
+
+    // Jika teks panjang ada kutipan "...", prioritaskan membaca kutipan Inggrisnya
+    const quotes = [...s.matchAll(/"([^"]{2,})"/g)].map(m => m[1].trim());
+    if (quotes.length > 0 && s.length > quotes.join(' ').length + 35) {
+        return quotes.join('. ');
+    }
+    // Jika dipisah tanda " — " atau " = ", ambil sisi kiri (Inggris)
+    if (/\s+(?:—|--|=)\s+/.test(s)) {
+        s = s.split(/\s+(?:—|--|=)\s+/)[0].trim();
+    }
+    return s;
+}
 
 function formatRichEnglishText(text) {
     if (!text) return '';
@@ -210,9 +240,9 @@ function getSessionThemePalette(sessionNumber, isRecap = false, customStyle = ''
 
 function splitQuestionAndAnswer(rawTask) {
     let text = String(rawTask || '').trim(), answer = '';
-    const mP = text.match(/\((?:Answer|Key|Jawaban|Sample Answer|Hint)\s*:\s*([^)]+)\)\s*$/i);
-    const mB = text.match(/\[(?:Answer|Key|Jawaban|Sample Answer|Hint)\s*:\s*([^\]]+)\]\s*$/i);
-    const mPipe = text.split(/\s*\|\s*(?:Answer|Key|Jawaban)\s*:\s*/i);
+    const mP = text.match(/\((?:Answer|Key|Jawaban|Kunci|Sample Answer|Pembahasan|Hint)\s*:\s*([^)]+)\)\s*$/i);
+    const mB = text.match(/\[(?:Answer|Key|Jawaban|Kunci|Sample Answer|Pembahasan|Hint)\s*:\s*([^\]]+)\]\s*$/i);
+    const mPipe = text.split(/\s*\|\s*(?:Answer|Key|Jawaban|Kunci)\s*:\s*/i);
     if (mP) { answer = mP[1].trim(); text = text.slice(0, mP.index).trim(); }
     else if (mB) { answer = mB[1].trim(); text = text.slice(0, mB.index).trim(); }
     else if (mPipe.length > 1) { text = mPipe[0].trim(); answer = mPipe.slice(1).join(' ').trim(); }
@@ -228,17 +258,19 @@ function extractTitleAndBodyFromLine(str) {
     return { title: '', body: clean };
 }
 
-const SECTION_HEADER_RULES = [
-    [/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO)\s*:(.*)$/i,                  'story',     'Story & Real-Life Context', 'fa-book-open-reader', 'paragraphs'],
-    [/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER)\s*:(.*)$/i,                           'warmup',    'Warm-Up Questions',         'fa-mug-hot',          'items'],
-    [/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE|KEY\s*POINTS?)\s*:(.*)$/i, 'editorial', 'Key Concepts & Insights', 'fa-compass',   'paragraphs'],
-    [/^(?:FORMULAS?|PATTERNS?|GRAMMAR|RULES?)\s*:(.*)$/i,                      'formulas',  'Sentence Patterns',         'fa-shapes',           'paragraphs'],
-    [/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY)\s*:(.*)$/i,'phrases',   'Natural Expressions',       'fa-comment-dots',     'paragraphs'],
-    [/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION)\s*:(.*)$/i,                        'examples',  'Examples in Context',       'fa-bolt',             'paragraphs'],
-    [/^(?:MISTAKES?|COMMON\s*MISTAKES?|COMPARE|UPGRADES?)\s*:(.*)$/i,          'mistakes',  "Don't Say vs. Say This!",   'fa-scale-balanced',   'paragraphs'],
-    [/^(?:TIPS?|PRO\s*TIPS?|COACH\s*NOTE|REMEMBER|CULTURE\s*NOTE)\s*:(.*)$/i,  'callout',   "Tutor's Pro Tip",           'fa-lightbulb',        'paragraphs'],
-    [/^(?:DIALOGUE|CONVERSATION|ROLEPLAY)\s*:(.*)$/i,                          'dialogue',  'Real-Life Conversation',    'fa-comments',         'items'],
-    [/^(?:PRACTICE|EXERCISES?|TASKS?|HOMEWORK|MISSION|QUIZ|YOUR\s*TURN)\s*:(.*)$/i, 'practice', 'Interactive Practice',  'fa-gamepad',          'paragraphs']
+// ============================================================================
+// PARSER BUKU PANDUAN FLEKSIBEL (MENDUKUNG ALUR BEBAS & KOMPATIBEL LAMA)
+// ============================================================================
+const CLASSIC_HEADER_MAP = [
+    [/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO|CERITA|KONTEKS)\s*:(.*)$/i,                  'story',     'Konteks & Cerita Pembuka'],
+    [/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER|PEMANASAN)\s*:(.*)$/i,                                'warmup',    'Pemanasan (Warm-Up)'],
+    [/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE|KEY\s*POINTS?|MATERI|PENJELASAN)\s*:(.*)$/i, 'editorial', 'Bedah Konsep & Penjelasan'],
+    [/^(?:FORMULAS?|PATTERNS?|GRAMMAR|RULES?|RUMUS|POLA)\s*:(.*)$/i,                          'formulas',  'Pola & Struktur Kalimat'],
+    [/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY|UNGKAPAN|EKSPRESI)\s*:(.*)$/i, 'phrases', 'Ungkapan & Kosakata Penting'],
+    [/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION|CONTOH)\s*:(.*)$/i,                                'examples',  'Contoh Penggunaan'],
+    [/^(?:MISTAKES?|COMMON\s*MISTAKES?|COMPARE|UPGRADES?|PERBANDINGAN|KOREKSI)\s*:(.*)$/i,    'mistakes',  'Perbandingan & Koreksi Natural'],
+    [/^(?:DIALOGUE|CONVERSATION|ROLEPLAY|PERCAKAPAN|DIALOG)\s*:(.*)$/i,                       'dialogue',  'Percakapan Kontekstual'],
+    [/^(?:PRACTICE|EXERCISES?|TASKS?|HOMEWORK|MISSION|QUIZ|YOUR\s*TURN|LATIHAN|TANTANGAN)\s*:(.*)$/i, 'practice', 'Latihan & Tantangan Interaktif']
 ];
 
 function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
@@ -247,119 +279,209 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
     if (!clean) return data;
 
     let currentSec = null;
-    const startSec = (type, title, icon) => {
-        currentSec = { id: `sec_${data.sections.length + 1}`, type, title: title.replace(/\*+/g, '').trim(), icon, paragraphs: [], items: [] };
+    let activeHint = 'editorial';
+
+    const startSec = (hint, title) => {
+        activeHint = hint;
+        currentSec = {
+            id: `sec_${data.sections.length + 1}`,
+            hint,
+            title: title.replace(/\*+/g, '').trim(),
+            blocks: []
+        };
         data.sections.push(currentSec);
         return currentSec;
+    };
+
+    const pushDialogueLine = (speaker, rawSpeech) => {
+        if (!currentSec) startSec('dialogue', 'Percakapan Kontekstual');
+        let lastBlock = currentSec.blocks[currentSec.blocks.length - 1];
+        if (!lastBlock || lastBlock.type !== 'dialogue') {
+            lastBlock = { type: 'dialogue', id: `dlg_${currentSec.id}_${currentSec.blocks.length}`, lines: [] };
+            currentSec.blocks.push(lastBlock);
+        }
+        const { eng, ind } = splitBilingualLine(rawSpeech);
+        lastBlock.lines.push({ speaker: speaker.trim(), eng, ind, raw: `${speaker.trim()}: ${eng}` });
     };
 
     clean.split('\n').forEach(rawLine => {
         const line = rawLine.trim();
         if (!line || /^SESSION\s*:\s*\d+/i.test(line)) return;
 
-        if (/^TITLE\s*:/i.test(line)) { data.title = line.replace(/^TITLE\s*:\s*/i, '').replace(/\*+/g, '').trim() || data.title; return; }
+        // Metadata Dokumen
+        if (/^(?:TITLE|JUDUL)\s*:/i.test(line)) { data.title = line.replace(/^(?:TITLE|JUDUL)\s*:\s*/i, '').replace(/\*+/g, '').trim() || data.title; return; }
         if (/^(?:LEVEL|SUBTITLE)\s*:/i.test(line)) { data.level = line.replace(/^(?:LEVEL|SUBTITLE)\s*:\s*/i, '').replace(/\*+/g, '').trim() || data.level; return; }
-        if (/^(?:GOAL|OBJECTIVE)\s*:/i.test(line)) { data.goal = line.replace(/^(?:GOAL|OBJECTIVE)\s*:\s*/i, '').trim(); return; }
+        if (/^(?:GOAL|OBJECTIVE|TARGET)\s*:/i.test(line)) { data.goal = line.replace(/^(?:GOAL|OBJECTIVE|TARGET)\s*:\s*/i, '').replace(/\*+/g, '').trim(); return; }
         if (/^STYLE\s*:/i.test(line)) { data.style = line.replace(/^STYLE\s*:\s*/i, '').trim(); return; }
 
-        if (/^#{1,3}\s+(.+)$/.test(line) || /^SECTION\s*:\s*(.+)$/i.test(line)) {
-            const customTitle = line.replace(/^#{1,3}\s+|^SECTION\s*:\s*/i, '').replace(/\*+/g, '').trim();
-            const l = customTitle.toLowerCase();
-            if (/warm[\s-]*up|ice[\s-]*breaker|starter/.test(l)) startSec('warmup', customTitle, 'fa-mug-hot');
-            else if (/^story|scenario|imagine/.test(l)) startSec('story', customTitle, 'fa-book-open-reader');
-            else if (/formula|pattern|building\s*block/.test(l)) startSec('formulas', customTitle, 'fa-shapes');
-            else if (/phrase|expression|vocabulary|chunk|ways\s*to\s*say/.test(l)) startSec('phrases', customTitle, 'fa-comment-dots');
-            else if (/mistake|don't\s*say|common\s*error/.test(l)) startSec('mistakes', customTitle, 'fa-scale-balanced');
-            else if (/dialogue|conversation|roleplay/.test(l)) startSec('dialogue', customTitle, 'fa-comments');
-            else if (/practice|quiz|challenge|mission|exercise|your\s*turn/.test(l)) startSec('practice', customTitle, 'fa-gamepad');
-            else if (/^pro\s*tip|tutor's\s*tip|culture\s*note/.test(l)) startSec('callout', customTitle, 'fa-lightbulb');
-            else if (/^example|in\s*action/.test(l)) startSec('examples', customTitle, 'fa-bolt');
-            else startSec('editorial', customTitle, 'fa-compass');
+        // Sub-bab (### Sub-judul) di dalam suatu bab
+        if (/^###\s+(.+)$/.test(line)) {
+            if (!currentSec) startSec('editorial', 'Pembahasan Materi');
+            currentSec.blocks.push({ type: 'subheading', text: line.replace(/^###\s+/, '').replace(/\*+/g, '').trim() });
             return;
         }
 
-        for (const [regex, type, defTitle, icon, targetArr] of SECTION_HEADER_RULES) {
+        // Bab Bebas (## Judul Bab Bebas) - Mempertahankan Judul Asli 100%!
+        if (/^#{1,2}\s+(.+)$/.test(line) || /^SECTION\s*:\s*(.+)$/i.test(line)) {
+            const customTitle = line.replace(/^#{1,2}\s+|^SECTION\s*:\s*/i, '').replace(/\*+/g, '').trim();
+            const l = customTitle.toLowerCase();
+            let guessedHint = 'editorial';
+            if (/warm[\s-]*up|pemanasan|ice[\s-]*breaker/.test(l)) guessedHint = 'warmup';
+            else if (/latihan|practice|quiz|tantangan|exercise|mission|uji\s*diri/.test(l)) guessedHint = 'practice';
+            else if (/dialog|percakapan|conversation|roleplay/.test(l)) guessedHint = 'dialogue';
+            else if (/kesalahan|mistake|jangan\s*bilang|avoid|kaku\s*vs/.test(l)) guessedHint = 'mistakes';
+            else if (/rumus|formula|pattern|pola\s*kalimat/.test(l)) guessedHint = 'formulas';
+            else if (/ungkapan|ekspresi|phrase|kosakata|idiom|collocation/.test(l)) guessedHint = 'phrases';
+            else if (/cerita|story|skenario|konteks/.test(l)) guessedHint = 'story';
+            startSec(guessedHint, customTitle);
+            return;
+        }
+
+        // Kotak Callout / Pro Tip / Catatan Budaya (Bisa muncul di tengah bab mana saja!)
+        if (/^>\s*(.+)$/.test(line) || /^(?:TIPS?|PRO\s*TIPS?|COACH\s*NOTE|CATATAN|INGAT|NUANSA|CULTURE\s*NOTE|INSIDER\s*TIP)\s*:\s*(.+)$/i.test(line)) {
+            if (!currentSec) startSec('editorial', 'Pembahasan Materi');
+            let rawCallout = line.replace(/^>\s*/, '');
+            let cTitle = 'Catatan Penting & Nuansa';
+            const hdrMatch = rawCallout.match(/^(?:TIPS?|PRO\s*TIPS?|COACH\s*NOTE|CATATAN|INGAT|NUANSA|CULTURE\s*NOTE|INSIDER\s*TIP)\s*:\s*(.*)$/i);
+            if (hdrMatch) {
+                rawCallout = hdrMatch[1].trim();
+            } else {
+                const { title, body } = extractTitleAndBodyFromLine(rawCallout);
+                if (title && title.length < 45) { cTitle = title.replace(/^[💡🔥📌✨🎯]\s*/, ''); rawCallout = body; }
+            }
+            if (rawCallout) currentSec.blocks.push({ type: 'callout', title: cTitle, text: rawCallout });
+            return;
+        }
+
+        // Header Klasik (STORY:, PATTERNS:, PHRASES:, dll.)
+        for (const [regex, hint, defTitle] of CLASSIC_HEADER_MAP) {
             const m = line.match(regex);
             if (m) {
-                const sec = startSec(type, defTitle, icon);
-                if (m[1]?.trim()) sec[targetArr].push(m[1].trim());
+                const rest = (m[1] || '').trim();
+                // Jika setelah titik dua adalah judul pendek (tanpa tanda titik di akhir), gunakan sebagai judul bab
+                const isCustomHeaderTitle = rest && rest.length <= 60 && !/[.?!]$/.test(rest) && !rest.includes('|');
+                const sec = startSec(hint, isCustomHeaderTitle ? rest : defTitle);
+                if (rest && !isCustomHeaderTitle) {
+                    sec.blocks.push({ type: 'paragraph', text: rest, isStory: hint === 'story' });
+                }
                 return;
             }
         }
 
-        if (!currentSec) startSec('editorial', 'Study Guide', 'fa-compass');
-        const isBullet = /^[-*•]\s+|\d+[.)]\s+|^\[[+?*-]\]/.test(line);
+        if (!currentSec) startSec('editorial', 'Panduan Belajar');
+
+        const isBullet = /^[-*•]\s+|\d+[.)]\s+|^\[(?:[+?*-]|X|V|Salah|Benar|Kaku|Natural|Formal|Santai|Casual)\]/i.test(line);
+        const isNumbered = /^\d+[.)]\s+/.test(line);
         const stripped = line.replace(/^[-*•]\s*|\d+[.)]\s*/, '').trim();
 
-        if (currentSec.type === 'story' || currentSec.type === 'callout') {
-            currentSec.paragraphs.push(stripped);
-        } else if (currentSec.type === 'warmup') {
-            currentSec.items.push(stripped);
-        } else if (currentSec.type === 'editorial') {
-            const { title, body } = extractTitleAndBodyFromLine(isBullet ? stripped : line);
-            if (isBullet || (title && line.startsWith('**'))) currentSec.items.push({ title, body });
-            else currentSec.paragraphs.push(line);
-        } else if (currentSec.type === 'formulas') {
-            if (line.includes('|')) {
-                const parts = line.replace(/^[-*•]\s*/, '').split('|').map(s => s.trim());
-                let badge = '[*]', label = parts[0] || 'Pattern';
-                const bMatch = label.match(/^(\[[+?*-]\])\s*(.*)$/);
-                if (bMatch) { badge = bMatch[1]; label = bMatch[2] || 'Pattern'; }
-                currentSec.items.push({ badge, label: label.replace(/\*+/g, '').trim(), formula: parts[1] || '', example: parts[2] || '', isNote: false });
-            } else if (isBullet) {
-                const { title, body } = extractTitleAndBodyFromLine(stripped);
-                const hasPlus = body.includes('+') && body.length < 95;
-                currentSec.items.push({ badge: '[*]', label: title || 'Key Concept', formula: hasPlus ? body : '', example: hasPlus ? '' : body, isNote: !hasPlus });
-            } else currentSec.paragraphs.push(line);
-        } else if (currentSec.type === 'phrases') {
-            if (stripped.includes('|')) {
-                const [p, m, ex] = stripped.split('|').map(s => s.trim());
-                currentSec.items.push({ phrase: p.replace(/\*+/g, '').trim(), meaning: m || '', example: ex || '' });
-            } else if (isBullet) {
-                const { title, body } = extractTitleAndBodyFromLine(stripped);
-                if (title) currentSec.items.push({ phrase: title, meaning: body, example: '' });
-                else if (stripped.includes('=')) { const [p, ...r] = stripped.split('='); currentSec.items.push({ phrase: p.replace(/\*+/g, '').trim(), meaning: r.join('=').trim(), example: '' }); }
-                else currentSec.items.push({ phrase: '', meaning: stripped, example: '' });
-            } else currentSec.paragraphs.push(line);
-        } else if (currentSec.type === 'examples') {
-            if (stripped.includes('|')) {
-                const parts = stripped.split('|').map(s => s.trim());
-                currentSec.items.push(parts.length >= 3 ? { tag: parts[0].replace(/^\[|\]$|\*+/g, ''), sentence: parts[1], note: parts.slice(2).join(' ') } : { tag: 'Example', sentence: parts[0], note: parts[1] || '' });
-            } else if (isBullet) {
-                const { title, body } = extractTitleAndBodyFromLine(stripped);
-                currentSec.items.push({ tag: title || `Example #${currentSec.items.length + 1}`, sentence: body, note: '' });
-            } else currentSec.paragraphs.push(line);
-        } else if (currentSec.type === 'mistakes') {
-            if (stripped.includes('|')) {
-                const [w, r, reason] = stripped.split('|').map(s => s.trim());
-                currentSec.items.push({ wrong: w.replace(/\*+/g, '').trim(), right: r.replace(/\*+/g, '').trim(), reason: reason || '' });
-            } else if (!isBullet) currentSec.paragraphs.push(line);
-            else {
-                const { title, body } = extractTitleAndBodyFromLine(stripped);
-                currentSec.items.push({ wrong: '', title, right: body, reason: '' });
-            }
-        } else if (currentSec.type === 'dialogue') {
-            if (/^[A-Za-z\s.]{1,22}\s*:\s*.+$/.test(line)) currentSec.items.push(line.replace(/\*+/g, ''));
-            else currentSec.paragraphs.push(stripped);
-        } else if (currentSec.type === 'practice') {
+        // 1. Deteksi Baris Latihan / Kuis Interaktif (Jika ada (Answer: ...) atau berada di bab Practice)
+        const hasAnswerKey = /\((?:Answer|Key|Jawaban|Kunci|Sample Answer|Pembahasan|Hint)\s*:/i.test(line) || /\[(?:Answer|Key|Jawaban|Kunci)\s*:/i.test(line);
+        if (hasAnswerKey || (activeHint === 'practice' && (isNumbered || isBullet))) {
             const pMatch = stripped.match(/^\[([^\]]+)\]\s*:?\s*(.+)$/);
             const { questionText, answerKey } = splitQuestionAndAnswer(pMatch ? pMatch[2].trim() : stripped);
-            currentSec.items.push({ tag: pMatch ? pMatch[1].replace(/\*+/g, '').trim() : `Task #${currentSec.items.length + 1}`, task: questionText, answerKey });
+            currentSec.blocks.push({
+                type: 'practice',
+                tag: pMatch ? pMatch[1].replace(/\*+/g, '').trim() : `Latihan`,
+                task: questionText,
+                answerKey
+            });
+            return;
+        }
+
+        // 2. Deteksi Rumus / Pola Kalimat ([+], [-], [?], [*])
+        if (/^\[[+?*-]\]/.test(line) || (activeHint === 'formulas' && line.includes('|'))) {
+            const parts = line.replace(/^[-*•]\s*/, '').split('|').map(s => s.trim());
+            let badge = '[*]', label = parts[0] || 'Pola Kalimat';
+            const bMatch = label.match(/^(\[[+?*-]\])\s*(.*)$/);
+            if (bMatch) { badge = bMatch[1]; label = bMatch[2] || 'Pola Kalimat'; }
+            currentSec.blocks.push({
+                type: 'formula',
+                badge,
+                label: label.replace(/\*+/g, '').trim(),
+                formula: parts[1] || '',
+                example: parts[2] || '',
+                note: parts[3] || ''
+            });
+            return;
+        }
+
+        // 3. Deteksi Perbandingan (Salah vs Benar / Kaku vs Natural / Formal vs Santai)
+        const isComparisonLine = /^\[(?:X|Salah|Kaku|Textbook|Formal)\s*:/i.test(stripped) || (activeHint === 'mistakes' && stripped.includes('|'));
+        if (isComparisonLine) {
+            const parts = stripped.split('|').map(s => s.trim());
+            let leftLbl = 'Kurang Tepat / Kaku', rightLbl = 'Lebih Natural (Native)', wrong = parts[0] || '', right = parts[1] || '', reason = parts[2] || '';
+            const lMatch = wrong.match(/^\[([^:\]]+)\s*:\s*([^\]]+)\]$/) || wrong.match(/^(Salah|Kaku|Formal|Textbook|Avoid)\s*:\s*(.+)$/i);
+            const rMatch = right.match(/^\[([^:\]]+)\s*:\s*([^\]]+)\]$/) || right.match(/^(Benar|Natural|Santai|Casual|Native|Say)\s*:\s*(.+)$/i);
+            if (lMatch) { leftLbl = lMatch[1].trim(); wrong = lMatch[2].trim(); }
+            if (rMatch) { rightLbl = rMatch[1].trim(); right = rMatch[2].trim(); }
+            currentSec.blocks.push({
+                type: 'comparison',
+                leftLabel: leftLbl,
+                wrong: wrong.replace(/\*+/g, '').trim(),
+                rightLabel: rightLbl,
+                right: right.replace(/\*+/g, '').trim(),
+                reason
+            });
+            return;
+        }
+
+        // 4. Deteksi Baris Percakapan (Speaker: Kalimat...)
+        const dlgMatch = line.match(/^([A-Za-z\s.]{1,22})\s*:\s*(.+)$/);
+        if (dlgMatch && (activeHint === 'dialogue' || /^(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Alex|Lisa|Tom|Waiter|Barista|Receptionist|Client|Manager|Boss|You|Kamu|Teman|Tutor|Student|Customer|Officer|Doctor)\b/i.test(dlgMatch[1].trim()))) {
+            pushDialogueLine(dlgMatch[1], dlgMatch[2]);
+            return;
+        }
+
+        // 5. Deteksi Baris Ungkapan / Frasa / Contoh Berpipa (Frasa | Arti | Contoh)
+        if (stripped.includes('|')) {
+            const parts = stripped.split('|').map(s => s.trim());
+            currentSec.blocks.push({
+                type: 'phrase',
+                phrase: parts[0].replace(/^\[|\]$|\*+/g, '').trim(),
+                meaning: parts[1] || '',
+                example: parts[2] || ''
+            });
+            return;
+        }
+
+        // 6. Pemanasan (Warm-Up)
+        if (activeHint === 'warmup' && isBullet) {
+            currentSec.blocks.push({ type: 'warmup', text: stripped });
+            return;
+        }
+
+        // 7. Poin Bullet atau Paragraf Mengalir
+        if (isBullet) {
+            const { title, body } = extractTitleAndBodyFromLine(stripped);
+            if (activeHint === 'phrases' && stripped.includes('=')) {
+                const [p, ...r] = stripped.split('=');
+                currentSec.blocks.push({ type: 'phrase', phrase: p.replace(/\*+/g, '').trim(), meaning: r.join('=').trim(), example: '' });
+            } else {
+                currentSec.blocks.push({ type: 'insight', title, body });
+            }
+        } else {
+            const { title, body } = extractTitleAndBodyFromLine(line);
+            if (title && line.startsWith('**')) {
+                currentSec.blocks.push({ type: 'insight', title, body });
+            } else {
+                currentSec.blocks.push({ type: 'paragraph', text: line, isStory: activeHint === 'story' });
+            }
         }
     });
+
     return data;
 }
 
 // ============================================================================
-// KONTROL INTERAKTIF HANDOUT & RENDERER WEB
+// KONTROL INTERAKTIF HANDOUT & RENDERER WEB (BILINGUAL BOOK-FLOW)
 // ============================================================================
 window.playHandoutTextAudio = function(rawSpeech, btnEl) {
-    const clean = sanitizeRawInputString(rawSpeech).replace(/\[[^\]]*\]/g, '').replace(/\*+/g, '').replace(/\([^)]*\)/g, '').replace(/^(?:Correct|Incorrect|Wrong|Right)\s*:\s*/i, '').trim();
+    const clean = extractEnglishForTTS(rawSpeech);
     if (clean) window.playNaturalEnglishTTS(clean, btnEl);
 };
 window.playHandoutRegisteredAudio = (prefix, idx, btnEl) => window.playHandoutTextAudio(parsedHandoutCache[prefix]?.allAudioItems?.[idx], btnEl);
-window.playHandoutSectionDialogue = (prefix, secId, btnEl) => {
-    const lines = parsedHandoutCache[prefix]?.allAudioDialogues?.[secId] || [];
+window.playHandoutSectionDialogue = (prefix, dlgId, btnEl) => {
+    const lines = parsedHandoutCache[prefix]?.allAudioDialogues?.[dlgId] || [];
     if (lines.length) window.playNaturalEnglishTTS(lines.join('\n'), btnEl);
 };
 
@@ -368,7 +490,10 @@ window.toggleDialogueBlurMode = function(secDomId, btnEl) {
     if (!c) return;
     const next = c.dataset.blurred !== '1';
     c.dataset.blurred = next ? '1' : '0';
-    c.querySelectorAll('.dialogue-line-text').forEach(el => el.classList.toggle('blur-xs', next) || el.classList.toggle('select-none', next));
+    c.querySelectorAll('.dialogue-line-text').forEach(el => {
+        el.classList.toggle('blur-xs', next);
+        el.classList.toggle('select-none', next);
+    });
     if (btnEl) {
         btnEl.innerHTML = next ? `<i class="fas fa-eye mr-1.5"></i> Tampilkan Teks` : `<i class="fas fa-eye-slash mr-1.5"></i> Blur Teks (Latihan Listening)`;
         btnEl.className = next
@@ -381,10 +506,8 @@ window.toggleHandoutAnswer = function(btnEl) {
     const box = document.getElementById(btnEl.dataset.target);
     if (!box) return;
     const isHidden = box.classList.toggle('hidden');
-    btnEl.innerHTML = !isHidden ? `<i class="fas fa-eye-slash mr-1"></i> Sembunyikan Kunci` : `<i class="fas fa-key mr-1"></i> Lihat Kunci Jawaban`;
+    btnEl.innerHTML = !isHidden ? `<i class="fas fa-eye-slash mr-1"></i> Sembunyikan Pembahasan` : `<i class="fas fa-key mr-1"></i> Lihat Kunci & Pembahasan`;
 };
-
-window.scrollToHandoutSection = elId => document.getElementById(elId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
 function renderFormulaPillsHTML(formulaStr) {
     if (!formulaStr) return '';
@@ -427,68 +550,187 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
     const theme = getSessionThemePalette(sessionNumber, prefix === 'recap', data.style);
     const isCollapsed = document.body.classList.contains('hes-sidebar-collapsed');
     const regAudio = txt => { data.allAudioItems.push(txt); return data.allAudioItems.length - 1; };
-    const audioBtn = (aIdx, cls) => `<button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-9 h-9 rounded-full ${cls} flex items-center justify-center transition shrink-0 cursor-pointer"><i class="fas fa-volume-up text-xs"></i></button>`;
-    const secHead = (num, badgeCls, title) => `<div class="flex items-center gap-3"><span class="px-3 py-1 rounded-xl ${badgeCls} font-black text-xs">${num}</span><h3 class="text-lg sm:text-xl font-extrabold text-slate-900">${cleanTitleMarkdown(title)}</h3></div>`;
+    const audioBtn = (aIdx, cls) => `<button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan Pelafalan Inggris" class="w-9 h-9 rounded-full ${cls} flex items-center justify-center transition shrink-0 cursor-pointer"><i class="fas fa-volume-up text-xs"></i></button>`;
 
     const sectionsHTML = data.sections.map((sec, sIdx) => {
         const domId = `${prefix}-${sec.id}`, num = String(sIdx + 1).padStart(2, '0');
+        let insightCounter = 0, practiceCounter = 0, warmupCounter = 0;
 
-        if (sec.type === 'story') {
-            const aIdx = regAudio(sec.paragraphs.join(' '));
-            return `<section id="${domId}" class="scroll-mt-20 space-y-4"><div class="flex items-center justify-between gap-3">${secHead(num, 'bg-amber-100 text-amber-800', sec.title)}${audioBtn(aIdx, 'bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200')}</div><div class="pl-5 sm:pl-6 border-l-4 border-amber-400 space-y-4 text-slate-700 text-base sm:text-[17px] leading-[1.9] font-medium">${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}</div></section>`;
-        }
-        if (sec.type === 'callout') {
-            return `<section id="${domId}" class="scroll-mt-20"><div class="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-indigo-50/90 to-blue-50/60 border-l-4 border-indigo-600 flex items-start gap-4"><div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-base shrink-0 mt-0.5"><i class="fas fa-lightbulb"></i></div><div class="space-y-2 flex-1"><h3 class="text-base sm:text-lg font-extrabold text-indigo-950">${cleanTitleMarkdown(sec.title)}</h3><div class="space-y-3 text-base text-slate-700 leading-[1.85] font-medium">${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}</div></div></div></section>`;
-        }
-        if (sec.type === 'warmup') {
-            return `<section id="${domId}" class="space-y-4 scroll-mt-20">${secHead(num, 'bg-amber-100 text-amber-800', sec.title)}<div class="space-y-3 pl-2">${sec.items.map((q, i) => `<div class="py-3.5 px-4 rounded-2xl bg-amber-50/50 flex items-center justify-between gap-4"><div class="flex items-start gap-3.5"><span class="w-7 h-7 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">${i + 1}</span><p class="text-base sm:text-[17px] font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(q)}</p></div>${audioBtn(regAudio(q), 'bg-white hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200')}</div>`).join('')}</div></section>`;
-        }
-        if (sec.type === 'editorial') {
-            return `<section id="${domId}" class="space-y-5 scroll-mt-20">${secHead(num, theme.badgeBg, sec.title)}${sec.paragraphs.length ? `<div class="space-y-4 text-slate-700 text-base sm:text-[17px] leading-[1.9] font-medium">${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}</div>` : ''}${sec.items.length ? `<div class="divide-y divide-slate-100 border-t border-slate-100">${sec.items.map((it, i) => `<div class="py-5 flex items-start gap-4"><span class="w-8 h-8 rounded-xl ${theme.accentBg} text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">${i + 1}</span><div class="space-y-1.5 flex-1">${it.title ? `<h4 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(it.title)}</h4>` : ''}<p class="text-base sm:text-[16.5px] text-slate-600 leading-[1.85] font-medium">${formatRichEnglishText(it.body)}</p></div></div>`).join('')}</div>` : ''}</section>`;
-        }
-        if (sec.type === 'formulas') {
-            const bMap = { '[+]': ['bg-emerald-600', 'border-emerald-500 bg-emerald-50/30', '+'], '[-]': ['bg-rose-600', 'border-rose-500 bg-rose-50/30', '−'], '[?]': ['bg-blue-600', 'border-blue-500 bg-blue-50/30', '?'] };
-            return `<section id="${domId}" class="space-y-4 scroll-mt-20">${secHead(num, 'bg-indigo-50 text-indigo-700', sec.title)}${sec.paragraphs.length ? `<div class="space-y-3 text-slate-700 text-base leading-[1.85] font-medium">${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}</div>` : ''}<div class="space-y-3.5">${sec.items.map(f => {
-                const [bBg, lBord, sym] = bMap[f.badge] || ['bg-indigo-600', 'border-indigo-500 bg-indigo-50/30', '★'];
-                const aIdx = (f.example && !f.isNote) ? regAudio(f.example) : null;
-                return `<div class="p-5 rounded-r-2xl border-l-4 ${lBord} flex items-start justify-between gap-4"><div class="space-y-2 flex-1"><div class="flex items-center gap-2.5"><span class="w-6 h-6 rounded-lg ${bBg} text-white font-black text-xs flex items-center justify-center shrink-0">${sym}</span><span class="text-base font-extrabold text-slate-900">${cleanTitleMarkdown(f.label)}</span></div>${f.formula ? renderFormulaPillsHTML(f.formula) : ''}${f.example ? `<p class="text-base font-medium text-slate-700 leading-[1.8] pt-1">${formatRichEnglishText(f.example)}</p>` : ''}</div>${aIdx !== null ? audioBtn(aIdx, 'bg-white hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 shadow-2xs') : ''}</div>`;
-            }).join('')}</div></section>`;
-        }
-        if (sec.type === 'phrases') {
-            return `<section id="${domId}" class="space-y-4 scroll-mt-20">${secHead(num, 'bg-teal-50 text-teal-700', sec.title)}${sec.paragraphs.length ? `<div class="space-y-3 text-slate-700 text-base leading-[1.85] font-medium">${sec.paragraphs.map(p => `<p>${formatRichEnglishText(p)}</p>`).join('')}</div>` : ''}<div class="divide-y divide-slate-100 border-t border-slate-100">${sec.items.map(ph => `<div class="py-4 flex items-start justify-between gap-4"><div class="space-y-1.5 flex-1">${ph.phrase ? `<h4 class="text-base sm:text-lg font-extrabold text-teal-900">${cleanTitleMarkdown(ph.phrase)}</h4>` : ''}${ph.meaning ? `<p class="text-base font-medium text-slate-600 leading-[1.8]">${formatRichEnglishText(ph.meaning)}</p>` : ''}${ph.example ? `<p class="text-sm sm:text-base font-semibold text-indigo-700 pt-1">&ldquo;${formatRichEnglishText(ph.example)}&rdquo;</p>` : ''}</div>${audioBtn(regAudio(ph.example ? `${ph.phrase}. ${ph.example}` : (ph.phrase || ph.meaning)), 'bg-teal-50 hover:bg-teal-600 text-teal-700 hover:text-white mt-1')}</div>`).join('')}</div></section>`;
-        }
-        if (sec.type === 'examples') {
-            return `<section id="${domId}" class="space-y-4 scroll-mt-20">${secHead(num, 'bg-emerald-50 text-emerald-700', sec.title)}<div class="divide-y divide-slate-100 border-t border-slate-100">${sec.items.map(ex => `<div class="py-4 flex items-start justify-between gap-4"><div class="space-y-1.5 flex-1"><span class="inline-block px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-extrabold">${cleanTitleMarkdown(ex.tag)}</span><p class="text-base sm:text-[17px] font-semibold text-slate-800 leading-[1.85]">${formatRichEnglishText(ex.sentence)}</p>${ex.note ? `<p class="text-sm text-slate-500">${formatRichEnglishText(ex.note)}</p>` : ''}</div>${audioBtn(regAudio(ex.sentence), 'bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white mt-1')}</div>`).join('')}</div></section>`;
-        }
-        if (sec.type === 'mistakes') {
-            return `<section id="${domId}" class="space-y-4 scroll-mt-20">${secHead(num, 'bg-rose-50 text-rose-700', sec.title)}<div class="space-y-4">${sec.items.map((m, idx) => !m.wrong ? `<div class="py-4 flex items-start gap-4 border-b border-slate-100"><span class="w-8 h-8 rounded-xl ${theme.accentBg} text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">${idx + 1}</span><div class="space-y-1 flex-1">${m.title ? `<h4 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(m.title)}</h4>` : ''}<p class="text-base text-slate-700 leading-[1.85] font-medium">${formatRichEnglishText(m.right)}</p></div></div>` : `<div class="p-4 sm:p-5 rounded-2xl bg-slate-50/70 space-y-2.5"><div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div class="p-3.5 rounded-xl bg-rose-50/80 flex items-start gap-3"><span class="w-6 h-6 rounded-full bg-rose-200 text-rose-700 text-xs font-black flex items-center justify-center shrink-0 mt-0.5">✕</span><div><span class="text-[10px] font-extrabold uppercase tracking-wider text-rose-600 block">Avoid Saying</span><p class="text-sm sm:text-base font-semibold text-slate-600 line-through decoration-rose-400 mt-0.5">${cleanTitleMarkdown(m.wrong)}</p></div></div><div class="p-3.5 rounded-xl bg-emerald-50/90 flex items-center justify-between gap-3"><div class="flex items-start gap-3"><span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">✓</span><div><span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">Say This Instead</span><p class="text-sm sm:text-base font-extrabold text-emerald-950 mt-0.5">${cleanTitleMarkdown(m.right)}</p></div></div>${audioBtn(regAudio(m.right), 'bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200')}</div></div>${m.reason ? `<p class="text-sm font-medium text-slate-600 pl-1"><strong class="text-indigo-600">Why:</strong> ${formatRichEnglishText(m.reason)}</p>` : ''}</div>`).join('')}</div></section>`;
-        }
-        if (sec.type === 'dialogue') {
-            data.allAudioDialogues[sec.id] = sec.items;
-            const chatBoxId = `${domId}-chatbox`;
-            return `<section id="${domId}" class="space-y-4 scroll-mt-20"><div class="flex flex-wrap items-center justify-between gap-3">${secHead(num, 'bg-sky-50 text-sky-700', sec.title)}<div class="flex flex-wrap items-center gap-2"><button type="button" onclick="toggleDialogueBlurMode('${chatBoxId}', this)" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-eye-slash mr-1.5"></i> Blur Teks</button><button type="button" onclick="playHandoutSectionDialogue('${prefix}', '${sec.id}', this)" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer"><i class="fas fa-volume-up mr-1.5"></i> Putar Percakapan</button></div></div>${sec.paragraphs.length ? `<p class="text-sm sm:text-base text-slate-500 italic">${sec.paragraphs.map(p => formatRichEnglishText(p)).join(' ')}</p>` : ''}<div id="${chatBoxId}" data-blurred="0" class="space-y-3 pt-1">${sec.items.map((line, lIdx) => {
-                const match = line.match(/^([A-Za-z\s.]{1,22})\s*:\s*(.+)$/);
-                const aIdx = regAudio(line);
-                if (!match) return `<p class="text-base font-medium text-slate-600">${formatRichEnglishText(line)}</p>`;
-                const spk = match[1].trim(), txt = match[2].trim();
-                const isMale = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|boss|manager|leo|a)\b/i.test(spk) || (lIdx % 2 === 0);
-                return `<div class="flex items-start gap-3"><div class="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs shrink-0 mt-1 ${isMale ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'}">${spk.charAt(0).toUpperCase()}</div><div onclick="this.querySelector('.dialogue-line-text')?.classList.remove('blur-xs')" class="flex-1 p-4 rounded-2xl ${isMale ? 'bg-slate-100/90' : 'bg-indigo-50/70'} flex items-start justify-between gap-3 cursor-pointer transition"><div class="space-y-1"><span class="text-xs font-extrabold uppercase tracking-wider ${isMale ? 'text-blue-700' : 'text-rose-600'}">${cleanTitleMarkdown(spk)}</span><p class="dialogue-line-text text-base font-medium text-slate-800 leading-relaxed transition duration-200">${formatRichEnglishText(txt)}</p></div><button type="button" onclick="event.stopPropagation(); playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-8 h-8 rounded-full bg-white hover:bg-indigo-600 text-slate-600 hover:text-white flex items-center justify-center shrink-0 transition cursor-pointer shadow-2xs"><i class="fas fa-volume-up text-xs"></i></button></div></div>`;
-            }).join('')}</div></section>`;
-        }
-        if (sec.type === 'practice') {
-            return `<section id="${domId}" class="space-y-4 scroll-mt-20">${secHead(num, 'bg-violet-50 text-violet-700', sec.title)}<div class="divide-y divide-slate-100 border-t border-slate-100">${sec.items.map((pr, i) => {
-                const ansId = `${domId}_ans_${i}`;
-                return `<div class="py-4.5 flex items-start gap-3.5"><span class="w-7 h-7 rounded-xl bg-violet-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-1">${i + 1}</span><div class="space-y-2 flex-1"><span class="inline-block text-[11px] font-extrabold uppercase tracking-wider text-violet-600">${cleanTitleMarkdown(pr.tag)}</span><p class="text-base sm:text-[17px] font-semibold text-slate-800 leading-[1.85]">${formatRichEnglishText(pr.task)}</p>${pr.answerKey ? `<div class="pt-1"><button type="button" data-target="${ansId}" onclick="toggleHandoutAnswer(this)" class="px-3.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-key mr-1"></i> Lihat Kunci Jawaban</button><div id="${ansId}" class="hidden mt-2.5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-900"><i class="fas fa-check-circle text-emerald-600 mr-1.5"></i> ${formatRichEnglishText(pr.answerKey)}</div></div>` : ''}</div></div>`;
-            }).join('')}</div></section>`;
-        }
-        return '';
+        const blocksHTML = sec.blocks.map((b, bIdx) => {
+            if (b.type === 'subheading') {
+                return `<h4 class="text-base sm:text-lg font-extrabold text-indigo-950 pt-3 pb-1 border-b border-indigo-100/80 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-500"></span>${cleanTitleMarkdown(b.text)}</h4>`;
+            }
+            if (b.type === 'paragraph') {
+                return `<p class="${b.isStory ? 'pl-4 sm:pl-5 border-l-4 border-amber-400 ' : ''}text-slate-700 text-base sm:text-[17px] leading-[1.9] font-medium">${formatRichEnglishText(b.text)}</p>`;
+            }
+            if (b.type === 'callout') {
+                return `
+                    <div class="my-3 p-5 rounded-2xl bg-gradient-to-r from-amber-50/90 via-indigo-50/40 to-white border-l-4 border-amber-500 flex items-start gap-3.5">
+                        <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm shrink-0 mt-0.5"><i class="fas fa-lightbulb"></i></div>
+                        <div class="space-y-1 flex-1">
+                            <h5 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-900">${cleanTitleMarkdown(b.title)}</h5>
+                            <p class="text-sm sm:text-base text-slate-700 leading-[1.85] font-medium">${formatRichEnglishText(b.text)}</p>
+                        </div>
+                    </div>`;
+            }
+            if (b.type === 'warmup') {
+                warmupCounter++;
+                const aIdx = regAudio(b.text);
+                return `
+                    <div class="py-3.5 px-4 rounded-2xl bg-amber-50/60 flex items-center justify-between gap-4">
+                        <div class="flex items-start gap-3.5">
+                            <span class="w-7 h-7 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">${warmupCounter}</span>
+                            <p class="text-base sm:text-[17px] font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(b.text)}</p>
+                        </div>
+                        ${audioBtn(aIdx, 'bg-white hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200')}
+                    </div>`;
+            }
+            if (b.type === 'insight') {
+                insightCounter++;
+                const hasQuotedEng = /"[^"]{3,}"/.test(b.body);
+                const aIdx = hasQuotedEng ? regAudio(b.body) : null;
+                return `
+                    <div class="py-4 border-b border-slate-100 last:border-none flex items-start justify-between gap-4">
+                        <div class="flex items-start gap-3.5 flex-1">
+                            <span class="w-7 h-7 rounded-xl ${theme.accentBg} text-white text-xs font-black flex items-center justify-center shrink-0 mt-1 shadow-2xs">${insightCounter}</span>
+                            <div class="space-y-1 flex-1">
+                                ${b.title ? `<h4 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(b.title)}</h4>` : ''}
+                                <p class="text-base sm:text-[16.5px] text-slate-600 leading-[1.85] font-medium">${formatRichEnglishText(b.body)}</p>
+                            </div>
+                        </div>
+                        ${aIdx !== null ? audioBtn(aIdx, 'bg-slate-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 mt-1') : ''}
+                    </div>`;
+            }
+            if (b.type === 'formula') {
+                const bMap = { '[+]': ['bg-emerald-600', 'border-emerald-500 bg-emerald-50/30', '+'], '[-]': ['bg-rose-600', 'border-rose-500 bg-rose-50/30', '−'], '[?]': ['bg-blue-600', 'border-blue-500 bg-blue-50/30', '?'] };
+                const [bBg, lBord, sym] = bMap[b.badge] || ['bg-indigo-600', 'border-indigo-500 bg-indigo-50/30', '★'];
+                const { eng: exEng, ind: exInd } = splitBilingualLine(b.example);
+                const aIdx = exEng ? regAudio(exEng) : null;
+                return `
+                    <div class="p-5 rounded-r-2xl border-l-4 ${lBord} flex items-start justify-between gap-4">
+                        <div class="space-y-2 flex-1">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-6 h-6 rounded-lg ${bBg} text-white font-black text-xs flex items-center justify-center shrink-0">${sym}</span>
+                                <span class="text-base font-extrabold text-slate-900">${cleanTitleMarkdown(b.label)}</span>
+                            </div>
+                            ${b.formula ? renderFormulaPillsHTML(b.formula) : ''}
+                            ${exEng ? `<p class="text-base font-bold text-indigo-900 leading-[1.75] pt-1">&ldquo;${formatRichEnglishText(exEng)}&rdquo;</p>` : ''}
+                            ${exInd || b.note ? `<p class="text-sm font-medium text-slate-600">${formatRichEnglishText(exInd || b.note)}</p>` : ''}
+                        </div>
+                        ${aIdx !== null ? audioBtn(aIdx, 'bg-white hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 shadow-2xs') : ''}
+                    </div>`;
+            }
+            if (b.type === 'phrase') {
+                const { eng: pEng } = splitBilingualLine(b.phrase);
+                const { eng: exEng, ind: exInd } = splitBilingualLine(b.example);
+                const aIdx = regAudio(exEng ? `${pEng}. ${exEng}` : pEng);
+                return `
+                    <div class="py-4 border-b border-slate-100 last:border-none flex items-start justify-between gap-4">
+                        <div class="space-y-1.5 flex-1">
+                            ${b.phrase ? `<h4 class="text-base sm:text-lg font-extrabold text-teal-900">${cleanTitleMarkdown(b.phrase)}</h4>` : ''}
+                            ${b.meaning ? `<p class="text-base font-medium text-slate-600 leading-[1.8]">${formatRichEnglishText(b.meaning)}</p>` : ''}
+                            ${exEng ? `<p class="text-sm sm:text-base font-bold text-indigo-700 pt-0.5">&ldquo;${formatRichEnglishText(exEng)}&rdquo; ${exInd ? `<span class="font-medium text-slate-500 text-sm">(${escapeHtmlStr(exInd)})</span>` : ''}</p>` : ''}
+                        </div>
+                        ${audioBtn(aIdx, 'bg-teal-50 hover:bg-teal-600 text-teal-700 hover:text-white mt-1')}
+                    </div>`;
+            }
+            if (b.type === 'comparison') {
+                const { eng: rEng, ind: rInd } = splitBilingualLine(b.right);
+                const aIdx = regAudio(rEng);
+                return `
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-50/80 space-y-2.5">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="p-3.5 rounded-xl bg-rose-50/80 flex items-start gap-3">
+                                <span class="w-6 h-6 rounded-full bg-rose-200 text-rose-700 text-xs font-black flex items-center justify-center shrink-0 mt-0.5">✕</span>
+                                <div>
+                                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-rose-600 block">${cleanTitleMarkdown(b.leftLabel)}</span>
+                                    <p class="text-sm sm:text-base font-semibold text-slate-600 line-through decoration-rose-400 mt-0.5">${cleanTitleMarkdown(b.wrong)}</p>
+                                </div>
+                            </div>
+                            <div class="p-3.5 rounded-xl bg-emerald-50/90 flex items-center justify-between gap-3">
+                                <div class="flex items-start gap-3">
+                                    <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">✓</span>
+                                    <div>
+                                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">${cleanTitleMarkdown(b.rightLabel)}</span>
+                                        <p class="text-sm sm:text-base font-extrabold text-emerald-950 mt-0.5">${cleanTitleMarkdown(rEng)}</p>
+                                        ${rInd ? `<p class="text-xs font-medium text-emerald-800 mt-0.5">${escapeHtmlStr(rInd)}</p>` : ''}
+                                    </div>
+                                </div>
+                                ${audioBtn(aIdx, 'bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200')}
+                            </div>
+                        </div>
+                        ${b.reason ? `<p class="text-sm font-medium text-slate-600 pl-1"><strong class="text-indigo-600">Penjelasan:</strong> ${formatRichEnglishText(b.reason)}</p>` : ''}
+                    </div>`;
+            }
+            if (b.type === 'dialogue') {
+                data.allAudioDialogues[b.id] = b.lines.map(l => l.raw);
+                const chatBoxId = `${domId}-${b.id}`;
+                return `
+                    <div class="my-4 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-200/70">
+                            <span class="text-xs font-extrabold text-slate-600"><i class="fas fa-headphones-alt text-indigo-600 mr-1.5"></i> Simulasi Percakapan (Klik balon untuk dengar per kalimat)</span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" onclick="toggleDialogueBlurMode('${chatBoxId}', this)" class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-eye-slash mr-1"></i> Blur Teks</button>
+                                <button type="button" onclick="playHandoutSectionDialogue('${prefix}', '${b.id}', this)" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Putar Dialog</button>
+                            </div>
+                        </div>
+                        <div id="${chatBoxId}" data-blurred="0" class="space-y-3 pt-1">
+                            ${b.lines.map((l, lIdx) => {
+                                const aIdx = regAudio(l.raw);
+                                const isMale = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|boss|manager|leo|a)\b/i.test(l.speaker) || (lIdx % 2 === 0);
+                                return `
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs shrink-0 mt-1 ${isMale ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'}">${l.speaker.charAt(0).toUpperCase()}</div>
+                                        <div onclick="this.querySelector('.dialogue-line-text')?.classList.remove('blur-xs')" class="flex-1 p-4 rounded-2xl ${isMale ? 'bg-slate-100/90' : 'bg-indigo-50/70'} flex items-start justify-between gap-3 cursor-pointer transition">
+                                            <div class="space-y-1">
+                                                <span class="text-xs font-extrabold uppercase tracking-wider ${isMale ? 'text-blue-700' : 'text-rose-600'}">${cleanTitleMarkdown(l.speaker)}</span>
+                                                <p class="dialogue-line-text text-base font-bold text-slate-800 leading-relaxed transition duration-200">${formatRichEnglishText(l.eng)}</p>
+                                                ${l.ind ? `<p class="text-xs sm:text-sm font-medium text-slate-500 italic">${escapeHtmlStr(l.ind)}</p>` : ''}
+                                            </div>
+                                            <button type="button" onclick="event.stopPropagation(); playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-8 h-8 rounded-full bg-white hover:bg-indigo-600 text-slate-600 hover:text-white flex items-center justify-center shrink-0 transition cursor-pointer shadow-2xs"><i class="fas fa-volume-up text-xs"></i></button>
+                                        </div>
+                                    </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+            }
+            if (b.type === 'practice') {
+                practiceCounter++;
+                const ansId = `${domId}_ans_${bIdx}`;
+                return `
+                    <div class="py-4 border-b border-slate-100 last:border-none flex items-start gap-3.5">
+                        <span class="w-7 h-7 rounded-xl bg-violet-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-1">${practiceCounter}</span>
+                        <div class="space-y-2 flex-1">
+                            <span class="inline-block text-[11px] font-extrabold uppercase tracking-wider text-violet-600">${cleanTitleMarkdown(b.tag)}</span>
+                            <p class="text-base sm:text-[17px] font-semibold text-slate-800 leading-[1.85]">${formatRichEnglishText(b.task)}</p>
+                            ${b.answerKey ? `
+                                <div class="pt-1">
+                                    <button type="button" data-target="${ansId}" onclick="toggleHandoutAnswer(this)" class="px-3.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-key mr-1"></i> Lihat Kunci & Pembahasan</button>
+                                    <div id="${ansId}" class="hidden mt-2.5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-900"><i class="fas fa-check-circle text-emerald-600 mr-1.5"></i> ${formatRichEnglishText(b.answerKey)}</div>
+                                </div>` : ''}
+                        </div>
+                    </div>`;
+            }
+            return '';
+        }).join('');
+
+        return `
+            <section id="${domId}" class="space-y-4 scroll-mt-20">
+                <div class="flex items-center gap-3">
+                    <span class="px-3 py-1 rounded-xl ${theme.badgeBg} font-black text-xs">${num}</span>
+                    <h3 class="text-lg sm:text-xl font-extrabold text-slate-900">${cleanTitleMarkdown(sec.title)}</h3>
+                </div>
+                <div class="space-y-4">
+                    ${blocksHTML}
+                </div>
+            </section>`;
     }).join('');
 
     box.innerHTML = `
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-white border border-slate-200/90 px-4 sm:px-5 py-3.5 rounded-2xl shadow-2xs">
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl ${theme.accentBg} text-white flex items-center justify-center text-sm font-black shrink-0"><i class="fas fa-book-open"></i></div>
-                <div><p class="text-xs sm:text-sm font-extrabold text-slate-800">${docBadge} &bull; Session ${sessionNumber}</p><p class="text-[11px] font-semibold text-slate-400">Klik ikon speaker untuk mendengar pelafalan</p></div>
+                <div><p class="text-xs sm:text-sm font-extrabold text-slate-800">${docBadge} &bull; Session ${sessionNumber}</p><p class="text-[11px] font-semibold text-slate-400">Panduan Bilingual Interaktif &bull; Klik speaker untuk audio</p></div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <button type="button" onclick="toggleFullScreenReading()" class="hes-focus-mode-btn hidden md:inline-flex items-center px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-extrabold text-xs transition cursor-pointer"><i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} mr-1.5"></i> ${isCollapsed ? 'Tampilkan Sidebar' : 'Mode Layar Penuh'}</button>
@@ -513,7 +755,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
 }
 
 // ============================================================================
-// GENERATOR PDF A4 EDITORIAL MAGAZINE (FONT 30PX, TANPA KOTAK KAKU)
+// GENERATOR PDF A4 EDITORIAL MAGAZINE (MENDUKUNG SEMUA BLOK BUKU BILINGUAL)
 // ============================================================================
 function drawHandoutRoundedRect(ctx, x, y, w, h, r, fill, stroke = null, lw = 1) {
     const rad = Math.min(r, w / 2, h / 2);
@@ -702,7 +944,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
             const goalH = 62 + (goalRich.length * 44);
             drawHandoutRoundedRect(ctx, padX, y, contentW, goalH, 22, theme.pdfSoft);
             drawHandoutRoundedRect(ctx, padX, y, 10, goalH, 5, theme.pdfPrimary);
-            pdfTxt("TODAY'S LEARNING FOCUS", padX + 36, y + 18, `800 19px ${fontStack}`, theme.pdfPrimary);
+            pdfTxt("TARGET BELAJAR HARI INI", padX + 36, y + 18, `800 19px ${fontStack}`, theme.pdfPrimary);
             drawRichPdfLines(ctx, goalRich, padX + 36, y + 48, 44, 28, fontStack, { normal: '#1E293B', quote: theme.pdfPrimary });
             y += goalH + 36;
         }
@@ -716,17 +958,6 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
             drawHandoutRoundedRect(ctx, padX, y, 60, 48, 14, accentColor);
             pdfTxt(String(secNum).padStart(2, '0'), padX + 30, y + 24, `800 23px ${fontStack}`, '#FFFFFF', 'center', 'middle');
             y = drawPlainLinesStrict(ctx, hLines, padX + 80, y + 4, 46, contentW - 80, hFont, '#0F172A') + 26;
-        };
-
-        const drawFlowingParagraphs = (paragraphs, leftBarColor = null) => {
-            if (!paragraphs?.length) return;
-            const textX = leftBarColor ? padX + 34 : padX, textW = leftBarColor ? contentW - 34 : contentW;
-            paragraphs.forEach(p => {
-                const rLines = layoutRichPdfLines(ctx, p, textW, BODY_FONT, fontStack), pH = rLines.length * BODY_LH;
-                ensureSpace(pH + 28);
-                if (leftBarColor) drawHandoutRoundedRect(ctx, padX, y + 4, 8, pH - 8, 4, leftBarColor);
-                y = drawRichPdfLines(ctx, rLines, textX, y, BODY_LH, BODY_FONT, fontStack, { normal: '#334155', highlightBg: '#FEF3C7', highlightText: '#0F172A', quote: theme.pdfPrimary }) + 28;
-            });
         };
 
         const drawNumberedInsightItem = (num, title, body, accentColor = theme.pdfPrimary) => {
@@ -746,81 +977,94 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
             y += 24;
         };
 
+        // Render Setiap Bab & Blok Mengalir
         data.sections.forEach((sec, sIdx) => {
-            const secNum = sIdx + 1;
-            if (sec.type === 'story') { drawSectionHeading(secNum, sec.title, '#D97706'); drawFlowingParagraphs(sec.paragraphs, '#F59E0B'); y += 18; }
-            else if (sec.type === 'callout') { drawSectionHeading(secNum, sec.title, '#4338CA'); drawFlowingParagraphs(sec.paragraphs, '#4338CA'); y += 18; }
-            else if (sec.type === 'warmup') { drawSectionHeading(secNum, sec.title, '#D97706'); sec.items.forEach((q, i) => drawNumberedInsightItem(i + 1, '', q, '#D97706')); y += 14; }
-            else if (sec.type === 'editorial') { drawSectionHeading(secNum, sec.title, theme.pdfPrimary); drawFlowingParagraphs(sec.paragraphs); sec.items.forEach((it, i) => drawNumberedInsightItem(i + 1, it.title, it.body, theme.pdfPrimary)); y += 14; }
-            else if (sec.type === 'formulas') {
-                drawSectionHeading(secNum, sec.title, '#4338CA'); drawFlowingParagraphs(sec.paragraphs);
-                sec.items.forEach((f, idx) => {
-                    if (f.isNote || !f.formula) return drawNumberedInsightItem(idx + 1, f.label, f.example || f.formula, '#4338CA');
-                    const fLines = wrapPlainLinesStrict(ctx, f.formula.replace(/\+/g, '  +  '), contentW - 72, `800 28px ${fontStack}`);
-                    const exLines = f.example ? layoutRichPdfLines(ctx, `"${f.example}"`, contentW - 72, 28, fontStack) : [];
+            drawSectionHeading(sIdx + 1, sec.title, theme.pdfPrimary);
+            let numCounter = 0;
+
+            sec.blocks.forEach(b => {
+                if (b.type === 'subheading') {
+                    const subFont = `800 31px ${fontStack}`;
+                    const sLines = wrapPlainLinesStrict(ctx, b.text, contentW, subFont);
+                    ensureSpace((sLines.length * 44) + 30);
+                    y += 8;
+                    y = drawPlainLinesStrict(ctx, sLines, padX, y, 44, contentW, subFont, theme.pdfPrimary) + 18;
+                } else if (b.type === 'paragraph') {
+                    const tx = b.isStory ? padX + 34 : padX, tw = b.isStory ? contentW - 34 : contentW;
+                    const rLines = layoutRichPdfLines(ctx, b.text, tw, BODY_FONT, fontStack), pH = rLines.length * BODY_LH;
+                    ensureSpace(pH + 28);
+                    if (b.isStory) drawHandoutRoundedRect(ctx, padX, y + 4, 8, pH - 8, 4, '#F59E0B');
+                    y = drawRichPdfLines(ctx, rLines, tx, y, BODY_LH, BODY_FONT, fontStack, { normal: '#334155', highlightBg: '#FEF3C7', highlightText: '#0F172A', quote: theme.pdfPrimary }) + 28;
+                } else if (b.type === 'callout') {
+                    const rLines = layoutRichPdfLines(ctx, b.text, contentW - 76, 28, fontStack);
+                    const boxH = 68 + (rLines.length * 44);
+                    ensureSpace(boxH + 26);
+                    drawHandoutRoundedRect(ctx, padX, y, contentW, boxH, 20, '#FFFBEB');
+                    drawHandoutRoundedRect(ctx, padX, y, 10, boxH, 5, '#F59E0B');
+                    pdfTxt(cleanPlainPdfText(b.title).toUpperCase(), padX + 36, y + 18, `800 20px ${fontStack}`, '#B45309');
+                    drawRichPdfLines(ctx, rLines, padX + 36, y + 50, 44, 28, fontStack, { normal: '#1E293B', quote: '#B45309' });
+                    y += boxH + 26;
+                } else if (b.type === 'warmup') {
+                    numCounter++;
+                    drawNumberedInsightItem(numCounter, '', b.text, '#D97706');
+                } else if (b.type === 'insight') {
+                    numCounter++;
+                    drawNumberedInsightItem(numCounter, b.title, b.body, theme.pdfPrimary);
+                } else if (b.type === 'phrase') {
+                    numCounter++;
+                    const combined = (b.meaning ? b.meaning : '') + (b.example ? ` — Contoh: "${b.example}"` : '');
+                    drawNumberedInsightItem(numCounter, b.phrase, combined, '#0D9488');
+                } else if (b.type === 'formula') {
+                    const fLines = wrapPlainLinesStrict(ctx, (b.formula || '').replace(/\+/g, '  +  '), contentW - 72, `800 28px ${fontStack}`);
+                    const exLines = b.example ? layoutRichPdfLines(ctx, `"${b.example}"`, contentW - 72, 28, fontStack) : [];
                     const boxH = 82 + (fLines.length * 42) + (exLines.length ? (exLines.length * 44) + 12 : 0);
                     ensureSpace(boxH + 24);
                     drawHandoutRoundedRect(ctx, padX, y, contentW, boxH, 20, '#EEF2FF');
                     drawHandoutRoundedRect(ctx, padX, y, 10, boxH, 5, '#4338CA');
-                    pdfTxt(cleanPlainPdfText(f.label).toUpperCase(), padX + 36, y + 22, `800 22px ${fontStack}`, '#4338CA', 'left', 'top', contentW - 72);
+                    pdfTxt(cleanPlainPdfText(b.label).toUpperCase(), padX + 36, y + 22, `800 22px ${fontStack}`, '#4338CA', 'left', 'top', contentW - 72);
                     let cy = drawPlainLinesStrict(ctx, fLines, padX + 36, y + 58, 42, contentW - 72, `800 28px ${fontStack}`, '#0F172A');
                     if (exLines.length) drawRichPdfLines(ctx, exLines, padX + 36, cy + 10, 44, 28, fontStack, { quote: '#1D4ED8' });
                     y += boxH + 26;
-                });
-                y += 14;
-            } else if (sec.type === 'phrases') {
-                drawSectionHeading(secNum, sec.title, '#0D9488'); drawFlowingParagraphs(sec.paragraphs);
-                sec.items.forEach((ph, i) => drawNumberedInsightItem(i + 1, ph.phrase, ph.meaning + (ph.example ? ` — Example: "${ph.example}"` : ''), '#0D9488'));
-                y += 14;
-            } else if (sec.type === 'examples') {
-                drawSectionHeading(secNum, sec.title, '#059669'); drawFlowingParagraphs(sec.paragraphs);
-                sec.items.forEach((ex, i) => drawNumberedInsightItem(i + 1, ex.tag, `"${ex.sentence}"` + (ex.note ? ` (${ex.note})` : ''), '#059669'));
-                y += 14;
-            } else if (sec.type === 'mistakes') {
-                drawSectionHeading(secNum, sec.title, '#E11D48');
-                const halfW = Math.floor((contentW - 28) / 2);
-                sec.items.forEach((m, idx) => {
-                    if (!m.wrong) return drawNumberedInsightItem(idx + 1, m.title || '', m.right, theme.pdfPrimary);
-                    const wLines = wrapPlainLinesStrict(ctx, m.wrong, halfW - 48, `600 27px ${fontStack}`);
-                    const rLines = wrapPlainLinesStrict(ctx, m.right, halfW - 48, `800 27px ${fontStack}`);
-                    const whyLines = m.reason ? layoutRichPdfLines(ctx, `Why: ${m.reason}`, contentW - 20, 26, fontStack) : [];
+                } else if (b.type === 'comparison') {
+                    const halfW = Math.floor((contentW - 28) / 2);
+                    const wLines = wrapPlainLinesStrict(ctx, b.wrong, halfW - 48, `600 27px ${fontStack}`);
+                    const rLines = wrapPlainLinesStrict(ctx, b.right, halfW - 48, `800 27px ${fontStack}`);
+                    const whyLines = b.reason ? layoutRichPdfLines(ctx, `Penjelasan: ${b.reason}`, contentW - 20, 26, fontStack) : [];
                     const colH = 74 + (Math.max(wLines.length, rLines.length) * 40);
                     ensureSpace(colH + (whyLines.length ? (whyLines.length * 40) + 18 : 0) + 28);
 
                     drawHandoutRoundedRect(ctx, padX, y, halfW, colH, 18, '#FFF1F2');
-                    pdfTxt('✕  AVOID SAYING', padX + 24, y + 20, `800 18px ${fontStack}`, '#E11D48');
+                    pdfTxt(`✕  ${cleanPlainPdfText(b.leftLabel).toUpperCase()}`, padX + 24, y + 20, `800 18px ${fontStack}`, '#E11D48');
                     drawPlainLinesStrict(ctx, wLines, padX + 24, y + 52, 40, halfW - 48, `600 27px ${fontStack}`, '#881337', true);
 
                     const rightX = padX + halfW + 28;
                     drawHandoutRoundedRect(ctx, rightX, y, halfW, colH, 18, '#ECFDF5');
-                    pdfTxt('✓  SAY THIS INSTEAD', rightX + 24, y + 20, `800 18px ${fontStack}`, '#059669');
+                    pdfTxt(`✓  ${cleanPlainPdfText(b.rightLabel).toUpperCase()}`, rightX + 24, y + 20, `800 18px ${fontStack}`, '#059669');
                     drawPlainLinesStrict(ctx, rLines, rightX + 24, y + 52, 40, halfW - 48, `800 27px ${fontStack}`, '#064E3B', false);
 
                     y += colH + 14;
                     if (whyLines.length) y = drawRichPdfLines(ctx, whyLines, padX + 8, y, 40, 26, fontStack, { normal: '#475569' });
                     y += 26;
-                });
-                y += 14;
-            } else if (sec.type === 'dialogue') {
-                drawSectionHeading(secNum, sec.title, '#0284C7'); drawFlowingParagraphs(sec.paragraphs);
-                const bubbleW = Math.floor(contentW * 0.82);
-                sec.items.forEach((line, lIdx) => {
-                    const match = line.match(/^([A-Za-z\s.]{1,22})\s*:\s*(.+)$/);
-                    const spk = match ? match[1].trim() : `Speaker ${(lIdx % 2) + 1}`, txt = match ? match[2].trim() : line;
-                    const isLeft = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|leo|a)\b/i.test(spk) || (lIdx % 2 === 0);
-                    const rLines = layoutRichPdfLines(ctx, txt, bubbleW - 64, 28, fontStack), bH = 68 + (rLines.length * 44);
-                    ensureSpace(bH + 20);
-                    const bx = isLeft ? padX : (padX + contentW - bubbleW);
-                    drawHandoutRoundedRect(ctx, bx, y, bubbleW, bH, 22, isLeft ? '#F1F5F9' : '#EFF6FF');
-                    pdfTxt(cleanPlainPdfText(spk).toUpperCase(), bx + 32, y + 18, `800 19px ${fontStack}`, isLeft ? '#1D4ED8' : '#E11D48');
-                    drawRichPdfLines(ctx, rLines, bx + 32, y + 48, 44, 28, fontStack, { normal: '#0F172A' });
-                    y += bH + 18;
-                });
-                y += 18;
-            } else if (sec.type === 'practice') {
-                drawSectionHeading(secNum, sec.title, '#7C3AED'); drawFlowingParagraphs(sec.paragraphs);
-                sec.items.forEach((pr, i) => drawNumberedInsightItem(i + 1, pr.tag, pr.task + (pr.answerKey ? ` (Answer Key: ${pr.answerKey})` : ''), '#7C3AED'));
-            }
+                } else if (b.type === 'dialogue') {
+                    const bubbleW = Math.floor(contentW * 0.84);
+                    b.lines.forEach((l, lIdx) => {
+                        const isLeft = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|leo|a)\b/i.test(l.speaker) || (lIdx % 2 === 0);
+                        const fullTxt = l.eng + (l.ind ? ` (${l.ind})` : '');
+                        const rLines = layoutRichPdfLines(ctx, fullTxt, bubbleW - 64, 28, fontStack), bH = 68 + (rLines.length * 44);
+                        ensureSpace(bH + 20);
+                        const bx = isLeft ? padX : (padX + contentW - bubbleW);
+                        drawHandoutRoundedRect(ctx, bx, y, bubbleW, bH, 22, isLeft ? '#F1F5F9' : '#EFF6FF');
+                        pdfTxt(cleanPlainPdfText(l.speaker).toUpperCase(), bx + 32, y + 18, `800 19px ${fontStack}`, isLeft ? '#1D4ED8' : '#E11D48');
+                        drawRichPdfLines(ctx, rLines, bx + 32, y + 48, 44, 28, fontStack, { normal: '#0F172A' });
+                        y += bH + 18;
+                    });
+                    y += 14;
+                } else if (b.type === 'practice') {
+                    numCounter++;
+                    drawNumberedInsightItem(numCounter, b.tag, b.task + (b.answerKey ? ` (Kunci: ${b.answerKey})` : ''), '#7C3AED');
+                }
+            });
+            y += 16;
         });
 
         if (window.jspdf?.jsPDF) {
