@@ -11,77 +11,99 @@ body {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Mode Fokus / Fullscreen Laptop (Sembunyikan Sidebar) */
+/* ==========================================================================
+   KHUSUS MODE PC / LAPTOP (min-width: 768px)
+   Di HP (< 768px) semua gaya di bawah ini otomatis nonaktif (kembali Original)
+   ========================================================================== */
 @media (min-width: 768px) {
     body.hes-sidebar-collapsed #app-sidebar {
         margin-left: -18rem;
         opacity: 0;
         pointer-events: none;
     }
-}
 
-/* Ruang Belajar Lebih Luas di Laptop */
-.materi-container-width {
-    max-width: 76rem !important;
-}
+    .materi-container-width {
+        max-width: 76rem !important;
+    }
 
-body.hes-sidebar-collapsed .materi-container-width {
-    max-width: 98% !important;
-}
+    body.hes-sidebar-collapsed .materi-container-width {
+        max-width: 98% !important;
+    }
 
-/* Saat Mode Fokus Mengajar Aktif, Ringkas Header Atas agar Layar Vertikal Lebih Lega */
-body.hes-sidebar-collapsed .materi-top-nav-card {
-    padding-top: 0.65rem !important;
-    padding-bottom: 0.65rem !important;
-}
-body.hes-sidebar-collapsed .materi-stepping-bar {
-    display: none !important;
-}
+    body.hes-sidebar-collapsed .materi-top-nav-card {
+        padding-top: 0.65rem !important;
+        padding-bottom: 0.65rem !important;
+    }
 
-/* Area Meja Baca PDF (PDF Viewer Stage) */
-.hes-pdf-stage {
-    background-color: #CBD5E1;
-    background-image: radial-gradient(#94A3B8 0.75px, transparent 0.75px);
-    background-size: 18px 18px;
-    border-radius: 1.5rem;
-    border: 1px solid #94A3B8;
-    padding: 1.25rem 1rem;
-    overflow-x: auto;
-    box-shadow: inset 0 2px 10px rgba(15, 23, 42, 0.08);
-}
+    body.hes-sidebar-collapsed .materi-stepping-bar {
+        display: none !important;
+    }
 
-/* Lembar Kertas PDF A4 Proporsional */
-.hes-pdf-paper {
-    width: 880px;
-    min-width: 880px;
-    transform-origin: top left;
-    background: #FFFFFF;
-    border-radius: 1.25rem;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
-    will-change: transform;
-}
+    /* Area Meja Baca PDF (Hanya di PC/Laptop) */
+    .hes-pdf-stage {
+        background-color: #CBD5E1;
+        background-image: radial-gradient(#94A3B8 0.75px, transparent 0.75px);
+        background-size: 18px 18px;
+        border-radius: 1.5rem;
+        border: 1px solid #94A3B8;
+        padding: 1.25rem 1rem;
+        overflow-x: auto;
+        box-shadow: inset 0 2px 10px rgba(15, 23, 42, 0.08);
+    }
 
-@media (max-width: 640px) {
+    /* Lembar Kertas PDF A4 Proporsional (Hanya di PC/Laptop) */
     .hes-pdf-paper {
-        width: 760px;
-        min-width: 760px;
+        width: 880px;
+        min-width: 880px;
+        transform-origin: top left;
+        background: #FFFFFF;
+        border-radius: 1.25rem;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
+        will-change: transform;
+    }
+
+    /* Menu Mengajar Vertikal di Samping Kanan (Hanya di PC/Laptop) */
+    .hes-side-dock-wrap {
+        position: fixed;
+        right: 0.85rem;
+        top: 54%;
+        transform: translateY(-50%);
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .hes-side-dock-wrap.dock-minimized .hes-side-dock-body {
+        display: none;
     }
 }
 
-/* Menu Mengajar Vertikal di Samping Kanan (Side Dock) */
-.hes-side-dock-wrap {
-    position: fixed;
-    right: 0.85rem;
-    top: 54%;
-    transform: translateY(-50%);
-    z-index: 40;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
+/* ==========================================================================
+   KHUSUS MODE HP / MOBILE (max-width: 767px) — TAMPILAN ORIGINAL
+   ========================================================================== */
+@media (max-width: 767px) {
+    .hes-side-dock-wrap,
+    .hes-annotation-overlay {
+        display: none !important;
+    }
 
-.hes-side-dock-wrap.dock-minimized .hes-side-dock-body {
-    display: none;
+    .hes-pdf-stage {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    .hes-pdf-paper {
+        width: 100% !important;
+        min-width: 0 !important;
+        transform: none !important;
+        border-radius: 1.5rem;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 2px 10px rgba(226, 232, 240, 0.5);
+    }
 }
 
 /* Komponen Elegan (Clean & Modern UI) */

@@ -7,12 +7,12 @@ let currentVocabItems = [];
 let quizState = { index: 0, score: 0, answered: false };
 let parsedHandoutCache = { presentation: null, recap: null };
 
-// State Alat Mengajar Samping (Skala Kertas PDF, Coret-Coret Materi, & Laci Papan Tulis Samping)
+// State Alat Mengajar Samping (Hanya Aktif di PC / Desktop >= 768px)
 let handoutZoomLevel = parseInt(localStorage.getItem('hes_handout_zoom')) || 80;
 let sideDockMinimized = false;
 let annotationState = {
     active: false,
-    tool: 'pen', // 'pen' | 'highlighter' | 'eraser' | 'pointer'
+    tool: 'pen',
     color: '#E11D48',
     size: 3
 };
@@ -45,6 +45,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const stepBar = document.getElementById('session-stepping-stones')?.parentElement;
         if (stepBar) stepBar.classList.add('materi-stepping-bar');
     }
+
+    window.addEventListener('resize', () => {
+        ['presentation', 'recap'].forEach(pref => {
+            applyPdfPaperScale(pref);
+            resizeAnnotationCanvas(pref);
+        });
+    });
 
     renderMateriContent();
 
@@ -200,13 +207,21 @@ function renderMateriContent() {
 }
 
 // ============================================================================
-// MESIN SKALA KERTAS PDF, MENU SAMPING (SIDE DOCK), CORET-CORET, & PAPAN TULIS
+// MESIN SKALA KERTAS PDF (HANYA AKTIF DI PC/DESKTOP >= 768PX)
 // ============================================================================
 function applyPdfPaperScale(prefix) {
     const sheet = document.getElementById(`printable-handout-${prefix}`);
     const wrap = document.getElementById(`handout-scale-wrap-${prefix}`);
     const lbl = document.getElementById(`zoom-label-${prefix}`);
     if (!sheet || !wrap) return;
+
+    // Jika di HP (< 768px), biarkan 100% responsif seperti original
+    if (window.innerWidth < 768) {
+        sheet.style.transform = 'none';
+        wrap.style.width = '100%';
+        wrap.style.height = 'auto';
+        return;
+    }
 
     const scale = handoutZoomLevel / 100;
     const baseW = sheet.offsetWidth || 880;
@@ -281,6 +296,7 @@ window.clearAnnotationCanvas = function(prefix) {
 };
 
 function resizeAnnotationCanvas(prefix) {
+    if (window.innerWidth < 768) return;
     const sheet = document.getElementById(`printable-handout-${prefix}`);
     const canvas = document.getElementById(`annot-canvas-${prefix}`);
     if (!sheet || !canvas) return;
@@ -698,7 +714,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
 }
 
 // ============================================================================
-// KONTROL INTERAKTIF HANDOUT & RENDERER WEB (DENGAN SIDE FLOATING DOCK)
+// KONTROL INTERAKTIF HANDOUT & RENDERER WEB
 // ============================================================================
 window.playHandoutTextAudio = function(rawSpeech, btnEl) {
     const clean = extractEnglishForTTS(rawSpeech);
@@ -955,9 +971,19 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
     }).join('');
 
     box.innerHTML = `
-        <!-- MENU MENGAJAR VERTIKAL DI SAMPING KANAN LAYAR (TIDAK MENUTUPI ATAS MATERI) -->
+        <!-- KHUSUS HP / MOBILE (md:hidden): HEADER ATAS ORIGINAL -->
+        <div class="flex md:hidden flex-wrap items-center justify-between gap-3 mb-4 bg-white border border-slate-200/90 px-4 py-3.5 rounded-2xl shadow-2xs">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl ${theme.accentBg} text-white flex items-center justify-center text-sm font-black shrink-0"><i class="fas fa-book-open"></i></div>
+                <div><p class="text-xs font-extrabold text-slate-800">${docBadge} &bull; Session ${sessionNumber}</p><p class="text-[11px] font-semibold text-slate-400">Klik speaker untuk mendengar pelafalan</p></div>
+            </div>
+            <button onclick="downloadHandoutPDF('${prefix}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-file-pdf"></i> Download PDF
+            </button>
+        </div>
+
+        <!-- KHUSUS PC / DESKTOP (hidden md:flex): MENU MENGAJAR VERTIKAL DI SAMPING KANAN LAYAR -->
         <div id="side-dock-wrap-${prefix}" class="hes-side-dock-wrap ${sideDockMinimized ? 'dock-minimized' : ''}">
-            <!-- Palet Alat Coret-Coret Vertikal (Muncul di Sebelah Kiri Dock Saat Diaktifkan) -->
             <div id="annot-toolbar-${prefix}" class="hidden hes-side-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700 flex flex-col items-center gap-2 fade-in">
                 <button type="button" id="annot-tool-${prefix}-pen" onclick="setAnnotationTool('${prefix}', 'pen')" title="Pena Tulis" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-white text-slate-900 flex items-center justify-center cursor-pointer"><i class="fas fa-pen"></i></button>
                 <button type="button" id="annot-tool-${prefix}-highlighter" onclick="setAnnotationTool('${prefix}', 'highlighter')" title="Stabilo Transparan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-highlighter"></i></button>
@@ -975,15 +1001,12 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 <button type="button" onclick="clearAnnotationCanvas('${prefix}')" title="Bersihkan Semua Coretan" class="w-9 h-9 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs flex items-center justify-center cursor-pointer"><i class="fas fa-trash-alt"></i></button>
             </div>
 
-            <!-- Dock Utama Vertikal -->
             <div class="flex flex-col items-center gap-1.5">
-                <!-- Tombol Lipat / Tampilkan Menu Samping -->
                 <button type="button" onclick="toggleSideDockMinimize('${prefix}')" title="Sembunyikan / Tampilkan Menu Samping" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-indigo-600 text-white shadow-md flex items-center justify-center transition cursor-pointer">
                     <i id="side-dock-min-icon-${prefix}" class="fas ${sideDockMinimized ? 'fa-chevron-left' : 'fa-chevron-right'} text-[11px]"></i>
                 </button>
 
                 <div class="hes-side-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700/80 flex flex-col items-center gap-2">
-                    <!-- Zoom In / Zoom Out Kertas -->
                     <button type="button" onclick="changeHandoutZoom(10)" title="Perbesar Kertas (Zoom In)" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
                         <i class="fas fa-search-plus"></i>
                     </button>
@@ -996,24 +1019,20 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
 
                     <div class="w-7 h-px bg-slate-700 my-0.5"></div>
 
-                    <!-- Coret Kertas -->
                     <button type="button" id="btn-toggle-annot-${prefix}" onclick="toggleAnnotationToolbar('${prefix}')" title="Coret-Coret Kertas Materi" class="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white flex items-center justify-center transition cursor-pointer">
                         <i class="fas fa-highlighter text-sm"></i>
                     </button>
 
-                    <!-- Laci Papan Tulis & Catatan Samping -->
                     <button type="button" id="btn-toggle-wb-${prefix}" onclick="toggleWhiteboardDrawer('${prefix}')" title="Buka Papan Tulis & Catatan di Samping" class="w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer">
                         <i class="fas fa-chalkboard-teacher text-sm"></i>
                     </button>
 
-                    <!-- Mode Fokus Mengajar (Sembunyikan Sidebar Kiri) -->
                     <button type="button" onclick="toggleFullScreenReading()" title="Mode Fokus Mengajar (Sembunyikan/Tampilkan Sidebar Kiri)" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition cursor-pointer">
                         <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} text-sm"></i>
                     </button>
 
                     <div class="w-7 h-px bg-slate-700 my-0.5"></div>
 
-                    <!-- Download PDF -->
                     <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" title="Download PDF A4" class="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-sm transition cursor-pointer">
                         <i class="fas fa-file-pdf text-sm"></i>
                     </button>
@@ -1026,13 +1045,13 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             </div>
         </div>
 
-        <!-- LACI SAMPING PAPAN TULIS & CATATAN MENGAJAR (SIDE DRAWER - TIDAK MENUTUPI MATERI KIRI) -->
-        <div id="wb-drawer-${prefix}" class="hidden fixed inset-y-0 right-16 z-40 w-[90vw] sm:w-[400px] md:w-[430px] my-3 bg-white/98 backdrop-blur-md border-2 border-indigo-200 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col justify-between gap-3 fade-in overflow-y-auto custom-scrollbar">
+        <!-- LACI SAMPING PAPAN TULIS & CATATAN MENGAJAR (HANYA DI PC / DESKTOP) -->
+        <div id="wb-drawer-${prefix}" class="hidden fixed inset-y-0 right-16 z-40 w-[400px] md:w-[430px] my-3 bg-white/98 backdrop-blur-md border-2 border-indigo-200 rounded-3xl p-5 shadow-2xl flex flex-col justify-between gap-3 fade-in overflow-y-auto custom-scrollbar">
             <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 shrink-0">
                 <div class="flex items-center gap-2">
                     <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs"><i class="fas fa-chalkboard"></i></span>
                     <div>
-                        <h4 class="text-xs sm:text-sm font-extrabold text-slate-800">Catatan & Papan Tulis Samping</h4>
+                        <h4 class="text-sm font-extrabold text-slate-800">Catatan & Papan Tulis Samping</h4>
                         <p class="text-[10px] font-semibold text-slate-400">Baca materi di kiri sambil mencatat di kanan</p>
                     </div>
                 </div>
@@ -1041,7 +1060,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </button>
             </div>
 
-            <!-- Atas: Kotak Ketik Catatan & Contoh Kalimat -->
             <div class="flex flex-col space-y-1.5 flex-1 min-h-[180px]">
                 <div class="flex items-center justify-between">
                     <span class="text-[11px] font-extrabold text-indigo-700 uppercase"><i class="fas fa-keyboard mr-1"></i> Ketik Catatan / Contoh Kalimat</span>
@@ -1050,7 +1068,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 <textarea id="wb-note-${prefix}" oninput="saveLiveScratchpadNote('${prefix}', this.value)" class="hes-input !bg-amber-50/40 !border-amber-200/90 font-semibold text-sm leading-relaxed flex-1 resize-none" placeholder="Ketik catatan mengajar, kosakata tambahan, atau koreksi kalimat murid di sini...">${escapeHtmlStr(savedNote)}</textarea>
             </div>
 
-            <!-- Bawah: Papan Coret-Coret Bebas -->
             <div class="flex flex-col space-y-1.5 shrink-0">
                 <div class="flex flex-wrap items-center justify-between gap-1">
                     <span class="text-[11px] font-extrabold text-emerald-700 uppercase"><i class="fas fa-draw-polygon mr-1"></i> Papan Coret-Coret</span>
@@ -1068,15 +1085,14 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             </div>
         </div>
 
-        <!-- AREA BACA PDF (LANGSUNG TERBUKA LEGA TANPA TERTUTUP TOOLBAR ATAS) -->
+        <!-- AREA MATERI (Di PC: Kertas PDF A4 Bisa Di-Zoom; Di HP: Kartu Responsif Original) -->
         <div class="hes-pdf-stage custom-scrollbar">
             <div id="handout-scale-wrap-${prefix}" class="mx-auto relative transition-all duration-150">
                 <div id="printable-handout-${prefix}" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;" class="hes-pdf-paper overflow-hidden text-slate-800 relative">
-                    <!-- Kanvas Transparan untuk Coret-Coret Langsung di Atas Kertas -->
                     <canvas id="annot-canvas-${prefix}" class="hes-annotation-overlay"></canvas>
 
                     <div class="h-2.5 w-full bg-gradient-to-r ${theme.barGrad}"></div>
-                    <div class="relative z-10 p-8 sm:p-10 space-y-9">
+                    <div class="relative z-10 p-6 sm:p-10 space-y-9">
                         <div class="space-y-4 border-b border-slate-100 pb-6">
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div class="flex flex-wrap items-center gap-2">
@@ -1088,7 +1104,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                             ${data.goal ? `<div class="p-4 sm:p-5 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}"><p class="text-xs font-extrabold uppercase tracking-wider ${theme.accentText} mb-1"><i class="fas fa-bullseye mr-1"></i> Target Belajar Hari Ini</p><p class="text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p></div>` : ''}
                         </div>
                         <div class="space-y-10">${sectionsHTML}</div>
-                        <div class="pt-6 border-t border-slate-100 flex items-center justify-between gap-3 text-xs text-slate-400 font-bold">
+                        <div class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400 font-bold">
                             <span>Hamdi English Studio &bull; Friendly Learning Space</span><span>${monthTitle} &bull; Session ${sessionNumber} of 12</span>
                         </div>
                     </div>
@@ -1100,7 +1116,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
         const sheet = document.getElementById(`printable-handout-${prefix}`);
         const annotCanvas = document.getElementById(`annot-canvas-${prefix}`);
         applyPdfPaperScale(prefix);
-        if (annotCanvas) {
+        if (annotCanvas && window.innerWidth >= 768) {
             resizeAnnotationCanvas(prefix);
             bindInteractiveCanvas(annotCanvas, () => annotationState);
         }
