@@ -7,7 +7,7 @@ let currentVocabItems = [];
 let quizState = { index: 0, score: 0, answered: false };
 let parsedHandoutCache = { presentation: null, recap: null };
 
-// State Alat Mengajar Samping (Hanya Aktif di PC / Desktop >= 768px)
+// State Alat Mengajar Floating (Hanya Aktif di PC / Desktop >= 768px)
 let handoutZoomLevel = parseInt(localStorage.getItem('hes_handout_zoom')) || 80;
 let sideDockMinimized = false;
 let annotationState = {
@@ -46,11 +46,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (stepBar) stepBar.classList.add('materi-stepping-bar');
     }
 
+    initGlobalFloatingTeachingUI();
+
     window.addEventListener('resize', () => {
         ['presentation', 'recap'].forEach(pref => {
             applyPdfPaperScale(pref);
             resizeAnnotationCanvas(pref);
         });
+        syncFloatingDockVisibility();
     });
 
     renderMateriContent();
@@ -104,10 +107,15 @@ window.switchMateriMode = function(mode) {
         }
         document.getElementById(`panel-materi-${id}`)?.classList.toggle('hidden', !active);
     });
+
+    syncFloatingDockVisibility();
+
     if (mode === 'presentation' || mode === 'recap') {
+        loadScratchpadNoteForActiveTab();
         setTimeout(() => {
             applyPdfPaperScale(mode);
             resizeAnnotationCanvas(mode);
+            syncAnnotationStateToActiveTab();
         }, 60);
     }
 };
@@ -187,7 +195,6 @@ function renderMateriContent() {
     });
 
     switchVocabSubmode(activeVocabSubmode);
-    switchMateriMode(activeMateriMode);
 
     const st = window.HES.materials[`vocab_status-${email}-${monthId}-w${week}-d${day}`] || { status: 'none' };
     const actArea = document.getElementById('vocab-action-area');
@@ -204,18 +211,198 @@ function renderMateriContent() {
     const getMat = suffix => window.HES.materials[`${email}-${monthId}-w${week}-d${day}-${suffix}`] || window.HES.materials[`all-${monthId}-w${week}-d${day}-${suffix}`];
     renderSmartHandout('presentation', getMat('link'), monthObj.title, currentSessionNumber, 'Interactive Study Guide', 'Modul materi utama belum diterbitkan untuk pertemuan ini.');
     renderSmartHandout('recap', getMat('recap'), monthObj.title, currentSessionNumber, 'Class Recap & Coaching Notes', 'Catatan rangkuman kelas belum tersedia untuk pertemuan ini.');
+    switchMateriMode(activeMateriMode);
 }
 
 // ============================================================================
-// MESIN SKALA KERTAS PDF (HANYA AKTIF DI PC/DESKTOP >= 768PX)
+// FLOATING DOCK & FLOATING WHITEBOARD (MELAYANG BEBAS DI LAYAR PC/LAPTOP)
 // ============================================================================
+function getActiveHandoutPrefix() {
+    return activeMateriMode === 'recap' ? 'recap' : 'presentation';
+}
+
+function makeElementDraggable(el, handleEl) {
+    if (!el || !handleEl) return;
+    let isDragging = false, startX = 0, startY = 0, initLeft = 0, initTop = 0;
+
+    handleEl.addEventListener('mousedown', e => {
+        if (e.target.closest('button, a, input, textarea')) return;
+        isDragging = true;
+        const rect = el.getBoundingClientRect();
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+        el.style.transform = 'none';
+        el.style.left = `${rect.left}px`;
+        el.style.top = `${rect.top}px`;
+        startX = e.clientX;
+        startY = e.clientY;
+        initLeft = rect.left;
+        initTop = rect.top;
+        document.body.style.userSelect = 'none';
+    });
+
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const nx = Math.max(8, Math.min(window.innerWidth - el.offsetWidth - 8, initLeft + (e.clientX - startX)));
+        const ny = Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, initTop + (e.clientY - startY)));
+        el.style.left = `${nx}px`;
+        el.style.top = `${ny}px`;
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        }
+    });
+}
+
+function initGlobalFloatingTeachingUI() {
+    if (document.getElementById('hes-global-floating-dock')) return;
+
+    const isCollapsed = document.body.classList.contains('hes-sidebar-collapsed');
+
+    const uiHTML = `
+        <!-- FLOATING BAR MENGAJAR (MELAYANG DI ATAS LAYAR & BISA DIGESER) -->
+        <div id="hes-global-floating-dock" class="hes-floating-dock hidden">
+            <!-- Sub-Palet Alat Coret-Coret (Melayang di Sebelah Bar) -->
+            <div id="hes-floating-annot-pal" class="hidden hes-floating-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700/90 flex flex-col items-center gap-2 fade-in">
+                <button type="button" id="flt-annot-pen" onclick="setAnnotationTool('pen')" title="Pena Tulis" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-white text-slate-900 flex items-center justify-center cursor-pointer"><i class="fas fa-pen"></i></button>
+                <button type="button" id="flt-annot-highlighter" onclick="setAnnotationTool('highlighter')" title="Stabilo Transparan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-highlighter"></i></button>
+                <button type="button" id="flt-annot-eraser" onclick="setAnnotationTool('eraser')" title="Penghapus Coretan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-eraser"></i></button>
+                <button type="button" id="flt-annot-pointer" onclick="setAnnotationTool('pointer')" title="Mode Klik Audio (Tanpa Menghapus Coretan)" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-mouse-pointer"></i></button>
+
+                <div class="w-6 h-px bg-slate-700 my-0.5"></div>
+
+                ${[['#E11D48', 'Merah'], ['#2563EB', 'Biru'], ['#059669', 'Hijau'], ['#F59E0B', 'Kuning/Oranye'], ['#0F172A', 'Hitam']].map(([col, lbl]) => `
+                    <button type="button" data-color="${col}" onclick="setAnnotationTool(annotationState.tool === 'eraser' ? 'pen' : annotationState.tool, '${col}')" title="Warna ${lbl}" style="background:${col};" class="flt-annot-color w-6 h-6 rounded-full border-2 border-white cursor-pointer transition"></button>
+                `).join('')}
+
+                <div class="w-6 h-px bg-slate-700 my-0.5"></div>
+
+                <button type="button" onclick="clearAnnotationCanvas()" title="Bersihkan Semua Coretan" class="w-9 h-9 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs flex items-center justify-center cursor-pointer"><i class="fas fa-trash-alt"></i></button>
+            </div>
+
+            <!-- Bar Utama Melayang -->
+            <div class="flex flex-col items-center gap-1.5">
+                <button type="button" onclick="toggleSideDockMinimize()" title="Lipat / Buka Floating Bar" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-indigo-600 text-white shadow-lg border border-slate-700 flex items-center justify-center transition cursor-pointer">
+                    <i id="flt-dock-min-icon" class="fas fa-chevron-right text-[11px]"></i>
+                </button>
+
+                <div class="hes-floating-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700/80 flex flex-col items-center gap-2">
+                    <!-- Drag Handle (Geser Posisi Bar) -->
+                    <div id="hes-dock-drag-handle" title="Tahan & Geser untuk Memindahkan Posisi Bar" class="w-full py-1 flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-move">
+                        <i class="fas fa-grip-lines text-xs"></i>
+                    </div>
+
+                    <!-- Zoom In / Zoom Out Kertas -->
+                    <button type="button" onclick="changeHandoutZoom(10)" title="Perbesar Kertas (Zoom In)" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                    <button type="button" onclick="changeHandoutZoom(0, handoutZoomLevel === 80 ? 100 : 80)" title="Klik untuk ganti cepat 80% / 100%" class="w-10 py-1 rounded-lg bg-slate-800/80 text-[11px] font-black text-amber-300 hover:text-white text-center cursor-pointer" id="flt-zoom-label">
+                        ${handoutZoomLevel}%
+                    </button>
+                    <button type="button" onclick="changeHandoutZoom(-10)" title="Perkecil Kertas (Zoom Out)" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+
+                    <div class="w-7 h-px bg-slate-700 my-0.5"></div>
+
+                    <!-- Coret Kertas -->
+                    <button type="button" id="flt-btn-annot" onclick="toggleAnnotationToolbar()" title="Coret-Coret Kertas Materi" class="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-highlighter text-sm"></i>
+                    </button>
+
+                    <!-- Jendela Melayang Papan Tulis & Catatan -->
+                    <button type="button" id="flt-btn-wb" onclick="toggleWhiteboardDrawer()" title="Buka Jendela Catatan & Papan Tulis" class="w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-chalkboard-teacher text-sm"></i>
+                    </button>
+
+                    <!-- Mode Fokus Mengajar -->
+                    <button type="button" onclick="toggleFullScreenReading()" title="Mode Fokus Mengajar (Sembunyikan/Tampilkan Sidebar Kiri)" class="hes-focus-mode-btn w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition cursor-pointer">
+                        <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} text-sm"></i>
+                    </button>
+
+                    <div class="w-7 h-px bg-slate-700 my-0.5"></div>
+
+                    <!-- Download PDF -->
+                    <button id="flt-btn-dl" onclick="downloadHandoutPDF(getActiveHandoutPrefix())" title="Download PDF A4" class="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-sm transition cursor-pointer">
+                        <i class="fas fa-file-pdf text-sm"></i>
+                    </button>
+
+                    ${window.HES.userRole === 'admin' ? `
+                    <a href="admin.html?tab=materials" title="Edit Materi di Panel Admin" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition">
+                        <i class="fas fa-pen text-xs"></i>
+                    </a>` : ''}
+                </div>
+            </div>
+        </div>
+
+        <!-- JENDELA MELAYANG PAPAN TULIS & CATATAN (FLOATING WINDOW & BISA DIGESER) -->
+        <div id="hes-global-floating-wb" class="hes-floating-wb hidden bg-white/98 backdrop-blur-md border-2 border-indigo-200 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col justify-between gap-3 overflow-y-auto custom-scrollbar">
+            <div id="hes-wb-drag-handle" class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 shrink-0 cursor-move" title="Tahan & Geser untuk Memindahkan Jendela">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs"><i class="fas fa-chalkboard"></i></span>
+                    <div>
+                        <h4 class="text-sm font-extrabold text-slate-800">Catatan & Papan Tulis <i class="fas fa-arrows-alt text-[10px] text-slate-400 ml-1"></i></h4>
+                        <p class="text-[10px] font-semibold text-slate-400">Jendela melayang (bisa digeser)</p>
+                    </div>
+                </div>
+                <button type="button" onclick="toggleWhiteboardDrawer()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col space-y-1.5 flex-1 min-h-[160px]">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-extrabold text-indigo-700 uppercase"><i class="fas fa-keyboard mr-1"></i> Ketik Catatan / Contoh Kalimat</span>
+                    <button type="button" onclick="document.getElementById('flt-wb-note').value='';saveLiveScratchpadNote('');" class="text-[11px] font-bold text-slate-400 hover:text-red-500 cursor-pointer">Kosongkan</button>
+                </div>
+                <textarea id="flt-wb-note" oninput="saveLiveScratchpadNote(this.value)" rows="5" class="hes-input !bg-amber-50/40 !border-amber-200/90 font-semibold text-sm leading-relaxed flex-1 resize-none" placeholder="Ketik catatan mengajar, kosakata tambahan, atau koreksi kalimat murid di sini..."></textarea>
+            </div>
+
+            <div class="flex flex-col space-y-1.5 shrink-0">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                    <span class="text-[11px] font-extrabold text-emerald-700 uppercase"><i class="fas fa-draw-polygon mr-1"></i> Papan Coret-Coret</span>
+                    <div class="flex items-center gap-1">
+                        <button type="button" id="flt-wb-pen" onclick="setWhiteboardTool('pen', '#1D4ED8')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-indigo-600 text-white cursor-pointer">Biru</button>
+                        <button type="button" onclick="setWhiteboardTool('pen', '#E11D48')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-200 cursor-pointer">Merah</button>
+                        <button type="button" id="flt-wb-highlighter" onclick="setWhiteboardTool('highlighter', '#F59E0B')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer">Stabilo</button>
+                        <button type="button" id="flt-wb-eraser" onclick="setWhiteboardTool('eraser')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-slate-100 text-slate-600 cursor-pointer"><i class="fas fa-eraser"></i></button>
+                        <button type="button" onclick="clearWhiteboardCanvas()" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-red-50 text-red-600 cursor-pointer"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 overflow-hidden">
+                    <canvas id="flt-wb-canvas" class="w-full h-[200px] block cursor-crosshair touch-none"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', uiHTML);
+    makeElementDraggable(document.getElementById('hes-global-floating-dock'), document.getElementById('hes-dock-drag-handle'));
+    makeElementDraggable(document.getElementById('hes-global-floating-wb'), document.getElementById('hes-wb-drag-handle'));
+}
+
+function syncFloatingDockVisibility() {
+    const dock = document.getElementById('hes-global-floating-dock');
+    const wb = document.getElementById('hes-global-floating-wb');
+    if (!dock) return;
+
+    const pref = getActiveHandoutPrefix();
+    const hasContent = Boolean(parsedHandoutCache[pref]);
+    const shouldShow = window.innerWidth >= 768 && (activeMateriMode === 'presentation' || activeMateriMode === 'recap') && hasContent;
+
+    dock.classList.toggle('hidden', !shouldShow);
+    if (!shouldShow && wb) wb.classList.add('hidden');
+}
+
 function applyPdfPaperScale(prefix) {
     const sheet = document.getElementById(`printable-handout-${prefix}`);
     const wrap = document.getElementById(`handout-scale-wrap-${prefix}`);
-    const lbl = document.getElementById(`zoom-label-${prefix}`);
+    const lbl = document.getElementById('flt-zoom-label');
     if (!sheet || !wrap) return;
 
-    // Jika di HP (< 768px), biarkan 100% responsif seperti original
     if (window.innerWidth < 768) {
         sheet.style.transform = 'none';
         wrap.style.width = '100%';
@@ -239,60 +426,65 @@ window.changeHandoutZoom = function(delta, exactVal = null) {
     ['presentation', 'recap'].forEach(pref => applyPdfPaperScale(pref));
 };
 
-window.toggleSideDockMinimize = function(prefix) {
+window.toggleSideDockMinimize = function() {
     sideDockMinimized = !sideDockMinimized;
-    const wrap = document.getElementById(`side-dock-wrap-${prefix}`);
-    const icon = document.getElementById(`side-dock-min-icon-${prefix}`);
-    if (wrap) wrap.classList.toggle('dock-minimized', sideDockMinimized);
+    const dock = document.getElementById('hes-global-floating-dock');
+    const icon = document.getElementById('flt-dock-min-icon');
+    if (dock) dock.classList.toggle('dock-minimized', sideDockMinimized);
     if (icon) icon.className = `fas ${sideDockMinimized ? 'fa-chevron-left' : 'fa-chevron-right'} text-[11px]`;
 };
 
-window.toggleAnnotationToolbar = function(prefix) {
-    const bar = document.getElementById(`annot-toolbar-${prefix}`);
-    const btn = document.getElementById(`btn-toggle-annot-${prefix}`);
-    const canvas = document.getElementById(`annot-canvas-${prefix}`);
-    if (!bar || !canvas) return;
+function syncAnnotationStateToActiveTab() {
+    const pref = getActiveHandoutPrefix();
+    const canvas = document.getElementById(`annot-canvas-${pref}`);
+    if (canvas) {
+        canvas.classList.toggle('drawing-active', annotationState.active && annotationState.tool !== 'pointer');
+    }
+}
 
-    const isOpening = bar.classList.contains('hidden');
-    bar.classList.toggle('hidden', !isOpening);
+window.toggleAnnotationToolbar = function() {
+    const pal = document.getElementById('hes-floating-annot-pal');
+    const btn = document.getElementById('flt-btn-annot');
+    if (!pal) return;
 
-    if (isOpening) {
-        resizeAnnotationCanvas(prefix);
-        setAnnotationTool(prefix, annotationState.tool === 'pointer' ? 'pen' : annotationState.tool, annotationState.color);
+    annotationState.active = pal.classList.contains('hidden');
+    pal.classList.toggle('hidden', !annotationState.active);
+
+    const pref = getActiveHandoutPrefix();
+    resizeAnnotationCanvas(pref);
+
+    if (annotationState.active) {
+        setAnnotationTool(annotationState.tool === 'pointer' ? 'pen' : annotationState.tool, annotationState.color);
         if (btn) btn.className = 'w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md transition cursor-pointer';
     } else {
-        canvas.classList.remove('drawing-active');
+        syncAnnotationStateToActiveTab();
         if (btn) btn.className = 'w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white flex items-center justify-center transition cursor-pointer';
     }
 };
 
-window.setAnnotationTool = function(prefix, tool, color = null) {
+window.setAnnotationTool = function(tool, color = null) {
     annotationState.tool = tool;
     if (color) annotationState.color = color;
-
-    const canvas = document.getElementById(`annot-canvas-${prefix}`);
-    if (canvas) {
-        canvas.classList.toggle('drawing-active', tool !== 'pointer');
-    }
+    syncAnnotationStateToActiveTab();
 
     ['pen', 'highlighter', 'eraser', 'pointer'].forEach(t => {
-        const el = document.getElementById(`annot-tool-${prefix}-${t}`);
+        const el = document.getElementById(`flt-annot-${t}`);
         if (el) {
             el.className = `w-9 h-9 rounded-xl text-xs font-extrabold flex items-center justify-center transition cursor-pointer ${t === tool ? 'bg-white text-slate-900 shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`;
         }
     });
 
-    document.querySelectorAll(`.annot-color-${prefix}`).forEach(btn => {
+    document.querySelectorAll('.flt-annot-color').forEach(btn => {
         btn.classList.toggle('ring-2', btn.dataset.color === annotationState.color);
         btn.classList.toggle('ring-amber-400', btn.dataset.color === annotationState.color);
         btn.classList.toggle('scale-110', btn.dataset.color === annotationState.color);
     });
 };
 
-window.clearAnnotationCanvas = function(prefix) {
-    const canvas = document.getElementById(`annot-canvas-${prefix}`);
-    if (!canvas) return;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+window.clearAnnotationCanvas = function() {
+    const pref = getActiveHandoutPrefix();
+    const canvas = document.getElementById(`annot-canvas-${pref}`);
+    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 };
 
 function resizeAnnotationCanvas(prefix) {
@@ -381,9 +573,9 @@ function bindInteractiveCanvas(canvas, getToolConfig) {
     window.addEventListener('touchend', stop);
 }
 
-window.toggleWhiteboardDrawer = function(prefix) {
-    const box = document.getElementById(`wb-drawer-${prefix}`);
-    const btn = document.getElementById(`btn-toggle-wb-${prefix}`);
+window.toggleWhiteboardDrawer = function() {
+    const box = document.getElementById('hes-global-floating-wb');
+    const btn = document.getElementById('flt-btn-wb');
     if (!box) return;
     const isOpening = box.classList.contains('hidden');
     box.classList.toggle('hidden', !isOpening);
@@ -393,38 +585,48 @@ window.toggleWhiteboardDrawer = function(prefix) {
             : 'w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer';
     }
     if (isOpening) {
-        setTimeout(() => initWhiteboardCanvas(prefix), 50);
+        loadScratchpadNoteForActiveTab();
+        setTimeout(() => initWhiteboardCanvas(), 50);
     }
 };
 
-function initWhiteboardCanvas(prefix) {
-    const canvas = document.getElementById(`wb-canvas-${prefix}`);
+function initWhiteboardCanvas() {
+    const canvas = document.getElementById('flt-wb-canvas');
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (canvas.width === 0 || canvas.width === 300) {
-        canvas.width = Math.max(340, Math.floor(rect.width || 380));
-        canvas.height = 240;
+        canvas.width = Math.max(340, Math.floor(rect.width || 360));
+        canvas.height = 200;
     }
     bindInteractiveCanvas(canvas, () => wbState);
 }
 
-window.setWhiteboardTool = function(prefix, tool, color = null) {
+window.setWhiteboardTool = function(tool, color = null) {
     wbState.tool = tool;
     if (color) wbState.color = color;
     ['pen', 'highlighter', 'eraser'].forEach(t => {
-        const el = document.getElementById(`wb-tool-${prefix}-${t}`);
-        if (el) el.className = `px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition cursor-pointer ${t === tool ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`;
+        const el = document.getElementById(`flt-wb-${t}`);
+        if (el) el.className = `px-2 py-1 rounded-lg text-[10px] font-extrabold transition cursor-pointer ${t === tool ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`;
     });
 };
 
-window.clearWhiteboardCanvas = function(prefix) {
-    const canvas = document.getElementById(`wb-canvas-${prefix}`);
+window.clearWhiteboardCanvas = function() {
+    const canvas = document.getElementById('flt-wb-canvas');
     if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 };
 
-window.saveLiveScratchpadNote = function(prefix, val) {
+function loadScratchpadNoteForActiveTab() {
+    const noteEl = document.getElementById('flt-wb-note');
+    if (!noteEl) return;
     const { monthId, week, day } = activeMateriState;
-    localStorage.setItem(`hes_note_${prefix}_${monthId}_w${week}_d${day}`, val);
+    const pref = getActiveHandoutPrefix();
+    noteEl.value = localStorage.getItem(`hes_note_${pref}_${monthId}_w${week}_d${day}`) || '';
+}
+
+window.saveLiveScratchpadNote = function(val) {
+    const { monthId, week, day } = activeMateriState;
+    const pref = getActiveHandoutPrefix();
+    localStorage.setItem(`hes_note_${pref}_${monthId}_w${week}_d${day}`, val);
 };
 
 // ============================================================================
@@ -773,26 +975,26 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 <p class="text-xs sm:text-sm font-extrabold text-slate-500">${emptyMsg}</p>
                 ${window.HES.userRole === 'admin' ? `<a href="admin.html?tab=materials" class="hes-btn-soft !text-xs"><i class="fas fa-plus mr-1"></i> Isi Materi di Panel Admin</a>` : ''}
             </div>`;
+        syncFloatingDockVisibility();
         return;
     }
 
     if (/^https?:\/\//i.test(trimmed)) {
+        parsedHandoutCache[prefix] = null;
         box.innerHTML = `
             <div class="hes-card space-y-4">
                 <div class="flex items-center justify-between"><h3 class="text-sm font-extrabold text-slate-800">${docBadge}</h3><a href="${trimmed}" target="_blank" class="hes-btn-soft !py-1.5 !px-3 !text-xs"><i class="fas fa-expand"></i> Buka Link</a></div>
                 <iframe src="${parseDriveLink(trimmed)}" class="w-full h-[65vh] rounded-xl border border-slate-200 bg-slate-50"></iframe>
             </div>`;
+        syncFloatingDockVisibility();
         return;
     }
 
-    const { monthId, week, day } = activeMateriState;
+    const { week, day } = activeMateriState;
     const data = parseSmartHandoutText(trimmed, `${monthTitle} • Session ${sessionNumber}`, `${monthTitle} • Week ${week}, Day ${day}`);
     parsedHandoutCache[prefix] = data;
 
     const theme = getSessionThemePalette(sessionNumber, prefix === 'recap', data.style);
-    const isCollapsed = document.body.classList.contains('hes-sidebar-collapsed');
-    const savedNote = localStorage.getItem(`hes_note_${prefix}_${monthId}_w${week}_d${day}`) || '';
-
     const regAudio = txt => { data.allAudioItems.push(txt); return data.allAudioItems.length - 1; };
     const audioBtn = (aIdx, cls) => `<button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan Pelafalan Inggris" class="w-9 h-9 rounded-full ${cls} flex items-center justify-center transition shrink-0 cursor-pointer"><i class="fas fa-volume-up text-xs"></i></button>`;
 
@@ -982,109 +1184,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             </button>
         </div>
 
-        <!-- KHUSUS PC / DESKTOP (hidden md:flex): MENU MENGAJAR VERTIKAL DI SAMPING KANAN LAYAR -->
-        <div id="side-dock-wrap-${prefix}" class="hes-side-dock-wrap ${sideDockMinimized ? 'dock-minimized' : ''}">
-            <div id="annot-toolbar-${prefix}" class="hidden hes-side-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700 flex flex-col items-center gap-2 fade-in">
-                <button type="button" id="annot-tool-${prefix}-pen" onclick="setAnnotationTool('${prefix}', 'pen')" title="Pena Tulis" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-white text-slate-900 flex items-center justify-center cursor-pointer"><i class="fas fa-pen"></i></button>
-                <button type="button" id="annot-tool-${prefix}-highlighter" onclick="setAnnotationTool('${prefix}', 'highlighter')" title="Stabilo Transparan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-highlighter"></i></button>
-                <button type="button" id="annot-tool-${prefix}-eraser" onclick="setAnnotationTool('${prefix}', 'eraser')" title="Penghapus Coretan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-eraser"></i></button>
-                <button type="button" id="annot-tool-${prefix}-pointer" onclick="setAnnotationTool('${prefix}', 'pointer')" title="Mode Klik Audio (Tanpa Menghapus Coretan)" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-mouse-pointer"></i></button>
-
-                <div class="w-6 h-px bg-slate-700 my-0.5"></div>
-
-                ${[['#E11D48', 'Merah'], ['#2563EB', 'Biru'], ['#059669', 'Hijau'], ['#F59E0B', 'Kuning/Oranye'], ['#0F172A', 'Hitam']].map(([col, lbl]) => `
-                    <button type="button" data-color="${col}" onclick="setAnnotationTool('${prefix}', annotationState.tool === 'eraser' ? 'pen' : annotationState.tool, '${col}')" title="Warna ${lbl}" style="background:${col};" class="annot-color-${prefix} w-6 h-6 rounded-full border-2 border-white cursor-pointer transition"></button>
-                `).join('')}
-
-                <div class="w-6 h-px bg-slate-700 my-0.5"></div>
-
-                <button type="button" onclick="clearAnnotationCanvas('${prefix}')" title="Bersihkan Semua Coretan" class="w-9 h-9 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs flex items-center justify-center cursor-pointer"><i class="fas fa-trash-alt"></i></button>
-            </div>
-
-            <div class="flex flex-col items-center gap-1.5">
-                <button type="button" onclick="toggleSideDockMinimize('${prefix}')" title="Sembunyikan / Tampilkan Menu Samping" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-indigo-600 text-white shadow-md flex items-center justify-center transition cursor-pointer">
-                    <i id="side-dock-min-icon-${prefix}" class="fas ${sideDockMinimized ? 'fa-chevron-left' : 'fa-chevron-right'} text-[11px]"></i>
-                </button>
-
-                <div class="hes-side-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700/80 flex flex-col items-center gap-2">
-                    <button type="button" onclick="changeHandoutZoom(10)" title="Perbesar Kertas (Zoom In)" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
-                        <i class="fas fa-search-plus"></i>
-                    </button>
-                    <button type="button" onclick="changeHandoutZoom(0, handoutZoomLevel === 80 ? 100 : 80)" title="Klik untuk ganti cepat 80% / 100%" class="w-10 py-1 rounded-lg bg-slate-800/80 text-[11px] font-black text-amber-300 hover:text-white text-center cursor-pointer" id="zoom-label-${prefix}">
-                        ${handoutZoomLevel}%
-                    </button>
-                    <button type="button" onclick="changeHandoutZoom(-10)" title="Perkecil Kertas (Zoom Out)" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
-                        <i class="fas fa-search-minus"></i>
-                    </button>
-
-                    <div class="w-7 h-px bg-slate-700 my-0.5"></div>
-
-                    <button type="button" id="btn-toggle-annot-${prefix}" onclick="toggleAnnotationToolbar('${prefix}')" title="Coret-Coret Kertas Materi" class="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white flex items-center justify-center transition cursor-pointer">
-                        <i class="fas fa-highlighter text-sm"></i>
-                    </button>
-
-                    <button type="button" id="btn-toggle-wb-${prefix}" onclick="toggleWhiteboardDrawer('${prefix}')" title="Buka Papan Tulis & Catatan di Samping" class="w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer">
-                        <i class="fas fa-chalkboard-teacher text-sm"></i>
-                    </button>
-
-                    <button type="button" onclick="toggleFullScreenReading()" title="Mode Fokus Mengajar (Sembunyikan/Tampilkan Sidebar Kiri)" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition cursor-pointer">
-                        <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} text-sm"></i>
-                    </button>
-
-                    <div class="w-7 h-px bg-slate-700 my-0.5"></div>
-
-                    <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" title="Download PDF A4" class="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-sm transition cursor-pointer">
-                        <i class="fas fa-file-pdf text-sm"></i>
-                    </button>
-
-                    ${window.HES.userRole === 'admin' ? `
-                    <a href="admin.html?tab=materials" title="Edit Materi di Panel Admin" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition">
-                        <i class="fas fa-pen text-xs"></i>
-                    </a>` : ''}
-                </div>
-            </div>
-        </div>
-
-        <!-- LACI SAMPING PAPAN TULIS & CATATAN MENGAJAR (HANYA DI PC / DESKTOP) -->
-        <div id="wb-drawer-${prefix}" class="hidden fixed inset-y-0 right-16 z-40 w-[400px] md:w-[430px] my-3 bg-white/98 backdrop-blur-md border-2 border-indigo-200 rounded-3xl p-5 shadow-2xl flex flex-col justify-between gap-3 fade-in overflow-y-auto custom-scrollbar">
-            <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 shrink-0">
-                <div class="flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs"><i class="fas fa-chalkboard"></i></span>
-                    <div>
-                        <h4 class="text-sm font-extrabold text-slate-800">Catatan & Papan Tulis Samping</h4>
-                        <p class="text-[10px] font-semibold text-slate-400">Baca materi di kiri sambil mencatat di kanan</p>
-                    </div>
-                </div>
-                <button type="button" onclick="toggleWhiteboardDrawer('${prefix}')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center cursor-pointer">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <div class="flex flex-col space-y-1.5 flex-1 min-h-[180px]">
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-extrabold text-indigo-700 uppercase"><i class="fas fa-keyboard mr-1"></i> Ketik Catatan / Contoh Kalimat</span>
-                    <button type="button" onclick="document.getElementById('wb-note-${prefix}').value='';saveLiveScratchpadNote('${prefix}','');" class="text-[11px] font-bold text-slate-400 hover:text-red-500 cursor-pointer">Kosongkan</button>
-                </div>
-                <textarea id="wb-note-${prefix}" oninput="saveLiveScratchpadNote('${prefix}', this.value)" class="hes-input !bg-amber-50/40 !border-amber-200/90 font-semibold text-sm leading-relaxed flex-1 resize-none" placeholder="Ketik catatan mengajar, kosakata tambahan, atau koreksi kalimat murid di sini...">${escapeHtmlStr(savedNote)}</textarea>
-            </div>
-
-            <div class="flex flex-col space-y-1.5 shrink-0">
-                <div class="flex flex-wrap items-center justify-between gap-1">
-                    <span class="text-[11px] font-extrabold text-emerald-700 uppercase"><i class="fas fa-draw-polygon mr-1"></i> Papan Coret-Coret</span>
-                    <div class="flex items-center gap-1">
-                        <button type="button" id="wb-tool-${prefix}-pen" onclick="setWhiteboardTool('${prefix}', 'pen', '#1D4ED8')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-indigo-600 text-white cursor-pointer">Biru</button>
-                        <button type="button" onclick="setWhiteboardTool('${prefix}', 'pen', '#E11D48')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-200 cursor-pointer">Merah</button>
-                        <button type="button" id="wb-tool-${prefix}-highlighter" onclick="setWhiteboardTool('${prefix}', 'highlighter', '#F59E0B')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer">Stabilo</button>
-                        <button type="button" id="wb-tool-${prefix}-eraser" onclick="setWhiteboardTool('${prefix}', 'eraser')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-slate-100 text-slate-600 cursor-pointer"><i class="fas fa-eraser"></i></button>
-                        <button type="button" onclick="clearWhiteboardCanvas('${prefix}')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-red-50 text-red-600 cursor-pointer"><i class="fas fa-trash"></i></button>
-                    </div>
-                </div>
-                <div class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 overflow-hidden">
-                    <canvas id="wb-canvas-${prefix}" class="w-full h-[220px] block cursor-crosshair touch-none"></canvas>
-                </div>
-            </div>
-        </div>
-
         <!-- AREA MATERI (Di PC: Kertas PDF A4 Bisa Di-Zoom; Di HP: Kartu Responsif Original) -->
         <div class="hes-pdf-stage custom-scrollbar">
             <div id="handout-scale-wrap-${prefix}" class="mx-auto relative transition-all duration-150">
@@ -1119,6 +1218,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
         if (annotCanvas && window.innerWidth >= 768) {
             resizeAnnotationCanvas(prefix);
             bindInteractiveCanvas(annotCanvas, () => annotationState);
+            syncAnnotationStateToActiveTab();
         }
         if (sheet && typeof ResizeObserver !== 'undefined') {
             paperResizeObservers[prefix]?.disconnect();
@@ -1128,6 +1228,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             });
             paperResizeObservers[prefix].observe(sheet);
         }
+        syncFloatingDockVisibility();
     }, 60);
 }
 
@@ -1273,7 +1374,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
     const data = parsedHandoutCache[prefix];
     if (!data) return showToast('Materi belum tersedia untuk diunduh.', 'error');
 
-    const btn = document.getElementById(`btn-dl-${prefix}`), origHTML = btn?.innerHTML || '';
+    const btn = document.getElementById('flt-btn-dl'), origHTML = btn?.innerHTML || '';
     if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xs"></i>`; }
 
     try {

@@ -62,20 +62,32 @@ body {
         will-change: transform;
     }
 
-    /* Menu Mengajar Vertikal di Samping Kanan (Hanya di PC/Laptop) */
-    .hes-side-dock-wrap {
+    /* Floating Bar Mengajar di Samping Layar (Melayang Mengikuti Layar & Bisa Digeser) */
+    .hes-floating-dock {
         position: fixed;
-        right: 0.85rem;
-        top: 54%;
+        right: 1.25rem;
+        top: 50%;
         transform: translateY(-50%);
-        z-index: 40;
+        z-index: 90;
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        user-select: none;
     }
 
-    .hes-side-dock-wrap.dock-minimized .hes-side-dock-body {
-        display: none;
+    .hes-floating-dock.dock-minimized .hes-floating-dock-body {
+        display: none !important;
+    }
+
+    /* Jendela Papan Tulis & Catatan Melayang (Floating Window) */
+    .hes-floating-wb {
+        position: fixed;
+        right: 5.25rem;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 85;
+        width: 410px;
+        max-height: 86vh;
     }
 }
 
@@ -83,7 +95,8 @@ body {
    KHUSUS MODE HP / MOBILE (max-width: 767px) — TAMPILAN ORIGINAL
    ========================================================================== */
 @media (max-width: 767px) {
-    .hes-side-dock-wrap,
+    .hes-floating-dock,
+    .hes-floating-wb,
     .hes-annotation-overlay {
         display: none !important;
     }
@@ -198,7 +211,7 @@ body {
     cursor: crosshair;
 }
 
-/* Scrollbar & Animasi */
+/* Scrollbar & Animasi (transform: none di akhir agar tidak mengunci elemen floating) */
 .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
@@ -206,7 +219,7 @@ body {
 .fade-in { animation: fadeIn 0.3s ease-out forwards; }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+    to { opacity: 1; transform: none; }
 }
 
 .animate-shake { animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
