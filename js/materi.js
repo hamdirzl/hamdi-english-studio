@@ -7,8 +7,9 @@ let currentVocabItems = [];
 let quizState = { index: 0, score: 0, answered: false };
 let parsedHandoutCache = { presentation: null, recap: null };
 
-// State Alat Mengajar (Skala Kertas PDF, Coret-Coret Materi, & Papan Tulis)
+// State Alat Mengajar Samping (Skala Kertas PDF, Coret-Coret Materi, & Laci Papan Tulis Samping)
 let handoutZoomLevel = parseInt(localStorage.getItem('hes_handout_zoom')) || 80;
+let sideDockMinimized = false;
 let annotationState = {
     active: false,
     tool: 'pen', // 'pen' | 'highlighter' | 'eraser' | 'pointer'
@@ -199,7 +200,7 @@ function renderMateriContent() {
 }
 
 // ============================================================================
-// MESIN SKALA KERTAS PDF (TRUE PDF PAPER ZOOM), CORET-CORET, & PAPAN TULIS
+// MESIN SKALA KERTAS PDF, MENU SAMPING (SIDE DOCK), CORET-CORET, & PAPAN TULIS
 // ============================================================================
 function applyPdfPaperScale(prefix) {
     const sheet = document.getElementById(`printable-handout-${prefix}`);
@@ -220,10 +221,15 @@ function applyPdfPaperScale(prefix) {
 window.changeHandoutZoom = function(delta, exactVal = null) {
     handoutZoomLevel = exactVal !== null ? exactVal : Math.min(130, Math.max(55, handoutZoomLevel + delta));
     localStorage.setItem('hes_handout_zoom', String(handoutZoomLevel));
+    ['presentation', 'recap'].forEach(pref => applyPdfPaperScale(pref));
+};
 
-    ['presentation', 'recap'].forEach(pref => {
-        applyPdfPaperScale(pref);
-    });
+window.toggleSideDockMinimize = function(prefix) {
+    sideDockMinimized = !sideDockMinimized;
+    const wrap = document.getElementById(`side-dock-wrap-${prefix}`);
+    const icon = document.getElementById(`side-dock-min-icon-${prefix}`);
+    if (wrap) wrap.classList.toggle('dock-minimized', sideDockMinimized);
+    if (icon) icon.className = `fas ${sideDockMinimized ? 'fa-chevron-left' : 'fa-chevron-right'} text-[11px]`;
 };
 
 window.toggleAnnotationToolbar = function(prefix) {
@@ -238,10 +244,10 @@ window.toggleAnnotationToolbar = function(prefix) {
     if (isOpening) {
         resizeAnnotationCanvas(prefix);
         setAnnotationTool(prefix, annotationState.tool === 'pointer' ? 'pen' : annotationState.tool, annotationState.color);
-        if (btn) btn.className = 'px-3 py-2 rounded-xl bg-rose-600 text-white font-extrabold text-xs shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer';
+        if (btn) btn.className = 'w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md transition cursor-pointer';
     } else {
         canvas.classList.remove('drawing-active');
-        if (btn) btn.className = 'px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-extrabold text-xs transition inline-flex items-center gap-1.5 cursor-pointer';
+        if (btn) btn.className = 'w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white flex items-center justify-center transition cursor-pointer';
     }
 };
 
@@ -257,7 +263,7 @@ window.setAnnotationTool = function(prefix, tool, color = null) {
     ['pen', 'highlighter', 'eraser', 'pointer'].forEach(t => {
         const el = document.getElementById(`annot-tool-${prefix}-${t}`);
         if (el) {
-            el.className = `px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${t === tool ? 'bg-white text-slate-900 shadow-2xs' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`;
+            el.className = `w-9 h-9 rounded-xl text-xs font-extrabold flex items-center justify-center transition cursor-pointer ${t === tool ? 'bg-white text-slate-900 shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`;
         }
     });
 
@@ -367,8 +373,8 @@ window.toggleWhiteboardDrawer = function(prefix) {
     box.classList.toggle('hidden', !isOpening);
     if (btn) {
         btn.className = isOpening
-            ? 'px-3 py-2 rounded-xl bg-indigo-600 text-white font-extrabold text-xs shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer'
-            : 'px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs transition inline-flex items-center gap-1.5 cursor-pointer';
+            ? 'w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md transition cursor-pointer'
+            : 'w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer';
     }
     if (isOpening) {
         setTimeout(() => initWhiteboardCanvas(prefix), 50);
@@ -380,7 +386,7 @@ function initWhiteboardCanvas(prefix) {
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (canvas.width === 0 || canvas.width === 300) {
-        canvas.width = Math.max(500, Math.floor(rect.width || 600));
+        canvas.width = Math.max(340, Math.floor(rect.width || 380));
         canvas.height = 240;
     }
     bindInteractiveCanvas(canvas, () => wbState);
@@ -692,7 +698,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
 }
 
 // ============================================================================
-// KONTROL INTERAKTIF HANDOUT & RENDERER WEB
+// KONTROL INTERAKTIF HANDOUT & RENDERER WEB (DENGAN SIDE FLOATING DOCK)
 // ============================================================================
 window.playHandoutTextAudio = function(rawSpeech, btnEl) {
     const clean = extractEnglishForTTS(rawSpeech);
@@ -949,100 +955,120 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
     }).join('');
 
     box.innerHTML = `
-        <!-- STICKY PDF READER & TEACHING TOOLBAR -->
-        <div class="sticky top-2 z-30 mb-3 space-y-2">
-            <div class="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-lg">
-                <!-- Kontrol Zoom Kertas PDF (Mengecilkan/Memperbesar Area Kertas Utuh) -->
-                <div class="flex items-center gap-1.5 bg-slate-800 p-1 rounded-xl border border-slate-700">
-                    <button type="button" onclick="changeHandoutZoom(-10)" title="Perkecil Kertas (Lihat Lebih Banyak ke Bawah)" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
-                        <i class="fas fa-minus"></i>
+        <!-- MENU MENGAJAR VERTIKAL DI SAMPING KANAN LAYAR (TIDAK MENUTUPI ATAS MATERI) -->
+        <div id="side-dock-wrap-${prefix}" class="hes-side-dock-wrap ${sideDockMinimized ? 'dock-minimized' : ''}">
+            <!-- Palet Alat Coret-Coret Vertikal (Muncul di Sebelah Kiri Dock Saat Diaktifkan) -->
+            <div id="annot-toolbar-${prefix}" class="hidden hes-side-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700 flex flex-col items-center gap-2 fade-in">
+                <button type="button" id="annot-tool-${prefix}-pen" onclick="setAnnotationTool('${prefix}', 'pen')" title="Pena Tulis" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-white text-slate-900 flex items-center justify-center cursor-pointer"><i class="fas fa-pen"></i></button>
+                <button type="button" id="annot-tool-${prefix}-highlighter" onclick="setAnnotationTool('${prefix}', 'highlighter')" title="Stabilo Transparan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-highlighter"></i></button>
+                <button type="button" id="annot-tool-${prefix}-eraser" onclick="setAnnotationTool('${prefix}', 'eraser')" title="Penghapus Coretan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-eraser"></i></button>
+                <button type="button" id="annot-tool-${prefix}-pointer" onclick="setAnnotationTool('${prefix}', 'pointer')" title="Mode Klik Audio (Tanpa Menghapus Coretan)" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-mouse-pointer"></i></button>
+
+                <div class="w-6 h-px bg-slate-700 my-0.5"></div>
+
+                ${[['#E11D48', 'Merah'], ['#2563EB', 'Biru'], ['#059669', 'Hijau'], ['#F59E0B', 'Kuning/Oranye'], ['#0F172A', 'Hitam']].map(([col, lbl]) => `
+                    <button type="button" data-color="${col}" onclick="setAnnotationTool('${prefix}', annotationState.tool === 'eraser' ? 'pen' : annotationState.tool, '${col}')" title="Warna ${lbl}" style="background:${col};" class="annot-color-${prefix} w-6 h-6 rounded-full border-2 border-white cursor-pointer transition"></button>
+                `).join('')}
+
+                <div class="w-6 h-px bg-slate-700 my-0.5"></div>
+
+                <button type="button" onclick="clearAnnotationCanvas('${prefix}')" title="Bersihkan Semua Coretan" class="w-9 h-9 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs flex items-center justify-center cursor-pointer"><i class="fas fa-trash-alt"></i></button>
+            </div>
+
+            <!-- Dock Utama Vertikal -->
+            <div class="flex flex-col items-center gap-1.5">
+                <!-- Tombol Lipat / Tampilkan Menu Samping -->
+                <button type="button" onclick="toggleSideDockMinimize('${prefix}')" title="Sembunyikan / Tampilkan Menu Samping" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-indigo-600 text-white shadow-md flex items-center justify-center transition cursor-pointer">
+                    <i id="side-dock-min-icon-${prefix}" class="fas ${sideDockMinimized ? 'fa-chevron-left' : 'fa-chevron-right'} text-[11px]"></i>
+                </button>
+
+                <div class="hes-side-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700/80 flex flex-col items-center gap-2">
+                    <!-- Zoom In / Zoom Out Kertas -->
+                    <button type="button" onclick="changeHandoutZoom(10)" title="Perbesar Kertas (Zoom In)" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-search-plus"></i>
                     </button>
-                    <button type="button" onclick="changeHandoutZoom(0, 80)" title="Klik untuk ukuran kertas 80%" class="px-2.5 py-1 rounded-lg text-xs font-black text-amber-300 hover:text-white cursor-pointer" id="zoom-label-${prefix}">
+                    <button type="button" onclick="changeHandoutZoom(0, handoutZoomLevel === 80 ? 100 : 80)" title="Klik untuk ganti cepat 80% / 100%" class="w-10 py-1 rounded-lg bg-slate-800/80 text-[11px] font-black text-amber-300 hover:text-white text-center cursor-pointer" id="zoom-label-${prefix}">
                         ${handoutZoomLevel}%
                     </button>
-                    <button type="button" onclick="changeHandoutZoom(10)" title="Perbesar Kertas" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
-                        <i class="fas fa-plus"></i>
+                    <button type="button" onclick="changeHandoutZoom(-10)" title="Perkecil Kertas (Zoom Out)" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-search-minus"></i>
                     </button>
-                    <button type="button" onclick="changeHandoutZoom(0, 70)" title="Tampilan Jauh (70%)" class="hidden sm:inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold text-slate-300 hover:bg-slate-700 cursor-pointer">70%</button>
-                    <button type="button" onclick="changeHandoutZoom(0, 100)" title="Ukuran Penuh (100%)" class="hidden sm:inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold text-slate-300 hover:bg-slate-700 cursor-pointer">100%</button>
-                </div>
 
-                <!-- Alat Mengajar: Coret-Coret Materi, Kotak Papan Tulis, & Fokus Layar -->
-                <div class="flex flex-wrap items-center gap-2">
-                    <button type="button" id="btn-toggle-annot-${prefix}" onclick="toggleAnnotationToolbar('${prefix}')" class="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-extrabold text-xs transition inline-flex items-center gap-1.5 cursor-pointer">
-                        <i class="fas fa-highlighter"></i> <span>Coret Kertas</span>
+                    <div class="w-7 h-px bg-slate-700 my-0.5"></div>
+
+                    <!-- Coret Kertas -->
+                    <button type="button" id="btn-toggle-annot-${prefix}" onclick="toggleAnnotationToolbar('${prefix}')" title="Coret-Coret Kertas Materi" class="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-highlighter text-sm"></i>
                     </button>
-                    <button type="button" id="btn-toggle-wb-${prefix}" onclick="toggleWhiteboardDrawer('${prefix}')" class="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs transition inline-flex items-center gap-1.5 cursor-pointer">
-                        <i class="fas fa-chalkboard-teacher"></i> <span>Papan Tulis & Catatan</span>
+
+                    <!-- Laci Papan Tulis & Catatan Samping -->
+                    <button type="button" id="btn-toggle-wb-${prefix}" onclick="toggleWhiteboardDrawer('${prefix}')" title="Buka Papan Tulis & Catatan di Samping" class="w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-chalkboard-teacher text-sm"></i>
                     </button>
-                    <button type="button" onclick="toggleFullScreenReading()" class="hes-focus-mode-btn hidden md:inline-flex items-center px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold text-xs transition cursor-pointer">
-                        <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} mr-1.5"></i> ${isCollapsed ? 'Tampilkan Sidebar' : 'Mode Fokus Mengajar'}
+
+                    <!-- Mode Fokus Mengajar (Sembunyikan Sidebar Kiri) -->
+                    <button type="button" onclick="toggleFullScreenReading()" title="Mode Fokus Mengajar (Sembunyikan/Tampilkan Sidebar Kiri)" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition cursor-pointer">
+                        <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} text-sm"></i>
                     </button>
-                    <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
-                        <i class="fas fa-file-pdf"></i> <span class="hidden sm:inline">Download PDF</span>
+
+                    <div class="w-7 h-px bg-slate-700 my-0.5"></div>
+
+                    <!-- Download PDF -->
+                    <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" title="Download PDF A4" class="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-sm transition cursor-pointer">
+                        <i class="fas fa-file-pdf text-sm"></i>
                     </button>
-                </div>
-            </div>
 
-            <!-- Sub-Toolbar Alat Coret-Coret di Atas Kertas -->
-            <div id="annot-toolbar-${prefix}" class="hidden bg-slate-800/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-lg border border-slate-700 flex flex-wrap items-center justify-between gap-3 fade-in">
-                <div class="flex flex-wrap items-center gap-1.5">
-                    <span class="text-[11px] font-extrabold text-slate-300 mr-1"><i class="fas fa-pen-fancy text-amber-400 mr-1"></i>Alat Coret:</span>
-                    <button type="button" id="annot-tool-${prefix}-pen" onclick="setAnnotationTool('${prefix}', 'pen')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-white text-slate-900 cursor-pointer"><i class="fas fa-pen mr-1"></i> Pena</button>
-                    <button type="button" id="annot-tool-${prefix}-highlighter" onclick="setAnnotationTool('${prefix}', 'highlighter')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-200 cursor-pointer"><i class="fas fa-highlighter mr-1"></i> Stabilo</button>
-                    <button type="button" id="annot-tool-${prefix}-eraser" onclick="setAnnotationTool('${prefix}', 'eraser')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-200 cursor-pointer"><i class="fas fa-eraser mr-1"></i> Hapus</button>
-                    <button type="button" id="annot-tool-${prefix}-pointer" onclick="setAnnotationTool('${prefix}', 'pointer')" title="Gunakan mode ini jika ingin mengklik tombol suara tanpa menghapus coretan" class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-200 cursor-pointer"><i class="fas fa-mouse-pointer mr-1"></i> Mode Klik Audio</button>
-                </div>
-                <div class="flex items-center gap-2">
-                    ${[['#E11D48', 'Merah'], ['#2563EB', 'Biru'], ['#059669', 'Hijau'], ['#F59E0B', 'Kuning/Oranye'], ['#0F172A', 'Hitam']].map(([col, lbl]) => `
-                        <button type="button" data-color="${col}" onclick="setAnnotationTool('${prefix}', annotationState.tool === 'eraser' ? 'pen' : annotationState.tool, '${col}')" title="Warna ${lbl}" style="background:${col};" class="annot-color-${prefix} w-6 h-6 rounded-full border-2 border-white cursor-pointer transition"></button>
-                    `).join('')}
-                    <button type="button" onclick="clearAnnotationCanvas('${prefix}')" class="ml-2 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold cursor-pointer"><i class="fas fa-trash-alt mr-1"></i> Bersihkan</button>
-                </div>
-            </div>
-
-            <!-- KOTAK CATATAN MENGAJAR & PAPAN TULIS (WHITEBOARD & SCRATCHPAD BOX) -->
-            <div id="wb-drawer-${prefix}" class="hidden bg-white border-2 border-indigo-200 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3 fade-in">
-                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                    <div class="flex items-center gap-2">
-                        <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs"><i class="fas fa-chalkboard"></i></span>
-                        <div>
-                            <h4 class="text-xs sm:text-sm font-extrabold text-slate-800">Papan Tulis & Catatan Mengajar Interaktif</h4>
-                            <p class="text-[11px] font-semibold text-slate-400">Ketik contoh kalimat tambahan di kiri, atau gambar skema di papan tulis kanan</p>
-                        </div>
-                    </div>
-                    <button type="button" onclick="toggleWhiteboardDrawer('${prefix}')" class="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-extrabold cursor-pointer"><i class="fas fa-times mr-1"></i> Tutup Papan</button>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div class="flex flex-col space-y-1.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[11px] font-extrabold text-indigo-700 uppercase"><i class="fas fa-keyboard mr-1"></i> Kotak Ketik Catatan / Contoh Kalimat Baru</span>
-                            <button type="button" onclick="document.getElementById('wb-note-${prefix}').value='';saveLiveScratchpadNote('${prefix}','');" class="text-[11px] font-bold text-slate-400 hover:text-red-500 cursor-pointer">Kosongkan Teks</button>
-                        </div>
-                        <textarea id="wb-note-${prefix}" oninput="saveLiveScratchpadNote('${prefix}', this.value)" rows="8" class="hes-input !bg-amber-50/40 !border-amber-200/90 font-semibold text-sm leading-relaxed flex-1" placeholder="Ketik catatan mengajar, kosakata tambahan, atau koreksi kalimat murid secara langsung di sini...">${escapeHtmlStr(savedNote)}</textarea>
-                    </div>
-
-                    <div class="flex flex-col space-y-1.5">
-                        <div class="flex flex-wrap items-center justify-between gap-1">
-                            <span class="text-[11px] font-extrabold text-emerald-700 uppercase"><i class="fas fa-draw-polygon mr-1"></i> Papan Coret-Coret Bebas</span>
-                            <div class="flex items-center gap-1">
-                                <button type="button" id="wb-tool-${prefix}-pen" onclick="setWhiteboardTool('${prefix}', 'pen', '#1D4ED8')" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-indigo-600 text-white cursor-pointer">Biru</button>
-                                <button type="button" onclick="setWhiteboardTool('${prefix}', 'pen', '#E11D48')" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-rose-50 text-rose-600 border border-rose-200 cursor-pointer">Merah</button>
-                                <button type="button" id="wb-tool-${prefix}-highlighter" onclick="setWhiteboardTool('${prefix}', 'highlighter', '#F59E0B')" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer">Stabilo</button>
-                                <button type="button" id="wb-tool-${prefix}-eraser" onclick="setWhiteboardTool('${prefix}', 'eraser')" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-slate-100 text-slate-600 cursor-pointer"><i class="fas fa-eraser"></i></button>
-                                <button type="button" onclick="clearWhiteboardCanvas('${prefix}')" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-red-50 text-red-600 cursor-pointer"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </div>
-                        <div class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/50 overflow-hidden">
-                            <canvas id="wb-canvas-${prefix}" class="w-full h-[220px] block cursor-crosshair touch-none"></canvas>
-                        </div>
-                    </div>
+                    ${window.HES.userRole === 'admin' ? `
+                    <a href="admin.html?tab=materials" title="Edit Materi di Panel Admin" class="w-10 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition">
+                        <i class="fas fa-pen text-xs"></i>
+                    </a>` : ''}
                 </div>
             </div>
         </div>
 
-        <!-- AREA BACA PDF (MEJA ABU-ABU DENGAN KERTAS A4 PROPORSIONAL DI TENGAHNYA) -->
+        <!-- LACI SAMPING PAPAN TULIS & CATATAN MENGAJAR (SIDE DRAWER - TIDAK MENUTUPI MATERI KIRI) -->
+        <div id="wb-drawer-${prefix}" class="hidden fixed inset-y-0 right-16 z-40 w-[90vw] sm:w-[400px] md:w-[430px] my-3 bg-white/98 backdrop-blur-md border-2 border-indigo-200 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col justify-between gap-3 fade-in overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs"><i class="fas fa-chalkboard"></i></span>
+                    <div>
+                        <h4 class="text-xs sm:text-sm font-extrabold text-slate-800">Catatan & Papan Tulis Samping</h4>
+                        <p class="text-[10px] font-semibold text-slate-400">Baca materi di kiri sambil mencatat di kanan</p>
+                    </div>
+                </div>
+                <button type="button" onclick="toggleWhiteboardDrawer('${prefix}')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Atas: Kotak Ketik Catatan & Contoh Kalimat -->
+            <div class="flex flex-col space-y-1.5 flex-1 min-h-[180px]">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-extrabold text-indigo-700 uppercase"><i class="fas fa-keyboard mr-1"></i> Ketik Catatan / Contoh Kalimat</span>
+                    <button type="button" onclick="document.getElementById('wb-note-${prefix}').value='';saveLiveScratchpadNote('${prefix}','');" class="text-[11px] font-bold text-slate-400 hover:text-red-500 cursor-pointer">Kosongkan</button>
+                </div>
+                <textarea id="wb-note-${prefix}" oninput="saveLiveScratchpadNote('${prefix}', this.value)" class="hes-input !bg-amber-50/40 !border-amber-200/90 font-semibold text-sm leading-relaxed flex-1 resize-none" placeholder="Ketik catatan mengajar, kosakata tambahan, atau koreksi kalimat murid di sini...">${escapeHtmlStr(savedNote)}</textarea>
+            </div>
+
+            <!-- Bawah: Papan Coret-Coret Bebas -->
+            <div class="flex flex-col space-y-1.5 shrink-0">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                    <span class="text-[11px] font-extrabold text-emerald-700 uppercase"><i class="fas fa-draw-polygon mr-1"></i> Papan Coret-Coret</span>
+                    <div class="flex items-center gap-1">
+                        <button type="button" id="wb-tool-${prefix}-pen" onclick="setWhiteboardTool('${prefix}', 'pen', '#1D4ED8')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-indigo-600 text-white cursor-pointer">Biru</button>
+                        <button type="button" onclick="setWhiteboardTool('${prefix}', 'pen', '#E11D48')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-200 cursor-pointer">Merah</button>
+                        <button type="button" id="wb-tool-${prefix}-highlighter" onclick="setWhiteboardTool('${prefix}', 'highlighter', '#F59E0B')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer">Stabilo</button>
+                        <button type="button" id="wb-tool-${prefix}-eraser" onclick="setWhiteboardTool('${prefix}', 'eraser')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-slate-100 text-slate-600 cursor-pointer"><i class="fas fa-eraser"></i></button>
+                        <button type="button" onclick="clearWhiteboardCanvas('${prefix}')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-red-50 text-red-600 cursor-pointer"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 overflow-hidden">
+                    <canvas id="wb-canvas-${prefix}" class="w-full h-[220px] block cursor-crosshair touch-none"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- AREA BACA PDF (LANGSUNG TERBUKA LEGA TANPA TERTUTUP TOOLBAR ATAS) -->
         <div class="hes-pdf-stage custom-scrollbar">
             <div id="handout-scale-wrap-${prefix}" class="mx-auto relative transition-all duration-150">
                 <div id="printable-handout-${prefix}" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;" class="hes-pdf-paper overflow-hidden text-slate-800 relative">
@@ -1057,7 +1083,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                                     <span class="px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider border ${theme.badgeBg}">${cleanTitleMarkdown(data.level)}</span>
                                     <span class="text-xs font-bold text-slate-400">&bull; Hamdi English Studio</span>
                                 </div>
-                                ${window.HES.userRole === 'admin' ? `<a href="admin.html?tab=materials" class="text-xs font-extrabold text-indigo-600 hover:underline"><i class="fas fa-pen mr-1"></i>Edit Materi</a>` : ''}
                             </div>
                             <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">${cleanTitleMarkdown(data.title)}</h1>
                             ${data.goal ? `<div class="p-4 sm:p-5 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}"><p class="text-xs font-extrabold uppercase tracking-wider ${theme.accentText} mb-1"><i class="fas fa-bullseye mr-1"></i> Target Belajar Hari Ini</p><p class="text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p></div>` : ''}
@@ -1233,7 +1258,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
     if (!data) return showToast('Materi belum tersedia untuk diunduh.', 'error');
 
     const btn = document.getElementById(`btn-dl-${prefix}`), origHTML = btn?.innerHTML || '';
-    if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Menyiapkan PDF...`; }
+    if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xs"></i>`; }
 
     try {
         if (document.fonts?.ready) await document.fonts.ready;
