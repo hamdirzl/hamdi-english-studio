@@ -22,11 +22,50 @@ body {
 
 /* Ruang Belajar Lebih Luas di Laptop */
 .materi-container-width {
-    max-width: 68rem !important;
+    max-width: 74rem !important;
 }
 
 body.hes-sidebar-collapsed .materi-container-width {
-    max-width: 96% !important;
+    max-width: 98% !important;
+}
+
+/* Saat Mode Fokus Mengajar Aktif, Ringkas Header Atas agar Layar Vertikal Lebih Lega */
+body.hes-sidebar-collapsed .materi-top-nav-card {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+}
+body.hes-sidebar-collapsed .materi-stepping-bar {
+    display: none !important;
+}
+
+/* Area Meja Baca PDF (PDF Viewer Stage) */
+.hes-pdf-stage {
+    background-color: #CBD5E1;
+    background-image: radial-gradient(#94A3B8 0.75px, transparent 0.75px);
+    background-size: 18px 18px;
+    border-radius: 1.5rem;
+    border: 1px solid #94A3B8;
+    padding: 1.5rem 1rem;
+    overflow-x: auto;
+    box-shadow: inset 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+/* Lembar Kertas PDF A4 Proporsional */
+.hes-pdf-paper {
+    width: 880px;
+    min-width: 880px;
+    transform-origin: top left;
+    background: #FFFFFF;
+    border-radius: 1.25rem;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
+    will-change: transform;
+}
+
+@media (max-width: 640px) {
+    .hes-pdf-paper {
+        width: 760px;
+        min-width: 760px;
+    }
 }
 
 /* Komponen Elegan (Clean & Modern UI) */

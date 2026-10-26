@@ -7,8 +7,8 @@ let currentVocabItems = [];
 let quizState = { index: 0, score: 0, answered: false };
 let parsedHandoutCache = { presentation: null, recap: null };
 
-// State Alat Mengajar (Zoom, Coret-Coret Materi, & Papan Tulis)
-let handoutZoomLevel = parseInt(localStorage.getItem('hes_handout_zoom')) || 85;
+// State Alat Mengajar (Skala Kertas PDF, Coret-Coret Materi, & Papan Tulis)
+let handoutZoomLevel = parseInt(localStorage.getItem('hes_handout_zoom')) || 80;
 let annotationState = {
     active: false,
     tool: 'pen', // 'pen' | 'highlighter' | 'eraser' | 'pointer'
@@ -19,6 +19,7 @@ let wbState = {
     tool: 'pen',
     color: '#1D4ED8'
 };
+let paperResizeObservers = {};
 
 if (!document.getElementById('handout-google-font')) {
     document.head.insertAdjacentHTML('beforeend', `<link id="handout-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,700&display=swap">`);
@@ -34,7 +35,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!requireAuth()) return;
     parseMateriQueryParams();
     initLayout('Ruang Belajar');
-    document.querySelector('main .max-w-4xl')?.classList.add('materi-container-width', 'transition-all', 'duration-300');
+
+    const mainContainer = document.querySelector('main .max-w-4xl');
+    if (mainContainer) {
+        mainContainer.classList.add('materi-container-width', 'transition-all', 'duration-300');
+        const firstCard = mainContainer.querySelector('.hes-card');
+        if (firstCard) firstCard.classList.add('materi-top-nav-card');
+        const stepBar = document.getElementById('session-stepping-stones')?.parentElement;
+        if (stepBar) stepBar.classList.add('materi-stepping-bar');
+    }
+
     renderMateriContent();
 
     await syncFromCloud();
@@ -87,7 +97,10 @@ window.switchMateriMode = function(mode) {
         document.getElementById(`panel-materi-${id}`)?.classList.toggle('hidden', !active);
     });
     if (mode === 'presentation' || mode === 'recap') {
-        setTimeout(() => resizeAnnotationCanvas(mode), 60);
+        setTimeout(() => {
+            applyPdfPaperScale(mode);
+            resizeAnnotationCanvas(mode);
+        }, 60);
     }
 };
 
@@ -186,17 +199,30 @@ function renderMateriContent() {
 }
 
 // ============================================================================
-// KONTROL ZOOM IN / ZOOM OUT, CORET-CORET MATERI & KOTAK PAPAN TULIS
+// MESIN SKALA KERTAS PDF (TRUE PDF PAPER ZOOM), CORET-CORET, & PAPAN TULIS
 // ============================================================================
+function applyPdfPaperScale(prefix) {
+    const sheet = document.getElementById(`printable-handout-${prefix}`);
+    const wrap = document.getElementById(`handout-scale-wrap-${prefix}`);
+    const lbl = document.getElementById(`zoom-label-${prefix}`);
+    if (!sheet || !wrap) return;
+
+    const scale = handoutZoomLevel / 100;
+    const baseW = sheet.offsetWidth || 880;
+    const baseH = sheet.offsetHeight || 1200;
+
+    sheet.style.transform = `scale(${scale})`;
+    wrap.style.width = `${Math.round(baseW * scale)}px`;
+    wrap.style.height = `${Math.round(baseH * scale)}px`;
+    if (lbl) lbl.innerText = `${handoutZoomLevel}%`;
+}
+
 window.changeHandoutZoom = function(delta, exactVal = null) {
-    handoutZoomLevel = exactVal !== null ? exactVal : Math.min(125, Math.max(60, handoutZoomLevel + delta));
+    handoutZoomLevel = exactVal !== null ? exactVal : Math.min(130, Math.max(55, handoutZoomLevel + delta));
     localStorage.setItem('hes_handout_zoom', String(handoutZoomLevel));
 
     ['presentation', 'recap'].forEach(pref => {
-        const sheet = document.getElementById(`printable-handout-${pref}`);
-        const lbl = document.getElementById(`zoom-label-${pref}`);
-        if (sheet) sheet.style.zoom = `${handoutZoomLevel}%`;
-        if (lbl) lbl.innerText = `${handoutZoomLevel}%`;
+        applyPdfPaperScale(pref);
     });
 };
 
@@ -231,13 +257,13 @@ window.setAnnotationTool = function(prefix, tool, color = null) {
     ['pen', 'highlighter', 'eraser', 'pointer'].forEach(t => {
         const el = document.getElementById(`annot-tool-${prefix}-${t}`);
         if (el) {
-            el.className = `px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${t === tool ? 'bg-slate-900 text-white shadow-2xs' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}`;
+            el.className = `px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${t === tool ? 'bg-white text-slate-900 shadow-2xs' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`;
         }
     });
 
     document.querySelectorAll(`.annot-color-${prefix}`).forEach(btn => {
         btn.classList.toggle('ring-2', btn.dataset.color === annotationState.color);
-        btn.classList.toggle('ring-slate-900', btn.dataset.color === annotationState.color);
+        btn.classList.toggle('ring-amber-400', btn.dataset.color === annotationState.color);
         btn.classList.toggle('scale-110', btn.dataset.color === annotationState.color);
     });
 };
@@ -245,8 +271,7 @@ window.setAnnotationTool = function(prefix, tool, color = null) {
 window.clearAnnotationCanvas = function(prefix) {
     const canvas = document.getElementById(`annot-canvas-${prefix}`);
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 };
 
 function resizeAnnotationCanvas(prefix) {
@@ -254,7 +279,7 @@ function resizeAnnotationCanvas(prefix) {
     const canvas = document.getElementById(`annot-canvas-${prefix}`);
     if (!sheet || !canvas) return;
 
-    const w = sheet.offsetWidth || 840;
+    const w = sheet.offsetWidth || 880;
     const h = sheet.offsetHeight || 1200;
     if (canvas.width === w && canvas.height === h) return;
 
@@ -304,12 +329,12 @@ function bindInteractiveCanvas(canvas, getToolConfig) {
 
         if (cfg.tool === 'eraser') {
             ctx.globalCompositeOperation = 'destination-out';
-            ctx.lineWidth = 26;
+            ctx.lineWidth = 28;
             ctx.strokeStyle = 'rgba(0,0,0,1)';
         } else if (cfg.tool === 'highlighter') {
             ctx.globalCompositeOperation = 'source-over';
-            ctx.lineWidth = 22;
-            ctx.strokeStyle = cfg.color + '45'; // Transparan lembut seperti stabilo
+            ctx.lineWidth = 24;
+            ctx.strokeStyle = cfg.color + '45';
         } else {
             ctx.globalCompositeOperation = 'source-over';
             ctx.lineWidth = 3.5;
@@ -334,7 +359,6 @@ function bindInteractiveCanvas(canvas, getToolConfig) {
     window.addEventListener('touchend', stop);
 }
 
-// Kontrol Papan Tulis & Catatan Mengajar (Whiteboard & Scratchpad Box)
 window.toggleWhiteboardDrawer = function(prefix) {
     const box = document.getElementById(`wb-drawer-${prefix}`);
     const btn = document.getElementById(`btn-toggle-wb-${prefix}`);
@@ -357,7 +381,7 @@ function initWhiteboardCanvas(prefix) {
     const rect = canvas.getBoundingClientRect();
     if (canvas.width === 0 || canvas.width === 300) {
         canvas.width = Math.max(500, Math.floor(rect.width || 600));
-        canvas.height = 260;
+        canvas.height = 240;
     }
     bindInteractiveCanvas(canvas, () => wbState);
 }
@@ -702,6 +726,7 @@ window.toggleHandoutAnswer = function(btnEl) {
     if (!box) return;
     const isHidden = box.classList.toggle('hidden');
     btnEl.innerHTML = !isHidden ? `<i class="fas fa-eye-slash mr-1"></i> Sembunyikan Pembahasan` : `<i class="fas fa-key mr-1"></i> Lihat Kunci & Pembahasan`;
+    ['presentation', 'recap'].forEach(pref => applyPdfPaperScale(pref));
 };
 
 function renderFormulaPillsHTML(formulaStr) {
@@ -924,42 +949,43 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
     }).join('');
 
     box.innerHTML = `
-        <!-- STICKY TEACHING TOOLBAR (ZOOM IN/OUT, CORET-CORET MATERI, PAPAN TULIS, FULLSCREEN) -->
-        <div class="sticky top-2 z-30 mb-4 space-y-2">
-            <div class="flex flex-wrap items-center justify-between gap-2.5 bg-white/95 backdrop-blur-md border border-slate-200/90 px-4 py-3 rounded-2xl shadow-sm">
-                <!-- Kontrol Zoom In / Zoom Out seperti PDF -->
-                <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/70">
-                    <button type="button" onclick="changeHandoutZoom(-10)" title="Perkecil Tampilan (Zoom Out)" class="w-8 h-8 rounded-lg bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 font-black text-xs flex items-center justify-center transition cursor-pointer shadow-2xs">
-                        <i class="fas fa-search-minus"></i>
+        <!-- STICKY PDF READER & TEACHING TOOLBAR -->
+        <div class="sticky top-2 z-30 mb-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-lg">
+                <!-- Kontrol Zoom Kertas PDF (Mengecilkan/Memperbesar Area Kertas Utuh) -->
+                <div class="flex items-center gap-1.5 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                    <button type="button" onclick="changeHandoutZoom(-10)" title="Perkecil Kertas (Lihat Lebih Banyak ke Bawah)" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-minus"></i>
                     </button>
-                    <button type="button" onclick="changeHandoutZoom(0, 85)" title="Klik untuk ukuran ideal mengajar (85%)" class="px-2.5 py-1 rounded-lg text-xs font-black text-slate-700 hover:text-indigo-600 cursor-pointer" id="zoom-label-${prefix}">
+                    <button type="button" onclick="changeHandoutZoom(0, 80)" title="Klik untuk ukuran kertas 80%" class="px-2.5 py-1 rounded-lg text-xs font-black text-amber-300 hover:text-white cursor-pointer" id="zoom-label-${prefix}">
                         ${handoutZoomLevel}%
                     </button>
-                    <button type="button" onclick="changeHandoutZoom(10)" title="Perbesar Tampilan (Zoom In)" class="w-8 h-8 rounded-lg bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 font-black text-xs flex items-center justify-center transition cursor-pointer shadow-2xs">
-                        <i class="fas fa-search-plus"></i>
+                    <button type="button" onclick="changeHandoutZoom(10)" title="Perbesar Kertas" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-indigo-600 text-white font-black text-xs flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-plus"></i>
                     </button>
-                    <button type="button" onclick="changeHandoutZoom(0, 100)" class="hidden sm:inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold text-slate-500 hover:bg-white cursor-pointer">100%</button>
+                    <button type="button" onclick="changeHandoutZoom(0, 70)" title="Tampilan Jauh (70%)" class="hidden sm:inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold text-slate-300 hover:bg-slate-700 cursor-pointer">70%</button>
+                    <button type="button" onclick="changeHandoutZoom(0, 100)" title="Ukuran Penuh (100%)" class="hidden sm:inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold text-slate-300 hover:bg-slate-700 cursor-pointer">100%</button>
                 </div>
 
-                <!-- Alat Mengajar: Coret-Coret Materi & Kotak Papan Tulis -->
+                <!-- Alat Mengajar: Coret-Coret Materi, Kotak Papan Tulis, & Fokus Layar -->
                 <div class="flex flex-wrap items-center gap-2">
                     <button type="button" id="btn-toggle-annot-${prefix}" onclick="toggleAnnotationToolbar('${prefix}')" class="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-extrabold text-xs transition inline-flex items-center gap-1.5 cursor-pointer">
-                        <i class="fas fa-highlighter"></i> <span>Coret-Coret Materi</span>
+                        <i class="fas fa-highlighter"></i> <span>Coret Kertas</span>
                     </button>
                     <button type="button" id="btn-toggle-wb-${prefix}" onclick="toggleWhiteboardDrawer('${prefix}')" class="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs transition inline-flex items-center gap-1.5 cursor-pointer">
-                        <i class="fas fa-chalkboard-teacher"></i> <span>Kotak Catatan & Papan Tulis</span>
+                        <i class="fas fa-chalkboard-teacher"></i> <span>Papan Tulis & Catatan</span>
                     </button>
-                    <button type="button" onclick="toggleFullScreenReading()" class="hes-focus-mode-btn hidden md:inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-extrabold text-xs transition cursor-pointer">
-                        <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} mr-1.5"></i> ${isCollapsed ? 'Sidebar' : 'Layar Lebar'}
+                    <button type="button" onclick="toggleFullScreenReading()" class="hes-focus-mode-btn hidden md:inline-flex items-center px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold text-xs transition cursor-pointer">
+                        <i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} mr-1.5"></i> ${isCollapsed ? 'Tampilkan Sidebar' : 'Mode Fokus Mengajar'}
                     </button>
-                    <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
-                        <i class="fas fa-file-pdf"></i> <span class="hidden sm:inline">PDF</span>
+                    <button id="btn-dl-${prefix}" onclick="downloadHandoutPDF('${prefix}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
+                        <i class="fas fa-file-pdf"></i> <span class="hidden sm:inline">Download PDF</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Sub-Toolbar Alat Coret-Coret di Atas Materi -->
-            <div id="annot-toolbar-${prefix}" class="hidden bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3 fade-in">
+            <!-- Sub-Toolbar Alat Coret-Coret di Atas Kertas -->
+            <div id="annot-toolbar-${prefix}" class="hidden bg-slate-800/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-lg border border-slate-700 flex flex-wrap items-center justify-between gap-3 fade-in">
                 <div class="flex flex-wrap items-center gap-1.5">
                     <span class="text-[11px] font-extrabold text-slate-300 mr-1"><i class="fas fa-pen-fancy text-amber-400 mr-1"></i>Alat Coret:</span>
                     <button type="button" id="annot-tool-${prefix}-pen" onclick="setAnnotationTool('${prefix}', 'pen')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-white text-slate-900 cursor-pointer"><i class="fas fa-pen mr-1"></i> Pena</button>
@@ -989,7 +1015,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <!-- Kiri: Kotak Ketik Catatan & Contoh Kalimat -->
                     <div class="flex flex-col space-y-1.5">
                         <div class="flex items-center justify-between">
                             <span class="text-[11px] font-extrabold text-indigo-700 uppercase"><i class="fas fa-keyboard mr-1"></i> Kotak Ketik Catatan / Contoh Kalimat Baru</span>
@@ -998,7 +1023,6 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                         <textarea id="wb-note-${prefix}" oninput="saveLiveScratchpadNote('${prefix}', this.value)" rows="8" class="hes-input !bg-amber-50/40 !border-amber-200/90 font-semibold text-sm leading-relaxed flex-1" placeholder="Ketik catatan mengajar, kosakata tambahan, atau koreksi kalimat murid secara langsung di sini...">${escapeHtmlStr(savedNote)}</textarea>
                     </div>
 
-                    <!-- Kanan: Kotak Coret-Coret Papan Tulis (Whiteboard Canvas) -->
                     <div class="flex flex-col space-y-1.5">
                         <div class="flex flex-wrap items-center justify-between gap-1">
                             <span class="text-[11px] font-extrabold text-emerald-700 uppercase"><i class="fas fa-draw-polygon mr-1"></i> Papan Coret-Coret Bebas</span>
@@ -1018,32 +1042,52 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             </div>
         </div>
 
-        <!-- LEMBAR MATERI UTAMA (DENGAN DUKUNGAN ZOOM & OVERLAY CORET-CORET) -->
-        <div id="printable-handout-${prefix}" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif; zoom: ${handoutZoomLevel}%;" class="bg-white mx-auto rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden text-slate-800 relative transition-all duration-150">
-            <!-- Kanvas Transparan untuk Coret-Coret Langsung di Atas Materi -->
-            <canvas id="annot-canvas-${prefix}" class="hes-annotation-overlay"></canvas>
+        <!-- AREA BACA PDF (MEJA ABU-ABU DENGAN KERTAS A4 PROPORSIONAL DI TENGAHNYA) -->
+        <div class="hes-pdf-stage custom-scrollbar">
+            <div id="handout-scale-wrap-${prefix}" class="mx-auto relative transition-all duration-150">
+                <div id="printable-handout-${prefix}" style="font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;" class="hes-pdf-paper overflow-hidden text-slate-800 relative">
+                    <!-- Kanvas Transparan untuk Coret-Coret Langsung di Atas Kertas -->
+                    <canvas id="annot-canvas-${prefix}" class="hes-annotation-overlay"></canvas>
 
-            <div class="h-2.5 w-full bg-gradient-to-r ${theme.barGrad}"></div>
-            <div class="relative z-10 p-6 sm:p-10 space-y-10">
-                <div class="space-y-4 border-b border-slate-100 pb-7">
-                    <div class="flex flex-wrap items-center gap-2"><span class="px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider border ${theme.badgeBg}">${cleanTitleMarkdown(data.level)}</span><span class="text-xs font-bold text-slate-400">&bull; Hamdi English Studio</span></div>
-                    <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">${cleanTitleMarkdown(data.title)}</h1>
-                    ${data.goal ? `<div class="p-4 sm:p-5 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}"><p class="text-xs font-extrabold uppercase tracking-wider ${theme.accentText} mb-1"><i class="fas fa-bullseye mr-1"></i> Target Belajar Hari Ini</p><p class="text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p></div>` : ''}
-                </div>
-                <div class="space-y-11">${sectionsHTML}</div>
-                <div class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400 font-bold">
-                    <span>Hamdi English Studio &bull; Friendly Learning Space</span><span>${monthTitle} &bull; Session ${sessionNumber} of 12</span>
+                    <div class="h-2.5 w-full bg-gradient-to-r ${theme.barGrad}"></div>
+                    <div class="relative z-10 p-8 sm:p-10 space-y-9">
+                        <div class="space-y-4 border-b border-slate-100 pb-6">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider border ${theme.badgeBg}">${cleanTitleMarkdown(data.level)}</span>
+                                    <span class="text-xs font-bold text-slate-400">&bull; Hamdi English Studio</span>
+                                </div>
+                                ${window.HES.userRole === 'admin' ? `<a href="admin.html?tab=materials" class="text-xs font-extrabold text-indigo-600 hover:underline"><i class="fas fa-pen mr-1"></i>Edit Materi</a>` : ''}
+                            </div>
+                            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">${cleanTitleMarkdown(data.title)}</h1>
+                            ${data.goal ? `<div class="p-4 sm:p-5 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}"><p class="text-xs font-extrabold uppercase tracking-wider ${theme.accentText} mb-1"><i class="fas fa-bullseye mr-1"></i> Target Belajar Hari Ini</p><p class="text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p></div>` : ''}
+                        </div>
+                        <div class="space-y-10">${sectionsHTML}</div>
+                        <div class="pt-6 border-t border-slate-100 flex items-center justify-between gap-3 text-xs text-slate-400 font-bold">
+                            <span>Hamdi English Studio &bull; Friendly Learning Space</span><span>${monthTitle} &bull; Session ${sessionNumber} of 12</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>`;
 
     setTimeout(() => {
+        const sheet = document.getElementById(`printable-handout-${prefix}`);
         const annotCanvas = document.getElementById(`annot-canvas-${prefix}`);
+        applyPdfPaperScale(prefix);
         if (annotCanvas) {
             resizeAnnotationCanvas(prefix);
             bindInteractiveCanvas(annotCanvas, () => annotationState);
         }
-    }, 80);
+        if (sheet && typeof ResizeObserver !== 'undefined') {
+            paperResizeObservers[prefix]?.disconnect();
+            paperResizeObservers[prefix] = new ResizeObserver(() => {
+                applyPdfPaperScale(prefix);
+                resizeAnnotationCanvas(prefix);
+            });
+            paperResizeObservers[prefix].observe(sheet);
+        }
+    }, 60);
 }
 
 // ============================================================================
