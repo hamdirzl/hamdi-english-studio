@@ -20,8 +20,13 @@ body {
     }
 }
 
+/* Ruang Belajar Lebih Luas di Laptop */
+.materi-container-width {
+    max-width: 68rem !important;
+}
+
 body.hes-sidebar-collapsed .materi-container-width {
-    max-width: 72rem !important; /* Melebar dengan nyaman saat sidebar disembunyikan */
+    max-width: 96% !important;
 }
 
 /* Komponen Elegan (Clean & Modern UI) */
@@ -98,6 +103,22 @@ body.hes-sidebar-collapsed .materi-container-width {
 
 .hes-btn-soft:hover {
     background-color: #E0E7FF;
+}
+
+/* Kanvas Coret-Coret (Annotation) di Atas Materi */
+.hes-annotation-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 25;
+    pointer-events: none;
+    touch-action: none;
+}
+
+.hes-annotation-overlay.drawing-active {
+    pointer-events: auto;
+    cursor: crosshair;
 }
 
 /* Scrollbar & Animasi */

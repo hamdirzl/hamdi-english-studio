@@ -623,7 +623,7 @@ window.updateVocabStatus = async function(email, m, w, d, status) {
 };
 
 // ============================================================================
-// TAB 4: BUILDER SOAL UJIAN, BULK IMPORT & PENILAIAN RAPOR
+// TAB 4: BUILDER SOAL UJIAN, RESET PER BAGIAN & PENILAIAN RAPOR
 // ============================================================================
 window.loadAdminExamData = async function() {
     await syncFromCloud();
@@ -843,12 +843,115 @@ window.saveAdminExamData = async function() {
     showToast(error ? 'Gagal menyimpan soal: ' + error.message : 'Seluruh soal ujian berhasil disimpan ke Cloud!', error ? 'error' : 'success');
 };
 
+// ============================================================================
+// FITUR BARU: RESET UJIAN PER BAGIAN (SPEAKING / LISTENING / READING / WRITING / SEMUA)
+// ============================================================================
 window.resetStudentExam = async function() {
+    await syncFromCloud();
     const s = $('admin-exam-student').value, m = $('admin-exam-month').value;
-    if (!confirm(`Reset hasil ujian ${s} pada ${m.toUpperCase()}?`)) return;
-    await safeSaveMaterialsToCloud(materials => { delete materials[`exam_result-${s}-${m}`]; });
-    $('admin-grading-workspace').classList.add('hidden');
-    showToast('Hasil ujian murid berhasil direset.', 'info');
+    const stuObj = window.HES.students.find(x => x.email === s) || { name: s };
+    const res = window.HES.materials[`exam_result-${s}-${m}`];
+
+    let modal = $('hes-reset-exam-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'hes-reset-exam-modal';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4';
+        document.body.appendChild(modal);
+    }
+
+    const cats = [
+        { id: 'reading',   label: 'Reading',   icon: 'fa-book-open',        color: 'blue' },
+        { id: 'writing',   label: 'Writing',   icon: 'fa-pen-nib',          color: 'indigo' },
+        { id: 'speaking',  label: 'Speaking',  icon: 'fa-microphone-lines', color: 'emerald' },
+        { id: 'listening', label: 'Listening', icon: 'fa-headphones',       color: 'amber' }
+    ];
+
+    modal.innerHTML = `
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 fade-in">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h4 class="text-base font-extrabold text-slate-900"><i class="fas fa-undo text-red-500 mr-1.5"></i> Pilih Bagian Ujian yang Direset</h4>
+                    <p class="text-xs font-bold text-slate-500 mt-0.5">${stuObj.name} &bull; ${m.toUpperCase()}</p>
+                </div>
+                <button onclick="document.getElementById('hes-reset-exam-modal').classList.add('hidden')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-600 leading-relaxed">Pilih salah satu bagian di bawah ini jika hanya ingin mengulang bagian tertentu (bagian lain tidak akan hilang):</p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                ${cats.map(c => {
+                    const isSub = res?.submittedTabs?.includes(c.id) || Object.keys(res?.answers || {}).some(k => k.startsWith(`${c.id}_`));
+                    const sc = res?.sectionScores?.[c.id] ?? '-';
+                    return `
+                        <button onclick="executeSelectiveExamReset('${s}', '${m}', '${c.id}')" class="p-3.5 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${isSub ? 'bg-white border-slate-200 hover:border-red-400 hover:bg-red-50/40' : 'bg-slate-50 border-slate-100 opacity-60'}">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-extrabold text-slate-800"><i class="fas ${c.icon} text-${c.color}-600 mr-1.5"></i> ${c.label}</span>
+                                <span class="text-[10px] font-black px-2 py-0.5 rounded-md ${isSub ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}">${isSub ? `Skor: ${sc}` : 'Kosong'}</span>
+                            </div>
+                            <span class="text-[11px] font-bold text-red-600 mt-2.5 inline-flex items-center gap-1"><i class="fas fa-redo text-[10px]"></i> Reset ${c.label} Saja</span>
+                        </button>`;
+                }).join('')}
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+                <button onclick="executeSelectiveExamReset('${s}', '${m}', 'all')" class="hes-btn-primary !bg-red-600 hover:!bg-red-700 flex-1 !py-2.5 !text-xs cursor-pointer">
+                    <i class="fas fa-trash-alt"></i> Reset Seluruh Ujian (4 Bagian)
+                </button>
+                <button onclick="document.getElementById('hes-reset-exam-modal').classList.add('hidden')" class="hes-btn-soft !bg-slate-100 !text-slate-600 !border-slate-200 !py-2.5 !text-xs cursor-pointer">
+                    Batal
+                </button>
+            </div>
+        </div>`;
+    modal.classList.remove('hidden');
+};
+
+window.executeSelectiveExamReset = async function(email, monthId, targetSection = 'all') {
+    const label = targetSection === 'all' ? 'SELURUH 4 BAGIAN ujian' : `bagian ${targetSection.toUpperCase()} saja`;
+    if (!confirm(`Yakin ingin mereset ${label} untuk ${email} (${monthId.toUpperCase()})?`)) return;
+
+    const rKey = `exam_result-${email}-${monthId}`;
+    const examData = window.HES.materials[`exam-${email}-${monthId}`];
+
+    await safeSaveMaterialsToCloud(materials => {
+        if (targetSection === 'all') {
+            delete materials[rKey];
+            return;
+        }
+        const res = materials[rKey];
+        if (!res) return;
+
+        ['answers', 'scores', 'transcripts', 'questionNotes'].forEach(prop => {
+            if (!res[prop]) return;
+            Object.keys(res[prop]).forEach(k => {
+                if (k.startsWith(`${targetSection}_`)) delete res[prop][k];
+            });
+        });
+
+        if (Array.isArray(res.submittedTabs)) {
+            res.submittedTabs = res.submittedTabs.filter(t => t !== targetSection);
+        }
+        res.sectionScores = res.sectionScores || {};
+        res.sectionScores[targetSection] = 0;
+        res.status = (res.submittedTabs && res.submittedTabs.length >= 4) ? 'submitted' : 'partial';
+
+        // Re-hitung skor bagian lain agar tetap akurat
+        ['reading', 'writing', 'speaking', 'listening'].forEach(c => {
+            if (c !== targetSection) res.sectionScores[c] = computeExamSectionScore(c, examData, res);
+        });
+
+        const hasAnyRemaining = (res.submittedTabs && res.submittedTabs.length > 0) || Object.keys(res.answers || {}).length > 0;
+        if (!hasAnyRemaining) delete materials[rKey];
+        else materials[rKey] = res;
+    });
+
+    $('hes-reset-exam-modal')?.classList.add('hidden');
+    if (!$('admin-grading-workspace')?.classList.contains('hidden')) {
+        renderAdminGradingView(email, monthId);
+    }
+    showToast(targetSection === 'all' ? 'Seluruh ujian berhasil direset!' : `Bagian ${targetSection.toUpperCase()} berhasil direset! Bagian lain tetap aman.`, 'info');
 };
 
 window.loadStudentExamForGrading = async function() {
@@ -894,9 +997,11 @@ window.renderAdminGradingView = function(email, monthId) {
         <div class="space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-100 p-2 rounded-2xl">
                 <div class="flex flex-wrap gap-1.5">
-                    ${cats.map(c => `<button id="grade-tab-btn-${c}" onclick="currentAdminGradingTab='${c}';renderAdminGradingView('${email}','${monthId}')" class="px-4 py-2 rounded-xl text-xs font-extrabold capitalize transition ${c === cat ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-indigo-50'}">${c} (${res.sectionScores[c]}/100) ${res.submittedTabs?.includes(c) ? '✓' : ''}</button>`).join('')}
+                    ${cats.map(c => `<button id="grade-tab-btn-${c}" onclick="currentAdminGradingTab='${c}';renderAdminGradingView('${email}','${monthId}')" class="px-4 py-2 rounded-xl text-xs font-extrabold capitalize transition cursor-pointer ${c === cat ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-indigo-50'}">${c} (${res.sectionScores[c]}/100) ${res.submittedTabs?.includes(c) ? '✓' : ''}</button>`).join('')}
                 </div>
-                <span class="text-[11px] font-extrabold text-slate-500 px-2">Standar: 10 Poin / Soal</span>
+                <button onclick="executeSelectiveExamReset('${email}', '${monthId}', '${cat}')" class="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-extrabold transition cursor-pointer">
+                    <i class="fas fa-undo mr-1"></i> Reset Bagian ${cat.toUpperCase()} Saja
+                </button>
             </div>
             ${!questions.length ? `<p class="text-xs text-slate-400 text-center py-6">Tidak ada soal pada bagian ${cat.toUpperCase()}.</p>` : questions.map((q, idx) => {
                 const key = `${cat}_${idx}`, ans = res.answers[key], isMCQ = q.type === 'mcq', transcript = res.transcripts?.[key] || '';
