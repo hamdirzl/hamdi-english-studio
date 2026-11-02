@@ -16,9 +16,12 @@ let annotationState = {
     color: '#E11D48',
     size: 3
 };
-let wbState = {
-    tool: 'pen',
-    color: '#1D4ED8'
+
+// State Floating Live Notepad (Text Box Mengetik: Ukuran Font, Warna, & Ukuran Window)
+let notepadState = {
+    fontSize: parseInt(localStorage.getItem('hes_notepad_fontsize')) || 20,
+    color: localStorage.getItem('hes_notepad_color') || '#0F172A',
+    expanded: false
 };
 let paperResizeObservers = {};
 
@@ -215,7 +218,7 @@ function renderMateriContent() {
 }
 
 // ============================================================================
-// FLOATING DOCK & FLOATING WHITEBOARD (MELAYANG BEBAS DI LAYAR PC/LAPTOP)
+// FLOATING DOCK & FLOATING LIVE NOTEPAD (BISA DIGESER, RESIZE WINDOW, UBAH FONT & WARNA)
 // ============================================================================
 function getActiveHandoutPrefix() {
     return activeMateriMode === 'recap' ? 'recap' : 'presentation';
@@ -226,7 +229,7 @@ function makeElementDraggable(el, handleEl) {
     let isDragging = false, startX = 0, startY = 0, initLeft = 0, initTop = 0;
 
     handleEl.addEventListener('mousedown', e => {
-        if (e.target.closest('button, a, input, textarea')) return;
+        if (e.target.closest('button, a, input, textarea, select')) return;
         isDragging = true;
         const rect = el.getBoundingClientRect();
         el.style.right = 'auto';
@@ -243,8 +246,8 @@ function makeElementDraggable(el, handleEl) {
 
     window.addEventListener('mousemove', e => {
         if (!isDragging) return;
-        const nx = Math.max(8, Math.min(window.innerWidth - el.offsetWidth - 8, initLeft + (e.clientX - startX)));
-        const ny = Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, initTop + (e.clientY - startY)));
+        const nx = Math.max(6, Math.min(window.innerWidth - 100, initLeft + (e.clientX - startX)));
+        const ny = Math.max(6, Math.min(window.innerHeight - 60, initTop + (e.clientY - startY)));
         el.style.left = `${nx}px`;
         el.style.top = `${ny}px`;
     });
@@ -257,15 +260,56 @@ function makeElementDraggable(el, handleEl) {
     });
 }
 
+function makeElementResizable(el, resizeHandleEl) {
+    if (!el || !resizeHandleEl) return;
+    let isResizing = false, startX = 0, startY = 0, startW = 0, startH = 0;
+
+    resizeHandleEl.addEventListener('mousedown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        isResizing = true;
+        const rect = el.getBoundingClientRect();
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+        el.style.transform = 'none';
+        el.style.left = `${rect.left}px`;
+        el.style.top = `${rect.top}px`;
+        startX = e.clientX;
+        startY = e.clientY;
+        startW = rect.width;
+        startH = rect.height;
+        document.body.style.userSelect = 'none';
+    });
+
+    window.addEventListener('mousemove', e => {
+        if (!isResizing) return;
+        const newW = Math.max(300, Math.min(window.innerWidth - 24, startW + (e.clientX - startX)));
+        const newH = Math.max(220, Math.min(window.innerHeight - 24, startH + (e.clientY - startY)));
+        el.style.width = `${Math.round(newW)}px`;
+        el.style.height = `${Math.round(newH)}px`;
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.userSelect = '';
+            localStorage.setItem('hes_notepad_w', el.style.width);
+            localStorage.setItem('hes_notepad_h', el.style.height);
+        }
+    });
+}
+
 function initGlobalFloatingTeachingUI() {
     if (document.getElementById('hes-global-floating-dock')) return;
 
     const isCollapsed = document.body.classList.contains('hes-sidebar-collapsed');
+    const savedW = localStorage.getItem('hes_notepad_w') || '480px';
+    const savedH = localStorage.getItem('hes_notepad_h') || '420px';
 
     const uiHTML = `
         <!-- FLOATING BAR MENGAJAR (MELAYANG DI ATAS LAYAR & BISA DIGESER) -->
         <div id="hes-global-floating-dock" class="hes-floating-dock hidden">
-            <!-- Sub-Palet Alat Coret-Coret (Melayang di Sebelah Bar) -->
+            <!-- Sub-Palet Alat Coret-Coret Kertas (Melayang di Sebelah Bar) -->
             <div id="hes-floating-annot-pal" class="hidden hes-floating-dock-body bg-slate-900/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-2xl border border-slate-700/90 flex flex-col items-center gap-2 fade-in">
                 <button type="button" id="flt-annot-pen" onclick="setAnnotationTool('pen')" title="Pena Tulis" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-white text-slate-900 flex items-center justify-center cursor-pointer"><i class="fas fa-pen"></i></button>
                 <button type="button" id="flt-annot-highlighter" onclick="setAnnotationTool('highlighter')" title="Stabilo Transparan" class="w-9 h-9 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 flex items-center justify-center cursor-pointer"><i class="fas fa-highlighter"></i></button>
@@ -308,14 +352,14 @@ function initGlobalFloatingTeachingUI() {
 
                     <div class="w-7 h-px bg-slate-700 my-0.5"></div>
 
-                    <!-- Coret Kertas -->
+                    <!-- Coret Kertas Materi -->
                     <button type="button" id="flt-btn-annot" onclick="toggleAnnotationToolbar()" title="Coret-Coret Kertas Materi" class="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white flex items-center justify-center transition cursor-pointer">
                         <i class="fas fa-highlighter text-sm"></i>
                     </button>
 
-                    <!-- Jendela Melayang Papan Tulis & Catatan -->
-                    <button type="button" id="flt-btn-wb" onclick="toggleWhiteboardDrawer()" title="Buka Jendela Catatan & Papan Tulis" class="w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer">
-                        <i class="fas fa-chalkboard-teacher text-sm"></i>
+                    <!-- Floating Live Notepad (Text Box Mengetik Saat Mengajar) -->
+                    <button type="button" id="flt-btn-wb" onclick="toggleWhiteboardDrawer()" title="Buka Text Box Mengetik (Floating Notepad)" class="w-10 h-10 rounded-xl bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+                        <i class="fas fa-keyboard text-sm"></i>
                     </button>
 
                     <!-- Mode Fokus Mengajar -->
@@ -338,42 +382,75 @@ function initGlobalFloatingTeachingUI() {
             </div>
         </div>
 
-        <!-- JENDELA MELAYANG PAPAN TULIS & CATATAN (FLOATING WINDOW & BISA DIGESER) -->
-        <div id="hes-global-floating-wb" class="hes-floating-wb hidden bg-white/98 backdrop-blur-md border-2 border-indigo-200 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col justify-between gap-3 overflow-y-auto custom-scrollbar">
-            <div id="hes-wb-drag-handle" class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 shrink-0 cursor-move" title="Tahan & Geser untuk Memindahkan Jendela">
+        <!-- FLOATING LIVE NOTEPAD (TEXT BOX MENGETIK: BISA DIGESER, RESIZE WINDOW, UBAH UKURAN FONT & WARNA) -->
+        <div id="hes-global-floating-wb" style="width:${savedW}; height:${savedH};" class="hes-floating-wb hidden bg-white/98 backdrop-blur-md border-2 border-indigo-300 rounded-3xl p-3.5 sm:p-4 shadow-2xl flex flex-col justify-between gap-2.5">
+            <!-- Header Geser (Drag Handle) -->
+            <div id="hes-wb-drag-handle" class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 shrink-0 cursor-move select-none" title="Tahan & Geser untuk Memindahkan Jendela Text Box">
                 <div class="flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs"><i class="fas fa-chalkboard"></i></span>
+                    <span class="w-7 h-7 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs shadow-2xs"><i class="fas fa-keyboard"></i></span>
                     <div>
-                        <h4 class="text-sm font-extrabold text-slate-800">Catatan & Papan Tulis <i class="fas fa-arrows-alt text-[10px] text-slate-400 ml-1"></i></h4>
-                        <p class="text-[10px] font-semibold text-slate-400">Jendela melayang (bisa digeser)</p>
+                        <h4 class="text-xs sm:text-sm font-extrabold text-slate-800 leading-tight">Live Teaching Notepad <i class="fas fa-arrows-alt text-[10px] text-indigo-400 ml-1"></i></h4>
+                        <p class="text-[10px] font-semibold text-slate-400">Geser header • Tarik pojok kanan bawah untuk ubah ukuran</p>
                     </div>
                 </div>
-                <button type="button" onclick="toggleWhiteboardDrawer()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center cursor-pointer">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="flex items-center gap-1">
+                    <button type="button" onclick="toggleNotepadQuickSize()" title="Perbesar / Kembalikan Ukuran Jendela" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 flex items-center justify-center text-xs cursor-pointer">
+                        <i id="flt-notepad-exp-icon" class="fas fa-expand-alt"></i>
+                    </button>
+                    <button type="button" onclick="toggleWhiteboardDrawer()" title="Tutup Text Box" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center text-xs cursor-pointer">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
 
-            <div class="flex flex-col space-y-1.5 flex-1 min-h-[160px]">
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-extrabold text-indigo-700 uppercase"><i class="fas fa-keyboard mr-1"></i> Ketik Catatan / Contoh Kalimat</span>
-                    <button type="button" onclick="document.getElementById('flt-wb-note').value='';saveLiveScratchpadNote('');" class="text-[11px] font-bold text-slate-400 hover:text-red-500 cursor-pointer">Kosongkan</button>
+            <!-- Toolbar Pengatur Ukuran Font & Warna Tulisan -->
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-2.5 py-1.5 rounded-2xl border border-slate-200/80 shrink-0">
+                <!-- Kontrol Ukuran Font (A- / A+) -->
+                <div class="flex items-center gap-1">
+                    <button type="button" onclick="changeNotepadFontSize(-2)" title="Perkecil Huruf (Font Size -)" class="px-2.5 py-1 rounded-xl bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 border border-slate-200 text-xs font-black transition cursor-pointer">
+                        A-
+                    </button>
+                    <span id="flt-notepad-fontsize-lbl" class="text-[11px] font-black text-indigo-700 px-1.5 min-w-[38px] text-center">${notepadState.fontSize}px</span>
+                    <button type="button" onclick="changeNotepadFontSize(2)" title="Perbesar Huruf (Font Size +)" class="px-2.5 py-1 rounded-xl bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 border border-slate-200 text-xs font-black transition cursor-pointer">
+                        A+
+                    </button>
                 </div>
-                <textarea id="flt-wb-note" oninput="saveLiveScratchpadNote(this.value)" rows="5" class="hes-input !bg-amber-50/40 !border-amber-200/90 font-semibold text-sm leading-relaxed flex-1 resize-none" placeholder="Ketik catatan mengajar, kosakata tambahan, atau koreksi kalimat murid di sini..."></textarea>
+
+                <!-- Pilihan Warna Tulisan -->
+                <div class="flex items-center gap-1.5">
+                    ${[
+                        ['#0F172A', 'Hitam'],
+                        ['#2563EB', 'Biru'],
+                        ['#E11D48', 'Merah'],
+                        ['#059669', 'Hijau'],
+                        ['#7C3AED', 'Ungu'],
+                        ['#D97706', 'Oranye']
+                    ].map(([col, lbl]) => `
+                        <button type="button" data-np-color="${col}" onclick="setNotepadTextColor('${col}')" title="Warna Teks: ${lbl}" style="background:${col};" class="flt-np-color-btn w-5 h-5 rounded-full border-2 border-white shadow-2xs cursor-pointer transition hover:scale-110"></button>
+                    `).join('')}
+                    <label title="Pilih Warna Bebas" class="w-5 h-5 rounded-full border border-slate-300 bg-gradient-to-tr from-rose-500 via-amber-400 to-indigo-600 cursor-pointer flex items-center justify-center overflow-hidden relative">
+                        <input type="color" value="${notepadState.color}" oninput="setNotepadTextColor(this.value)" class="opacity-0 absolute inset-0 w-full h-full cursor-pointer">
+                    </label>
+                </div>
+
+                <!-- Tombol Copy & Bersihkan -->
+                <div class="flex items-center gap-1">
+                    <button type="button" onclick="copyNotepadText()" title="Salin Isi Catatan" class="px-2 py-1 rounded-xl bg-white hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 text-[11px] font-extrabold cursor-pointer">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button type="button" onclick="clearNotepadText()" title="Kosongkan Text Box" class="px-2 py-1 rounded-xl bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 border border-slate-200 text-[11px] font-extrabold cursor-pointer">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
             </div>
 
-            <div class="flex flex-col space-y-1.5 shrink-0">
-                <div class="flex flex-wrap items-center justify-between gap-1">
-                    <span class="text-[11px] font-extrabold text-emerald-700 uppercase"><i class="fas fa-draw-polygon mr-1"></i> Papan Coret-Coret</span>
-                    <div class="flex items-center gap-1">
-                        <button type="button" id="flt-wb-pen" onclick="setWhiteboardTool('pen', '#1D4ED8')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-indigo-600 text-white cursor-pointer">Biru</button>
-                        <button type="button" onclick="setWhiteboardTool('pen', '#E11D48')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-200 cursor-pointer">Merah</button>
-                        <button type="button" id="flt-wb-highlighter" onclick="setWhiteboardTool('highlighter', '#F59E0B')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer">Stabilo</button>
-                        <button type="button" id="flt-wb-eraser" onclick="setWhiteboardTool('eraser')" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-slate-100 text-slate-600 cursor-pointer"><i class="fas fa-eraser"></i></button>
-                        <button type="button" onclick="clearWhiteboardCanvas()" class="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-red-50 text-red-600 cursor-pointer"><i class="fas fa-trash"></i></button>
-                    </div>
-                </div>
-                <div class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 overflow-hidden">
-                    <canvas id="flt-wb-canvas" class="w-full h-[200px] block cursor-crosshair touch-none"></canvas>
+            <!-- Area Text Box Mengetik Utama (Otomatis Mengikuti Ukuran Window) -->
+            <div class="flex-1 flex flex-col min-h-0 relative">
+                <textarea id="flt-wb-note" oninput="saveLiveScratchpadNote(this.value)" style="font-size:${notepadState.fontSize}px; color:${notepadState.color};" class="w-full h-full flex-1 bg-amber-50/35 focus:bg-white border border-slate-200 focus:border-indigo-400 rounded-2xl p-3.5 font-bold leading-relaxed outline-none resize-none custom-scrollbar transition-colors" placeholder="Ketik contoh kalimat, kosakata baru, atau latihan tanya-jawab bersama murid di sini..."></textarea>
+
+                <!-- Pegangan Tarik Ukuran Window (Bottom-Right Resize Grip) -->
+                <div id="hes-wb-resize-handle" title="Tarik sudut ini untuk memperbesar / memperkecil ukuran jendela" class="hes-wb-resize-grip">
+                    <i class="fas fa-caret-right rotate-45 text-sm"></i>
                 </div>
             </div>
         </div>
@@ -382,7 +459,70 @@ function initGlobalFloatingTeachingUI() {
     document.body.insertAdjacentHTML('beforeend', uiHTML);
     makeElementDraggable(document.getElementById('hes-global-floating-dock'), document.getElementById('hes-dock-drag-handle'));
     makeElementDraggable(document.getElementById('hes-global-floating-wb'), document.getElementById('hes-wb-drag-handle'));
+    makeElementResizable(document.getElementById('hes-global-floating-wb'), document.getElementById('hes-wb-resize-handle'));
+    applyNotepadVisualStyle();
 }
+
+function applyNotepadVisualStyle() {
+    const noteEl = document.getElementById('flt-wb-note');
+    const lblEl = document.getElementById('flt-notepad-fontsize-lbl');
+    if (noteEl) {
+        noteEl.style.fontSize = `${notepadState.fontSize}px`;
+        noteEl.style.color = notepadState.color;
+    }
+    if (lblEl) lblEl.innerText = `${notepadState.fontSize}px`;
+
+    document.querySelectorAll('.flt-np-color-btn').forEach(btn => {
+        const active = btn.dataset.npColor?.toLowerCase() === notepadState.color.toLowerCase();
+        btn.classList.toggle('ring-2', active);
+        btn.classList.toggle('ring-indigo-500', active);
+        btn.classList.toggle('scale-110', active);
+    });
+}
+
+window.changeNotepadFontSize = function(delta) {
+    notepadState.fontSize = Math.min(48, Math.max(12, notepadState.fontSize + delta));
+    localStorage.setItem('hes_notepad_fontsize', String(notepadState.fontSize));
+    applyNotepadVisualStyle();
+};
+
+window.setNotepadTextColor = function(color) {
+    if (!color) return;
+    notepadState.color = color;
+    localStorage.setItem('hes_notepad_color', color);
+    applyNotepadVisualStyle();
+};
+
+window.toggleNotepadQuickSize = function() {
+    const box = document.getElementById('hes-global-floating-wb');
+    const icon = document.getElementById('flt-notepad-exp-icon');
+    if (!box) return;
+    notepadState.expanded = !notepadState.expanded;
+    if (notepadState.expanded) {
+        box.style.width = `${Math.min(720, window.innerWidth - 48)}px`;
+        box.style.height = `${Math.min(580, window.innerHeight - 60)}px`;
+    } else {
+        box.style.width = '460px';
+        box.style.height = '400px';
+    }
+    localStorage.setItem('hes_notepad_w', box.style.width);
+    localStorage.setItem('hes_notepad_h', box.style.height);
+    if (icon) icon.className = `fas ${notepadState.expanded ? 'fa-compress-alt' : 'fa-expand-alt'}`;
+};
+
+window.copyNotepadText = function() {
+    const noteEl = document.getElementById('flt-wb-note');
+    if (!noteEl || !noteEl.value.trim()) return showToast('Text box masih kosong.', 'info');
+    navigator.clipboard.writeText(noteEl.value).then(() => showToast('Catatan berhasil disalin!', 'success'));
+};
+
+window.clearNotepadText = function() {
+    const noteEl = document.getElementById('flt-wb-note');
+    if (!noteEl || !noteEl.value.trim()) return;
+    noteEl.value = '';
+    saveLiveScratchpadNote('');
+    noteEl.focus();
+};
 
 function syncFloatingDockVisibility() {
     const dock = document.getElementById('hes-global-floating-dock');
@@ -586,33 +726,9 @@ window.toggleWhiteboardDrawer = function() {
     }
     if (isOpening) {
         loadScratchpadNoteForActiveTab();
-        setTimeout(() => initWhiteboardCanvas(), 50);
+        applyNotepadVisualStyle();
+        setTimeout(() => document.getElementById('flt-wb-note')?.focus(), 50);
     }
-};
-
-function initWhiteboardCanvas() {
-    const canvas = document.getElementById('flt-wb-canvas');
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    if (canvas.width === 0 || canvas.width === 300) {
-        canvas.width = Math.max(340, Math.floor(rect.width || 360));
-        canvas.height = 200;
-    }
-    bindInteractiveCanvas(canvas, () => wbState);
-}
-
-window.setWhiteboardTool = function(tool, color = null) {
-    wbState.tool = tool;
-    if (color) wbState.color = color;
-    ['pen', 'highlighter', 'eraser'].forEach(t => {
-        const el = document.getElementById(`flt-wb-${t}`);
-        if (el) el.className = `px-2 py-1 rounded-lg text-[10px] font-extrabold transition cursor-pointer ${t === tool ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`;
-    });
-};
-
-window.clearWhiteboardCanvas = function() {
-    const canvas = document.getElementById('flt-wb-canvas');
-    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 };
 
 function loadScratchpadNoteForActiveTab() {
@@ -630,7 +746,7 @@ window.saveLiveScratchpadNote = function(val) {
 };
 
 // ============================================================================
-// PEMBERSIH TEKS, FILTER SUARA BILINGUAL & TEMA WARNA
+// PEMBERSIH TEKS, FILTER SUARA & TEMA WARNA HANDOUT
 // ============================================================================
 const sanitizeRawInputString = s => String(s || '').replace(/"font-extrabold[^"]*">/g, '').replace(/"italic text-slate-\d+[^"]*">/g, '').replace(/<[^>]+>/g, '');
 const escapeHtmlStr = s => sanitizeRawInputString(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -647,13 +763,14 @@ function splitBilingualLine(str) {
 
 function extractEnglishForTTS(rawText) {
     let s = sanitizeRawInputString(rawText)
+        .replace(/^(?:Tutor|Student|Teacher|Partner|Cue\s*\d*|Situation\s*\d*|Question|Answer)\s*(?:asks|answers|says)?\s*:\s*/gi, '')
         .replace(/\([^)]*\)/g, ' ')
         .replace(/\[[^\]]*\]/g, ' ')
         .replace(/\*+/g, '')
         .trim();
 
     const quotes = [...s.matchAll(/"([^"]{2,})"/g)].map(m => m[1].trim());
-    if (quotes.length > 0 && s.length > quotes.join(' ').length + 35) {
+    if (quotes.length > 0 && s.length > quotes.join(' ').length + 25) {
         return quotes.join('. ');
     }
     if (/\s+(?:—|--|=)\s+/.test(s)) {
@@ -715,18 +832,18 @@ function extractTitleAndBodyFromLine(str) {
 }
 
 // ============================================================================
-// PARSER BUKU PANDUAN FLEKSIBEL (MENDUKUNG ALUR BEBAS & KOMPATIBEL LAMA)
+// PARSER BUKU PANDUAN FLEKSIBEL (SIMPLE ENGLISH & SIDE-BY-SIDE EXAMPLES)
 // ============================================================================
 const CLASSIC_HEADER_MAP = [
-    [/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO|CERITA|KONTEKS)\s*:(.*)$/i,                  'story',     'Konteks & Cerita Pembuka'],
-    [/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER|PEMANASAN)\s*:(.*)$/i,                                'warmup',    'Pemanasan (Warm-Up)'],
-    [/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE|KEY\s*POINTS?|MATERI|PENJELASAN)\s*:(.*)$/i, 'editorial', 'Bedah Konsep & Penjelasan'],
-    [/^(?:FORMULAS?|PATTERNS?|GRAMMAR|RULES?|RUMUS|POLA)\s*:(.*)$/i,                          'formulas',  'Pola & Struktur Kalimat'],
-    [/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY|UNGKAPAN|EKSPRESI)\s*:(.*)$/i, 'phrases', 'Ungkapan & Kosakata Penting'],
-    [/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION|CONTOH)\s*:(.*)$/i,                                'examples',  'Contoh Penggunaan'],
-    [/^(?:MISTAKES?|COMMON\s*MISTAKES?|COMPARE|UPGRADES?|PERBANDINGAN|KOREKSI)\s*:(.*)$/i,    'mistakes',  'Perbandingan & Koreksi Natural'],
-    [/^(?:DIALOGUE|CONVERSATION|ROLEPLAY|PERCAKAPAN|DIALOG)\s*:(.*)$/i,                       'dialogue',  'Percakapan Kontekstual'],
-    [/^(?:PRACTICE|EXERCISES?|TASKS?|HOMEWORK|MISSION|QUIZ|YOUR\s*TURN|LATIHAN|TANTANGAN)\s*:(.*)$/i, 'practice', 'Latihan & Tantangan Interaktif']
+    [/^(?:STORY|SCENARIO|HOOK|INTRODUCTION|INTRO|CERITA|KONTEKS)\s*:(.*)$/i,                  'story',     'Opening Scene & Context'],
+    [/^(?:WARM[\s-]*UP|ICE[\s-]*BREAKER|PEMANASAN)\s*:(.*)$/i,                                'warmup',    'Warm-Up Questions'],
+    [/^(?:CONCEPT|OVERVIEW|EXPLANATION|SUMMARY|DEEP\s*DIVE|KEY\s*POINTS?|MATERI|PENJELASAN)\s*:(.*)$/i, 'editorial', 'How It Works & Key Examples'],
+    [/^(?:FORMULAS?|PATTERNS?|GRAMMAR|RULES?|RUMUS|POLA)\s*:(.*)$/i,                          'formulas',  'Sentence Patterns & Examples'],
+    [/^(?:PHRASES?|EXPRESSIONS?|VOCABULARY|CHUNKS?|WAYS\s*TO\s*SAY|UNGKAPAN|EKSPRESI)\s*:(.*)$/i, 'phrases', 'Useful Expressions & Examples'],
+    [/^(?:EXAMPLES?|SENTENCES?|IN\s*ACTION|CONTOH)\s*:(.*)$/i,                                'examples',  'Everyday Examples in Action'],
+    [/^(?:MISTAKES?|COMMON\s*MISTAKES?|COMPARE|UPGRADES?|PERBANDINGAN|KOREKSI)\s*:(.*)$/i,    'mistakes',  'Sound Natural! (Sentence Upgrades)'],
+    [/^(?:DIALOGUE|CONVERSATION|ROLEPLAY|PERCAKAPAN|DIALOG)\s*:(.*)$/i,                       'dialogue',  'Model Conversation'],
+    [/^(?:PRACTICE|EXERCISES?|TASKS?|HOMEWORK|MISSION|QUIZ|YOUR\s*TURN|LATIHAN|TANTANGAN)\s*:(.*)$/i, 'practice', 'Your Turn! (Speaking Practice)']
 ];
 
 function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
@@ -750,7 +867,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
     };
 
     const pushDialogueLine = (speaker, rawSpeech) => {
-        if (!currentSec) startSec('dialogue', 'Percakapan Kontekstual');
+        if (!currentSec) startSec('dialogue', 'Model Conversation');
         let lastBlock = currentSec.blocks[currentSec.blocks.length - 1];
         if (!lastBlock || lastBlock.type !== 'dialogue') {
             lastBlock = { type: 'dialogue', id: `dlg_${currentSec.id}_${currentSec.blocks.length}`, lines: [] };
@@ -767,10 +884,10 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         if (/^(?:TITLE|JUDUL)\s*:/i.test(line)) { data.title = line.replace(/^(?:TITLE|JUDUL)\s*:\s*/i, '').replace(/\*+/g, '').trim() || data.title; return; }
         if (/^(?:LEVEL|SUBTITLE)\s*:/i.test(line)) { data.level = line.replace(/^(?:LEVEL|SUBTITLE)\s*:\s*/i, '').replace(/\*+/g, '').trim() || data.level; return; }
         if (/^(?:GOAL|OBJECTIVE|TARGET)\s*:/i.test(line)) { data.goal = line.replace(/^(?:GOAL|OBJECTIVE|TARGET)\s*:\s*/i, '').replace(/\*+/g, '').trim(); return; }
-        if (/^STYLE\s*:/i.test(line)) { data.style = line.replace(/^STYLE\s*:\s*/i, '').trim(); return; }
+        if (/^STYLE\s*:/i.test(line)) { data.style = line.replace(/^STYLE\s*:/i, '').trim(); return; }
 
         if (/^###\s+(.+)$/.test(line)) {
-            if (!currentSec) startSec('editorial', 'Pembahasan Materi');
+            if (!currentSec) startSec('editorial', 'Key Examples & Practice');
             currentSec.blocks.push({ type: 'subheading', text: line.replace(/^###\s+/, '').replace(/\*+/g, '').trim() });
             return;
         }
@@ -780,21 +897,21 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             const l = customTitle.toLowerCase();
             let guessedHint = 'editorial';
             if (/warm[\s-]*up|pemanasan|ice[\s-]*breaker/.test(l)) guessedHint = 'warmup';
-            else if (/latihan|practice|quiz|tantangan|exercise|mission|uji\s*diri/.test(l)) guessedHint = 'practice';
-            else if (/dialog|percakapan|conversation|roleplay/.test(l)) guessedHint = 'dialogue';
-            else if (/kesalahan|mistake|jangan\s*bilang|avoid|kaku\s*vs/.test(l)) guessedHint = 'mistakes';
-            else if (/rumus|formula|pattern|pola\s*kalimat/.test(l)) guessedHint = 'formulas';
-            else if (/ungkapan|ekspresi|phrase|kosakata|idiom|collocation/.test(l)) guessedHint = 'phrases';
+            else if (/latihan|practice|quiz|tantangan|exercise|mission|your\s*turn|free\s*talk/.test(l)) guessedHint = 'practice';
+            else if (/dialog|percakapan|conversation|roleplay|hear\s*it|action/.test(l)) guessedHint = 'dialogue';
+            else if (/kesalahan|mistake|sound\s*natural|robot|avoid|upgrade/.test(l)) guessedHint = 'mistakes';
+            else if (/rumus|formula|pattern|pola|how\s*it\s*works/.test(l)) guessedHint = 'formulas';
+            else if (/ungkapan|ekspresi|phrase|kosakata|idiom|side[\s-]*by[\s-]*side|guided/.test(l)) guessedHint = 'phrases';
             else if (/cerita|story|skenario|konteks/.test(l)) guessedHint = 'story';
             startSec(guessedHint, customTitle);
             return;
         }
 
-        if (/^>\s*(.+)$/.test(line) || /^(?:TIPS?|PRO\s*TIPS?|COACH\s*NOTE|CATATAN|INGAT|NUANSA|CULTURE\s*NOTE|INSIDER\s*TIP)\s*:\s*(.+)$/i.test(line)) {
-            if (!currentSec) startSec('editorial', 'Pembahasan Materi');
+        if (/^>\s*(.+)$/.test(line) || /^(?:TIPS?|PRO\s*TIPS?|QUICK\s*TIPS?|COACH\s*NOTE|CATATAN|INGAT|NUANSA|CULTURE\s*NOTE|INSIDER\s*TIP)\s*:\s*(.+)$/i.test(line)) {
+            if (!currentSec) startSec('editorial', 'Quick Guide');
             let rawCallout = line.replace(/^>\s*/, '');
-            let cTitle = 'Catatan Penting & Nuansa';
-            const hdrMatch = rawCallout.match(/^(?:TIPS?|PRO\s*TIPS?|COACH\s*NOTE|CATATAN|INGAT|NUANSA|CULTURE\s*NOTE|INSIDER\s*TIP)\s*:\s*(.*)$/i);
+            let cTitle = 'Quick Tip';
+            const hdrMatch = rawCallout.match(/^(?:TIPS?|PRO\s*TIPS?|QUICK\s*TIPS?|COACH\s*NOTE|CATATAN|INGAT|NUANSA|CULTURE\s*NOTE|INSIDER\s*TIP)\s*:\s*(.*)$/i);
             if (hdrMatch) {
                 rawCallout = hdrMatch[1].trim();
             } else {
@@ -818,9 +935,9 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             }
         }
 
-        if (!currentSec) startSec('editorial', 'Panduan Belajar');
+        if (!currentSec) startSec('editorial', 'Lesson Guide');
 
-        const isBullet = /^[-*•]\s+|\d+[.)]\s+|^\[(?:[+?*-]|X|V|Salah|Benar|Kaku|Natural|Formal|Santai|Casual)\]/i.test(line);
+        const isBullet = /^[-*•]\s+|\d+[.)]\s+|^\[(?:[+?*-]|X|V|Salah|Benar|Kaku|Natural|Formal|Santai|Casual|Textbook|In\s*Class|Better)\]/i.test(line);
         const isNumbered = /^\d+[.)]\s+/.test(line);
         const stripped = line.replace(/^[-*•]\s*|\d+[.)]\s*/, '').trim();
 
@@ -830,7 +947,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             const { questionText, answerKey } = splitQuestionAndAnswer(pMatch ? pMatch[2].trim() : stripped);
             currentSec.blocks.push({
                 type: 'practice',
-                tag: pMatch ? pMatch[1].replace(/\*+/g, '').trim() : `Latihan`,
+                tag: pMatch ? pMatch[1].replace(/\*+/g, '').trim() : `Speaking Task`,
                 task: questionText,
                 answerKey
             });
@@ -839,9 +956,9 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
 
         if (/^\[[+?*-]\]/.test(line) || (activeHint === 'formulas' && line.includes('|'))) {
             const parts = line.replace(/^[-*•]\s*/, '').split('|').map(s => s.trim());
-            let badge = '[*]', label = parts[0] || 'Pola Kalimat';
+            let badge = '[*]', label = parts[0] || 'Sentence Pattern';
             const bMatch = label.match(/^(\[[+?*-]\])\s*(.*)$/);
-            if (bMatch) { badge = bMatch[1]; label = bMatch[2] || 'Pola Kalimat'; }
+            if (bMatch) { badge = bMatch[1]; label = bMatch[2] || 'Sentence Pattern'; }
             currentSec.blocks.push({
                 type: 'formula',
                 badge,
@@ -853,12 +970,12 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             return;
         }
 
-        const isComparisonLine = /^\[(?:X|Salah|Kaku|Textbook|Formal|Tadi\s*Terucap)\s*:/i.test(stripped) || (activeHint === 'mistakes' && stripped.includes('|'));
+        const isComparisonLine = /^\[(?:X|Salah|Kaku|Textbook|Formal|Tadi\s*Terucap|In\s*Class|Stiff|Robot)\s*:/i.test(stripped) || (activeHint === 'mistakes' && stripped.includes('|'));
         if (isComparisonLine) {
             const parts = stripped.split('|').map(s => s.trim());
-            let leftLbl = 'Kurang Tepat / Kaku', rightLbl = 'Lebih Natural (Native)', wrong = parts[0] || '', right = parts[1] || '', reason = parts[2] || '';
-            const lMatch = wrong.match(/^\[([^:\]]+)\s*:\s*([^\]]+)\]$/) || wrong.match(/^(Salah|Kaku|Formal|Textbook|Avoid|Tadi\s*Terucap)\s*:\s*(.+)$/i);
-            const rMatch = right.match(/^\[([^:\]]+)\s*:\s*([^\]]+)\]$/) || right.match(/^(Benar|Natural|Santai|Casual|Native|Say|Versi\s*Natural)\s*:\s*(.+)$/i);
+            let leftLbl = 'Stiff / Textbook', rightLbl = 'Natural English', wrong = parts[0] || '', right = parts[1] || '', reason = parts[2] || '';
+            const lMatch = wrong.match(/^\[([^:\]]+)\s*:\s*([^\]]+)\]$/) || wrong.match(/^(Salah|Kaku|Formal|Textbook|Avoid|Tadi\s*Terucap|In\s*Class|Stiff)\s*:\s*(.+)$/i);
+            const rMatch = right.match(/^\[([^:\]]+)\s*:\s*([^\]]+)\]$/) || right.match(/^(Benar|Natural|Santai|Casual|Native|Say|Versi\s*Natural|Better(?:\s*&\s*Natural)?)\s*:\s*(.+)$/i);
             if (lMatch) { leftLbl = lMatch[1].trim(); wrong = lMatch[2].trim(); }
             if (rMatch) { rightLbl = rMatch[1].trim(); right = rMatch[2].trim(); }
             currentSec.blocks.push({
@@ -873,7 +990,7 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
         }
 
         const dlgMatch = line.match(/^([A-Za-z\s.]{1,22})\s*:\s*(.+)$/);
-        if (dlgMatch && (activeHint === 'dialogue' || /^(?:Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Alex|Lisa|Tom|Waiter|Barista|Receptionist|Client|Manager|Boss|You|Kamu|Teman|Tutor|Student|Customer|Officer|Doctor)\b/i.test(dlgMatch[1].trim()))) {
+        if (dlgMatch && !stripped.includes('|') && (activeHint === 'dialogue' || /^(?:A|B|Man|Woman|Male|Female|Boy|Girl|Speaker\s*[AB]|Person\s*[AB]|Friend\s*[AB]|Partner|Kevin|Sarah|David|Dina|Nadia|Sinta|Raka|Budi|Andi|Alex|Lisa|Tom|Leo|Maya|Emma|Jake|Mia|Sam|Anna|Waiter|Barista|Receptionist|Client|Manager|Boss|You|Kamu|Teman|Tutor|Student|Customer|Officer|Doctor)\b/i.test(dlgMatch[1].trim()))) {
             pushDialogueLine(dlgMatch[1], dlgMatch[2]);
             return;
         }
@@ -883,8 +1000,8 @@ function parseSmartHandoutText(rawText, defaultTitle, defaultLevel) {
             currentSec.blocks.push({
                 type: 'phrase',
                 phrase: parts[0].replace(/^\[|\]$|\*+/g, '').trim(),
-                meaning: parts[1] || '',
-                example: parts[2] || ''
+                meaning: parts[1]?.replace(/^\[|\]$/g, '').trim() || '',
+                example: parts[2]?.replace(/^\[|\]$/g, '').trim() || ''
             });
             return;
         }
@@ -938,7 +1055,7 @@ window.toggleDialogueBlurMode = function(secDomId, btnEl) {
         el.classList.toggle('select-none', next);
     });
     if (btnEl) {
-        btnEl.innerHTML = next ? `<i class="fas fa-eye mr-1.5"></i> Tampilkan Teks` : `<i class="fas fa-eye-slash mr-1.5"></i> Blur Teks (Latihan Listening)`;
+        btnEl.innerHTML = next ? `<i class="fas fa-eye mr-1.5"></i> Show Text` : `<i class="fas fa-eye-slash mr-1.5"></i> Blur Text (Listening Practice)`;
         btnEl.className = next
             ? `px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold transition cursor-pointer shadow-2xs`
             : `px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-extrabold transition cursor-pointer`;
@@ -949,7 +1066,7 @@ window.toggleHandoutAnswer = function(btnEl) {
     const box = document.getElementById(btnEl.dataset.target);
     if (!box) return;
     const isHidden = box.classList.toggle('hidden');
-    btnEl.innerHTML = !isHidden ? `<i class="fas fa-eye-slash mr-1"></i> Sembunyikan Pembahasan` : `<i class="fas fa-key mr-1"></i> Lihat Kunci & Pembahasan`;
+    btnEl.innerHTML = !isHidden ? `<i class="fas fa-eye-slash mr-1"></i> Hide Sample Answer` : `<i class="fas fa-key mr-1"></i> Show Sample Answer`;
     ['presentation', 'recap'].forEach(pref => applyPdfPaperScale(pref));
 };
 
@@ -996,7 +1113,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
 
     const theme = getSessionThemePalette(sessionNumber, prefix === 'recap', data.style);
     const regAudio = txt => { data.allAudioItems.push(txt); return data.allAudioItems.length - 1; };
-    const audioBtn = (aIdx, cls) => `<button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan Pelafalan Inggris" class="w-9 h-9 rounded-full ${cls} flex items-center justify-center transition shrink-0 cursor-pointer"><i class="fas fa-volume-up text-xs"></i></button>`;
+    const audioBtn = (aIdx, cls) => `<button type="button" onclick="playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Listen to English Pronunciation" class="w-9 h-9 rounded-full ${cls} flex items-center justify-center transition shrink-0 cursor-pointer"><i class="fas fa-volume-up text-xs"></i></button>`;
 
     const sectionsHTML = data.sections.map((sec, sIdx) => {
         const domId = `${prefix}-${sec.id}`, num = String(sIdx + 1).padStart(2, '0');
@@ -1033,18 +1150,17 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             }
             if (b.type === 'insight') {
                 insightCounter++;
-                const hasQuotedEng = /"[^"]{3,}"/.test(b.body);
-                const aIdx = hasQuotedEng ? regAudio(b.body) : null;
+                const aIdx = regAudio(b.body);
                 return `
                     <div class="py-4 border-b border-slate-100 last:border-none flex items-start justify-between gap-4">
                         <div class="flex items-start gap-3.5 flex-1">
                             <span class="w-7 h-7 rounded-xl ${theme.accentBg} text-white text-xs font-black flex items-center justify-center shrink-0 mt-1 shadow-2xs">${insightCounter}</span>
                             <div class="space-y-1 flex-1">
                                 ${b.title ? `<h4 class="text-base sm:text-lg font-extrabold text-slate-900">${cleanTitleMarkdown(b.title)}</h4>` : ''}
-                                <p class="text-base sm:text-[16.5px] text-slate-600 leading-[1.85] font-medium">${formatRichEnglishText(b.body)}</p>
+                                <p class="text-base sm:text-[16.5px] text-slate-700 leading-[1.85] font-medium">${formatRichEnglishText(b.body)}</p>
                             </div>
                         </div>
-                        ${aIdx !== null ? audioBtn(aIdx, 'bg-slate-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 mt-1') : ''}
+                        ${audioBtn(aIdx, 'bg-slate-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 mt-1')}
                     </div>`;
             }
             if (b.type === 'formula') {
@@ -1069,7 +1185,24 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
             if (b.type === 'phrase') {
                 const { eng: pEng } = splitBilingualLine(b.phrase);
                 const { eng: exEng, ind: exInd } = splitBilingualLine(b.example);
-                const aIdx = regAudio(exEng ? `${pEng}. ${exEng}` : pEng);
+                const isCueDrill = /^(?:Cue|Situation|Prompt|Drill|Scenario)\b/i.test(b.phrase) || /^(?:Tutor|Question|A)\s*(?:asks)?\s*:/i.test(b.meaning);
+                const ttsTarget = isCueDrill ? `${b.meaning}. ${exEng}` : (exEng ? `${pEng}. ${exEng}` : pEng);
+                const aIdx = regAudio(ttsTarget);
+
+                if (isCueDrill) {
+                    return `
+                        <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/45 border border-indigo-100 flex items-start justify-between gap-4">
+                            <div class="space-y-2 flex-1">
+                                <span class="inline-block px-2.5 py-0.5 rounded-lg bg-indigo-100 text-indigo-800 text-xs font-extrabold">${cleanTitleMarkdown(b.phrase)}</span>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                                    ${b.meaning ? `<div class="p-3 rounded-xl bg-white border border-slate-200/80 text-sm sm:text-base font-bold text-slate-800">${formatRichEnglishText(b.meaning)}</div>` : ''}
+                                    ${exEng ? `<div class="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-sm sm:text-base font-extrabold text-emerald-950">${formatRichEnglishText(exEng)}</div>` : ''}
+                                </div>
+                            </div>
+                            ${audioBtn(aIdx, 'bg-white hover:bg-indigo-600 text-indigo-600 hover:text-white border border-indigo-200 shadow-2xs mt-1')}
+                        </div>`;
+                }
+
                 return `
                     <div class="py-4 border-b border-slate-100 last:border-none flex items-start justify-between gap-4">
                         <div class="space-y-1.5 flex-1">
@@ -1105,7 +1238,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                                 ${audioBtn(aIdx, 'bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200')}
                             </div>
                         </div>
-                        ${b.reason ? `<p class="text-sm font-medium text-slate-600 pl-1"><strong class="text-indigo-600">Penjelasan:</strong> ${formatRichEnglishText(b.reason)}</p>` : ''}
+                        ${b.reason ? `<p class="text-sm font-medium text-slate-600 pl-1"><strong class="text-indigo-600">Tip:</strong> ${formatRichEnglishText(b.reason)}</p>` : ''}
                     </div>`;
             }
             if (b.type === 'dialogue') {
@@ -1114,16 +1247,16 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                 return `
                     <div class="my-4 space-y-3">
                         <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-200/70">
-                            <span class="text-xs font-extrabold text-slate-600"><i class="fas fa-headphones-alt text-indigo-600 mr-1.5"></i> Simulasi Percakapan (Klik balon untuk dengar per kalimat)</span>
+                            <span class="text-xs font-extrabold text-slate-600"><i class="fas fa-headphones-alt text-indigo-600 mr-1.5"></i> Model Conversation (Click any line to listen)</span>
                             <div class="flex flex-wrap items-center gap-2">
-                                <button type="button" onclick="toggleDialogueBlurMode('${chatBoxId}', this)" class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-eye-slash mr-1"></i> Blur Teks</button>
-                                <button type="button" onclick="playHandoutSectionDialogue('${prefix}', '${b.id}', this)" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Putar Dialog</button>
+                                <button type="button" onclick="toggleDialogueBlurMode('${chatBoxId}', this)" class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-eye-slash mr-1"></i> Blur Text</button>
+                                <button type="button" onclick="playHandoutSectionDialogue('${prefix}', '${b.id}', this)" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Play Dialogue</button>
                             </div>
                         </div>
                         <div id="${chatBoxId}" data-blurred="0" class="space-y-3 pt-1">
                             ${b.lines.map((l, lIdx) => {
                                 const aIdx = regAudio(l.raw);
-                                const isMale = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|boss|manager|leo|a)\b/i.test(l.speaker) || (lIdx % 2 === 0);
+                                const isMale = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|boss|manager|leo|jake|sam|a)\b/i.test(l.speaker) || (lIdx % 2 === 0);
                                 return `
                                     <div class="flex items-start gap-3">
                                         <div class="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs shrink-0 mt-1 ${isMale ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white'}">${l.speaker.charAt(0).toUpperCase()}</div>
@@ -1133,7 +1266,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                                                 <p class="dialogue-line-text text-base font-bold text-slate-800 leading-relaxed transition duration-200">${formatRichEnglishText(l.eng)}</p>
                                                 ${l.ind ? `<p class="text-xs sm:text-sm font-medium text-slate-500 italic">${escapeHtmlStr(l.ind)}</p>` : ''}
                                             </div>
-                                            <button type="button" onclick="event.stopPropagation(); playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Dengarkan" class="w-8 h-8 rounded-full bg-white hover:bg-indigo-600 text-slate-600 hover:text-white flex items-center justify-center shrink-0 transition cursor-pointer shadow-2xs"><i class="fas fa-volume-up text-xs"></i></button>
+                                            <button type="button" onclick="event.stopPropagation(); playHandoutRegisteredAudio('${prefix}', ${aIdx}, this)" title="Listen" class="w-8 h-8 rounded-full bg-white hover:bg-indigo-600 text-slate-600 hover:text-white flex items-center justify-center shrink-0 transition cursor-pointer shadow-2xs"><i class="fas fa-volume-up text-xs"></i></button>
                                         </div>
                                     </div>`;
                             }).join('')}
@@ -1151,7 +1284,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                             <p class="text-base sm:text-[17px] font-semibold text-slate-800 leading-[1.85]">${formatRichEnglishText(b.task)}</p>
                             ${b.answerKey ? `
                                 <div class="pt-1">
-                                    <button type="button" data-target="${ansId}" onclick="toggleHandoutAnswer(this)" class="px-3.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-key mr-1"></i> Lihat Kunci & Pembahasan</button>
+                                    <button type="button" data-target="${ansId}" onclick="toggleHandoutAnswer(this)" class="px-3.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-key mr-1"></i> Show Sample Answer</button>
                                     <div id="${ansId}" class="hidden mt-2.5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-900"><i class="fas fa-check-circle text-emerald-600 mr-1.5"></i> ${formatRichEnglishText(b.answerKey)}</div>
                                 </div>` : ''}
                         </div>
@@ -1177,7 +1310,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
         <div class="flex md:hidden flex-wrap items-center justify-between gap-3 mb-4 bg-white border border-slate-200/90 px-4 py-3.5 rounded-2xl shadow-2xs">
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl ${theme.accentBg} text-white flex items-center justify-center text-sm font-black shrink-0"><i class="fas fa-book-open"></i></div>
-                <div><p class="text-xs font-extrabold text-slate-800">${docBadge} &bull; Session ${sessionNumber}</p><p class="text-[11px] font-semibold text-slate-400">Klik speaker untuk mendengar pelafalan</p></div>
+                <div><p class="text-xs font-extrabold text-slate-800">${docBadge} &bull; Session ${sessionNumber}</p><p class="text-[11px] font-semibold text-slate-400">Tap the speaker icon to hear pronunciation</p></div>
             </div>
             <button onclick="downloadHandoutPDF('${prefix}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
                 <i class="fas fa-file-pdf"></i> Download PDF
@@ -1200,7 +1333,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
                                 </div>
                             </div>
                             <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">${cleanTitleMarkdown(data.title)}</h1>
-                            ${data.goal ? `<div class="p-4 sm:p-5 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}"><p class="text-xs font-extrabold uppercase tracking-wider ${theme.accentText} mb-1"><i class="fas fa-bullseye mr-1"></i> Target Belajar Hari Ini</p><p class="text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p></div>` : ''}
+                            ${data.goal ? `<div class="p-4 sm:p-5 rounded-2xl ${theme.heroBg} border-l-4 ${theme.heroBorder}"><p class="text-xs font-extrabold uppercase tracking-wider ${theme.accentText} mb-1"><i class="fas fa-bullseye mr-1"></i> Today's Speaking Goal</p><p class="text-base font-semibold text-slate-800 leading-relaxed">${formatRichEnglishText(data.goal)}</p></div>` : ''}
                         </div>
                         <div class="space-y-10">${sectionsHTML}</div>
                         <div class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400 font-bold">
@@ -1233,7 +1366,7 @@ function renderSmartHandout(prefix, rawContent, monthTitle, sessionNumber, docBa
 }
 
 // ============================================================================
-// GENERATOR PDF A4 EDITORIAL MAGAZINE (MENDUKUNG SEMUA BLOK BUKU BILINGUAL)
+// GENERATOR PDF A4 EDITORIAL MAGAZINE
 // ============================================================================
 function drawHandoutRoundedRect(ctx, x, y, w, h, r, fill, stroke = null, lw = 1) {
     const rad = Math.min(r, w / 2, h / 2);
@@ -1421,7 +1554,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
             const goalH = 62 + (goalRich.length * 44);
             drawHandoutRoundedRect(ctx, padX, y, contentW, goalH, 22, theme.pdfSoft);
             drawHandoutRoundedRect(ctx, padX, y, 10, goalH, 5, theme.pdfPrimary);
-            pdfTxt("TARGET BELAJAR HARI INI", padX + 36, y + 18, `800 19px ${fontStack}`, theme.pdfPrimary);
+            pdfTxt("TODAY'S SPEAKING GOAL", padX + 36, y + 18, `800 19px ${fontStack}`, theme.pdfPrimary);
             drawRichPdfLines(ctx, goalRich, padX + 36, y + 48, 44, 28, fontStack, { normal: '#1E293B', quote: theme.pdfPrimary });
             y += goalH + 36;
         }
@@ -1488,7 +1621,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
                     drawNumberedInsightItem(numCounter, b.title, b.body, theme.pdfPrimary);
                 } else if (b.type === 'phrase') {
                     numCounter++;
-                    const combined = (b.meaning ? b.meaning : '') + (b.example ? ` — Contoh: "${b.example}"` : '');
+                    const combined = (b.meaning ? b.meaning : '') + (b.example ? ` — "${b.example}"` : '');
                     drawNumberedInsightItem(numCounter, b.phrase, combined, '#0D9488');
                 } else if (b.type === 'formula') {
                     const fLines = wrapPlainLinesStrict(ctx, (b.formula || '').replace(/\+/g, '  +  '), contentW - 72, `800 28px ${fontStack}`);
@@ -1505,7 +1638,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
                     const halfW = Math.floor((contentW - 28) / 2);
                     const wLines = wrapPlainLinesStrict(ctx, b.wrong, halfW - 48, `600 27px ${fontStack}`);
                     const rLines = wrapPlainLinesStrict(ctx, b.right, halfW - 48, `800 27px ${fontStack}`);
-                    const whyLines = b.reason ? layoutRichPdfLines(ctx, `Penjelasan: ${b.reason}`, contentW - 20, 26, fontStack) : [];
+                    const whyLines = b.reason ? layoutRichPdfLines(ctx, `Tip: ${b.reason}`, contentW - 20, 26, fontStack) : [];
                     const colH = 74 + (Math.max(wLines.length, rLines.length) * 40);
                     ensureSpace(colH + (whyLines.length ? (whyLines.length * 40) + 18 : 0) + 28);
 
@@ -1524,7 +1657,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
                 } else if (b.type === 'dialogue') {
                     const bubbleW = Math.floor(contentW * 0.84);
                     b.lines.forEach((l, lIdx) => {
-                        const isLeft = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|leo|a)\b/i.test(l.speaker) || (lIdx % 2 === 0);
+                        const isLeft = /^(man|male|boy|kevin|david|budi|andi|raka|john|alex|tom|waiter|father|dad|leo|jake|sam|a)\b/i.test(l.speaker) || (lIdx % 2 === 0);
                         const fullTxt = l.eng + (l.ind ? ` (${l.ind})` : '');
                         const rLines = layoutRichPdfLines(ctx, fullTxt, bubbleW - 64, 28, fontStack), bH = 68 + (rLines.length * 44);
                         ensureSpace(bH + 20);
@@ -1537,7 +1670,7 @@ window.downloadHandoutPDF = async function(prefix = 'presentation') {
                     y += 14;
                 } else if (b.type === 'practice') {
                     numCounter++;
-                    drawNumberedInsightItem(numCounter, b.tag, b.task + (b.answerKey ? ` (Kunci: ${b.answerKey})` : ''), '#7C3AED');
+                    drawNumberedInsightItem(numCounter, b.tag, b.task + (b.answerKey ? ` (Sample Answer: ${b.answerKey})` : ''), '#7C3AED');
                 }
             });
             y += 16;

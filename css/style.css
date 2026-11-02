@@ -79,15 +79,38 @@ body {
         display: none !important;
     }
 
-    /* Jendela Papan Tulis & Catatan Melayang (Floating Window) */
+    /* Jendela Floating Live Notepad (Text Box Mengetik: Bisa Digeser & Diubah Ukuran) */
     .hes-floating-wb {
         position: fixed;
         right: 5.25rem;
         top: 50%;
         transform: translateY(-50%);
         z-index: 85;
-        width: 410px;
-        max-height: 86vh;
+        min-width: 310px;
+        min-height: 230px;
+        max-width: 94vw;
+        max-height: 90vh;
+    }
+
+    .hes-wb-resize-grip {
+        position: absolute;
+        right: 4px;
+        bottom: 4px;
+        width: 24px;
+        height: 24px;
+        border-radius: 0.5rem;
+        background: rgba(99, 102, 241, 0.12);
+        color: #4F46E5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: nwse-resize;
+        transition: all 0.15s ease;
+    }
+
+    .hes-wb-resize-grip:hover {
+        background: #4F46E5;
+        color: #FFFFFF;
     }
 }
 
@@ -211,7 +234,7 @@ body {
     cursor: crosshair;
 }
 
-/* Scrollbar & Animasi (transform: none di akhir agar tidak mengunci elemen floating) */
+/* Scrollbar & Animasi */
 .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
