@@ -6,43 +6,39 @@
     <title>Ujian & Rapor | Hamdi English Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body class="h-screen flex overflow-hidden">
 
-    <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
-    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
+    <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
 
     <main class="flex-1 flex flex-col h-screen overflow-hidden">
-        <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
+        <header id="app-header" class="backdrop-blur-md px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
 
         <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
             <div class="max-w-4xl mx-auto fade-in pb-20 space-y-6">
 
-                <!-- Header Pemilihan Bulan Ujian -->
                 <div class="hes-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <span class="px-2.5 py-0.5 bg-amber-50 text-amber-700 text-xs font-extrabold rounded-lg">Evaluasi Bulanan</span>
-                        <h2 id="exam-header-title" class="text-lg sm:text-xl font-extrabold text-slate-800 mt-1">Ujian Akhir & Rapor</h2>
+                        <span class="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-extrabold rounded-lg">Evaluasi Bulanan</span>
+                        <h2 id="exam-header-title" class="text-lg sm:text-xl font-extrabold text-stone-800 mt-1">Ujian Akhir & Rapor</h2>
                     </div>
                     <div class="flex items-center gap-2">
-                        <label for="exam-month-selector" class="text-xs font-bold text-slate-500 shrink-0">Pilih Bulan:</label>
+                        <label for="exam-month-selector" class="text-xs font-extrabold text-stone-500 shrink-0">Pilih Bulan:</label>
                         <select id="exam-month-selector" class="hes-input !py-2 !px-3 !text-xs cursor-pointer"></select>
                     </div>
                 </div>
 
-                <!-- Kartu Rapor Nilai Akhir -->
                 <div id="exam-final-report-box" class="hidden"></div>
 
-                <!-- Navigasi 4 Bagian Ujian -->
-                <div id="exam-tabs-nav" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-200/60 p-1.5 rounded-2xl">
+                <div id="exam-tabs-nav" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-2 bg-stone-200/70 p-1.5 rounded-2xl">
                     <button onclick="switchStudentExamTab('reading')" id="stu-tab-reading" class="py-2.5 px-3 rounded-xl text-xs font-bold transition"></button>
                     <button onclick="switchStudentExamTab('writing')" id="stu-tab-writing" class="py-2.5 px-3 rounded-xl text-xs font-bold transition"></button>
                     <button onclick="switchStudentExamTab('speaking')" id="stu-tab-speaking" class="py-2.5 px-3 rounded-xl text-xs font-bold transition"></button>
                     <button onclick="switchStudentExamTab('listening')" id="stu-tab-listening" class="py-2.5 px-3 rounded-xl text-xs font-bold transition"></button>
                 </div>
 
-                <!-- Area Soal Ujian -->
                 <div id="exam-content-area"></div>
 
             </div>
@@ -50,8 +46,8 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js"></script>
-    <script src="js/layout.js"></script>
-    <script src="js/exam.js?v=7"></script>
+    <script src="js/config.js?v=12"></script>
+    <script src="js/layout.js?v=12"></script>
+    <script src="js/exam.js?v=12"></script>
 </body>
 </html>

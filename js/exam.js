@@ -1,6 +1,7 @@
 // js/exam.js
 
 let studentExamAnswers = {}, studentExamTranscripts = {}, currentExamSession = 'm1', currentStudentExamTab = 'reading', audioPlayCounts = {};
+let isListeningAudioBusy = false, activeExamMp3Audio = null;
 let mediaRecorder = null, audioChunks = [], activeRecordingIndex = null, activeRecordingStopPromiseResolve = null, speechRecInstance = null;
 
 // Injeksi Font, Library jsPDF & Print CSS
@@ -32,7 +33,88 @@ if (!document.getElementById('jspdf-lib')) {
 }
 
 // ============================================================================
-// HELPER DATA & PERHITUNGAN RAPOR TERPUSAT (TANPA DUPLIKASI)
+// SISTEM ANTI-CURANG LISTENING (PERSISTEN CLOUD + LOCALSTORAGE, ANTI-REFRESH)
+// ============================================================================
+function getPlayStoreLocalKey(email, monthId) {
+    return `hes_listen_plays_${email}_${monthId}`;
+}
+
+function syncListeningPlayCounts() {
+    if (window.HES.userRole !== 'student' || !window.HES.currentUser?.email) return;
+    const email = window.HES.currentUser.email;
+    const rKey = `exam_result-${email}-${currentExamSession}`;
+    const res = window.HES.materials[rKey] || {};
+    const cloudEpoch = Number(res.listeningResetEpoch || 0);
+    const cloudCounts = res.audioPlayCounts || {};
+    const lsKey = getPlayStoreLocalKey(email, currentExamSession);
+
+    let localData = { epoch: cloudEpoch, counts: {} };
+    try {
+        const parsed = JSON.parse(localStorage.getItem(lsKey) || 'null');
+        if (parsed && Number(parsed.epoch || 0) === cloudEpoch) {
+            localData = parsed;
+        }
+    } catch (e) {}
+
+    const merged = {};
+    const allKeys = new Set([...Object.keys(cloudCounts), ...Object.keys(localData.counts || {}), ...Object.keys(audioPlayCounts)]);
+    allKeys.forEach(k => {
+        if (k.startsWith('listening_')) {
+            merged[k] = Math.max(Number(cloudCounts[k] || 0), Number(localData.counts?.[k] || 0), Number(audioPlayCounts[k] || 0));
+        }
+    });
+
+    audioPlayCounts = merged;
+    try {
+        localStorage.setItem(lsKey, JSON.stringify({ epoch: cloudEpoch, counts: audioPlayCounts }));
+    } catch (e) {}
+}
+
+function consumeListeningPlayQuota(countKey) {
+    syncListeningPlayCounts();
+    const used = Number(audioPlayCounts[countKey] || 0);
+    if (used >= 2) return false;
+
+    const nextCount = used + 1;
+    audioPlayCounts[countKey] = nextCount;
+
+    const email = window.HES.currentUser.email;
+    const rKey = `exam_result-${email}-${currentExamSession}`;
+    const cloudEpoch = Number(window.HES.materials[rKey]?.listeningResetEpoch || 0);
+
+    // 1. Kunci instan di localStorage sebelum suara mulai (tahan refresh mendadak)
+    try {
+        localStorage.setItem(getPlayStoreLocalKey(email, currentExamSession), JSON.stringify({
+            epoch: cloudEpoch,
+            counts: audioPlayCounts
+        }));
+    } catch (e) {}
+
+    // 2. Perbarui tampilan sisa kesempatan
+    const sisaEl = document.getElementById(`audio-sisa-${countKey}`);
+    if (sisaEl) sisaEl.innerText = Math.max(0, 2 - nextCount);
+
+    // 3. Langsung simpan permanen ke Cloud Supabase (tahan ganti browser / incognito / hapus cache)
+    safeSaveMaterialsToCloud(materials => {
+        const existing = Object.assign({ status: 'partial', answers: {}, scores: {}, sectionScores: {}, transcripts: {}, submittedTabs: [], audioPlayCounts: {} }, materials[rKey]);
+        existing.audioPlayCounts = existing.audioPlayCounts || {};
+        existing.audioPlayCounts[countKey] = Math.max(Number(existing.audioPlayCounts[countKey] || 0), nextCount);
+        materials[rKey] = existing;
+    });
+
+    return true;
+}
+
+function stopActiveExamMp3() {
+    if (activeExamMp3Audio) {
+        try { activeExamMp3Audio.pause(); activeExamMp3Audio.src = ''; } catch (e) {}
+        activeExamMp3Audio = null;
+    }
+    isListeningAudioBusy = false;
+}
+
+// ============================================================================
+// HELPER DATA & PERHITUNGAN RAPOR TERPUSAT
 // ============================================================================
 function formatEnglishDate(dateInput) {
     const d = dateInput instanceof Date && !isNaN(dateInput) ? dateInput : new Date();
@@ -89,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentStudentExamTab = p.get('tab') || 'reading';
 
     initLayout('Ujian & Rapor');
-    const refreshUI = () => { hydrateLocalExamAnswers(); setupExamMonthSelector(); renderStudentExamPage(); };
+    const refreshUI = () => { hydrateLocalExamAnswers(); syncListeningPlayCounts(); setupExamMonthSelector(); renderStudentExamPage(); };
     refreshUI();
 
     await syncFromCloud();
@@ -121,12 +203,13 @@ function setupExamMonthSelector() {
 
 window.switchStudentExamTab = function(tab) {
     window.stopNaturalEnglishTTS();
+    stopActiveExamMp3();
     currentStudentExamTab = tab;
     renderStudentExamPage();
 };
 
 // ============================================================================
-// PEMUTAR AUDIO SOAL UJIAN (DENGAN BATAS PUTAR 2X)
+// PEMUTAR AUDIO SOAL UJIAN (ANTI-CURANG TTS & ANTI-REWIND MP3)
 // ============================================================================
 window.playExamQuestionAudio = async function(cat, idx, field = 'script', countKey = null, btnEl = null) {
     const q = window.HES.materials[`exam-${window.HES.currentUser?.email}-${currentExamSession}`]?.[cat]?.[idx];
@@ -136,34 +219,73 @@ window.playExamQuestionAudio = async function(cat, idx, field = 'script', countK
     if (!String(rawText).trim()) return;
 
     if (countKey) {
-        if ((audioPlayCounts[countKey] || 0) >= 2) return showToast('Batas pemutaran audio (2x) untuk soal ini telah habis.', 'error');
-        audioPlayCounts[countKey] = (audioPlayCounts[countKey] || 0) + 1;
-        const sisaEl = document.getElementById(`audio-sisa-${countKey}`);
-        if (sisaEl) sisaEl.innerText = Math.max(0, 2 - audioPlayCounts[countKey]);
+        if (isListeningAudioBusy) return showToast('Tunggu audio yang sedang diputar selesai dulu ya.', 'info');
+        if (!consumeListeningPlayQuota(countKey)) {
+            return showToast('Batas pemutaran audio (2x) untuk soal ini telah habis.', 'error');
+        }
+        isListeningAudioBusy = true;
+        if (btnEl) btnEl.disabled = true;
     }
 
-    await window.playNaturalEnglishTTS(rawText, btnEl);
-
-    if (countKey && btnEl && (2 - (audioPlayCounts[countKey] || 0)) <= 0) {
-        btnEl.disabled = true;
-        btnEl.className = 'px-4 py-2.5 rounded-xl bg-slate-200 text-slate-400 text-xs font-extrabold cursor-not-allowed';
-        btnEl.innerHTML = '<i class="fas fa-lock mr-1.5"></i> Batas Putar Habis (2x)';
+    try {
+        await window.playNaturalEnglishTTS(rawText, btnEl, Boolean(countKey));
+    } finally {
+        if (countKey) {
+            isListeningAudioBusy = false;
+            const remaining = Math.max(0, 2 - (audioPlayCounts[countKey] || 0));
+            if (btnEl) {
+                if (remaining <= 0) {
+                    btnEl.disabled = true;
+                    btnEl.className = 'px-4 py-2.5 rounded-xl bg-stone-200 text-stone-400 text-xs font-extrabold cursor-not-allowed';
+                    btnEl.innerHTML = '<i class="fas fa-lock mr-1.5"></i> Batas Putar Habis (2x)';
+                } else {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = '<i class="fas fa-play mr-1.5"></i> Putar Audio Listening';
+                }
+            }
+        }
     }
 };
 
-window.onAudioEnded = function(el, key) {
-    audioPlayCounts[key] = (audioPlayCounts[key] || 0) + 1;
-    const sisa = 2 - audioPlayCounts[key];
-    const span = document.getElementById(`audio-sisa-${key}`);
-    if (span) span.innerText = sisa;
-    if (sisa <= 0) {
-        el.removeAttribute('controls');
-        const warn = document.getElementById(`audio-warn-${key}`);
-        if (warn) {
-            warn.innerHTML = '<i class="fas fa-times-circle mr-1"></i> Batas pemutaran audio (2x) telah habis.';
-            warn.className = 'text-xs font-bold text-red-600 mt-1.5';
-        }
+window.playExamMP3Audio = function(cat, idx, countKey, btnEl) {
+    const q = window.HES.materials[`exam-${window.HES.currentUser?.email}-${currentExamSession}`]?.[cat]?.[idx];
+    const mp3Url = String(q?.mediaUrl || '').startsWith('http') ? getDriveDirectStreamLink(q.mediaUrl) : '';
+    if (!mp3Url) return;
+
+    if (isListeningAudioBusy) return showToast('Tunggu audio yang sedang diputar selesai dulu ya.', 'info');
+    if (!consumeListeningPlayQuota(countKey)) {
+        return showToast('Batas pemutaran audio (2x) untuk soal ini telah habis.', 'error');
     }
+
+    isListeningAudioBusy = true;
+    if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.classList.add('speaking-pulse');
+        btnEl.innerHTML = '<i class="fas fa-volume-up mr-1.5"></i> Sedang Memutar Audio...';
+    }
+
+    const audio = new Audio(mp3Url);
+    activeExamMp3Audio = audio;
+
+    const finish = () => {
+        isListeningAudioBusy = false;
+        activeExamMp3Audio = null;
+        if (!btnEl) return;
+        btnEl.classList.remove('speaking-pulse');
+        const remaining = Math.max(0, 2 - (audioPlayCounts[countKey] || 0));
+        if (remaining <= 0) {
+            btnEl.disabled = true;
+            btnEl.className = 'px-4 py-2.5 rounded-xl bg-stone-200 text-stone-400 text-xs font-extrabold cursor-not-allowed';
+            btnEl.innerHTML = '<i class="fas fa-lock mr-1.5"></i> Batas Putar Habis (2x)';
+        } else {
+            btnEl.disabled = false;
+            btnEl.innerHTML = '<i class="fas fa-play mr-1.5"></i> Putar Audio Listening';
+        }
+    };
+
+    audio.onended = finish;
+    audio.onerror = () => { showToast('Gagal memuat file audio.', 'error'); finish(); };
+    audio.play().catch(finish);
 };
 
 // ============================================================================
@@ -211,7 +333,6 @@ function wrapCanvasText(ctx, text, maxWidth) {
 function drawBlueBackgroundArtwork(ctx, W, H) {
     ctx.save();
     const fillShape = (drawFn, style) => { ctx.beginPath(); drawFn(); ctx.fillStyle = style; ctx.fill(); };
-
     const gTop = ctx.createLinearGradient(W * 0.45, 0, W, 280);
     gTop.addColorStop(0, 'rgba(37, 99, 235, 0.08)'); gTop.addColorStop(1, 'rgba(14, 165, 233, 0.16)');
     fillShape(() => { ctx.moveTo(W * 0.42, 0); ctx.bezierCurveTo(W * 0.62, 210, W * 0.82, 60, W, 290); ctx.lineTo(W, 0); ctx.closePath(); }, gTop);
@@ -234,7 +355,6 @@ function drawBlueBackgroundArtwork(ctx, W, H) {
         ctx.strokeStyle = col; ctx.lineWidth = lw;
         ctx.beginPath(); ctx.arc(W - 90, H * 0.48, r, 0, Math.PI * 2); ctx.stroke();
     });
-
     ctx.fillStyle = 'rgba(37, 99, 235, 0.16)';
     for (let gx = 95; gx <= 315; gx += 32) {
         for (let gy = H - 360; gy <= H - 190; gy += 32) {
@@ -260,18 +380,14 @@ window.downloadReportPDF = async function() {
         canvas.width = W; canvas.height = H;
         const ctx = canvas.getContext('2d');
 
-        // Helper Teks 1-Baris agar kode ringkas & presisi
         const txt = (str, x, y, size, weight, color, align = 'left') => {
-            ctx.textAlign = align;
-            ctx.fillStyle = color;
-            ctx.font = `${weight} ${size}px ${fontStack}`;
+            ctx.textAlign = align; ctx.fillStyle = color; ctx.font = `${weight} ${size}px ${fontStack}`;
             ctx.fillText(str, x, y);
         };
 
         ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
         drawBlueBackgroundArtwork(ctx, W, H);
 
-        // Top Bar & Header
         const topBarGrad = ctx.createLinearGradient(0, 0, W, 0);
         topBarGrad.addColorStop(0, '#1E3A8A'); topBarGrad.addColorStop(0.5, '#2563EB'); topBarGrad.addColorStop(1, '#0EA5E9');
         ctx.fillStyle = topBarGrad; ctx.fillRect(0, 0, W, 28);
@@ -289,7 +405,6 @@ window.downloadReportPDF = async function() {
         drawRoundedRect(ctx, W - padX - pillW, headerY + 26, pillW, 68, 34, m.isPassed ? '#DBEAFE' : '#FFE4E6');
         txt(m.isPassed ? 'PASSED' : 'NEEDS IMPROVEMENT', W - padX - (pillW / 2), headerY + 69, 24, 800, m.isPassed ? '#1D4ED8' : '#E11D48', 'center');
 
-        // Info Box (3 Kolom)
         const infoY = 320, infoH = 195;
         drawRoundedRect(ctx, padX, infoY, contentW, infoH, 30, '#EFF6FF');
         drawRoundedRect(ctx, padX, infoY, 14, infoH, 7, '#2563EB');
@@ -305,7 +420,6 @@ window.downloadReportPDF = async function() {
             txt(sub, x, infoY + 154, 22, 600, '#64748B');
         });
 
-        // Language Skills Assessment
         const secY = 585, gridY = 620, cardW = 460, cardH = 265, gap = 28;
         drawRoundedRect(ctx, padX, secY - 26, 10, 32, 5, '#2563EB');
         txt('Language Skills Assessment', padX + 24, secY, 32, 800, '#0F172A');
@@ -317,17 +431,14 @@ window.downloadReportPDF = async function() {
             txt(sk.title, x + 36, y + 66, 34, 800, '#0F172A');
             txt(sk.sub, x + 36, y + 102, 21, 600, '#64748B');
             txt(`${sk.score}`, x + cardW - 36, y + 88, 66, 800, '#1D4ED8', 'right');
-
             drawRoundedRect(ctx, x + 36, y + 138, 175, 42, 21, band.bg);
             txt(band.label, x + 123, y + 166, 19, 800, band.color, 'center');
             txt(`${sk.score} / 100`, x + cardW - 36, y + 166, 20, 700, '#94A3B8', 'right');
-
             const barW = cardW - 72;
             drawRoundedRect(ctx, x + 36, y + 206, barW, 18, 9, '#DCE7F7');
             drawRoundedRect(ctx, x + 36, y + 206, Math.max(18, Math.min(barW, Math.round((sk.score / 100) * barW))), 18, 9, band.bar);
         });
 
-        // Summary Card Kanan
         const sumX = padX + (cardW + gap) * 2, sumW = W - padX - sumX, sumH = cardH * 2 + gap, sumCX = sumX + sumW / 2;
         const blueGrad = ctx.createLinearGradient(sumX, gridY, sumX + sumW, gridY + sumH);
         blueGrad.addColorStop(0, '#1E3A8A'); blueGrad.addColorStop(0.5, '#1D4ED8'); blueGrad.addColorStop(1, '#2563EB');
@@ -345,7 +456,6 @@ window.downloadReportPDF = async function() {
         drawRoundedRect(ctx, sumX + 44, gridY + 432, sumW - 88, 76, 38, '#FFFFFF');
         txt(`Grade ${m.gradeLetter}  •  ${m.gradeWord}`, sumCX, gridY + 480, 28, 800, '#1D4ED8', 'center');
 
-        // Tutor's Note
         const noteTitleY = 1255, noteBoxY = 1290, noteBoxH = 440;
         drawRoundedRect(ctx, padX, noteTitleY - 26, 10, 32, 5, '#2563EB');
         txt("Tutor's Note & Evaluation", padX + 24, noteTitleY, 32, 800, '#0F172A');
@@ -363,7 +473,6 @@ window.downloadReportPDF = async function() {
         const startY = noteBoxY + Math.max(78, Math.round((noteBoxH - visLines.length * lHeight) / 2) + 28);
         visLines.forEach((line, i) => txt(line, padX + 64, startY + i * lHeight, fSize, 600, '#1E293B'));
 
-        // Footer & Signature
         const footY = 1815, sigCX = W - padX - 210;
         drawRoundedRect(ctx, padX, footY + 95, 76, 76, 20, '#DBEAFE');
         drawGraduationCapIcon(ctx, padX + 38, footY + 131, 0.85, '#1D4ED8');
@@ -416,10 +525,10 @@ function renderStudentExamPage() {
     if (window.HES.userRole === 'admin') {
         reportBox.classList.add('hidden'); tabsNav.classList.add('hidden');
         content.innerHTML = `
-            <div class="hes-card flex flex-col sm:flex-row items-center justify-between gap-4 border border-blue-100">
+            <div class="hes-card flex flex-col sm:flex-row items-center justify-between gap-4 border-teal-200">
                 <div>
-                    <h4 class="font-extrabold text-slate-800 text-base"><i class="fas fa-shield-alt text-blue-600 mr-1.5"></i> Mode Administrator</h4>
-                    <p class="text-xs text-slate-500 mt-1">Kelola soal ujian, tulis Level Kelas, Tutor's Note, dan nilai murid di Panel Admin.</p>
+                    <h4 class="font-extrabold text-stone-800 text-base"><i class="fas fa-shield-alt text-teal-600 mr-1.5"></i> Mode Administrator</h4>
+                    <p class="text-xs text-stone-500 mt-1">Kelola soal ujian, tulis Level Kelas, Tutor's Note, dan nilai murid di Panel Admin.</p>
                 </div>
                 <a href="admin.html?tab=exam" class="hes-btn-primary shrink-0"><i class="fas fa-sliders-h"></i> Buka Builder Ujian</a>
             </div>`;
@@ -431,7 +540,7 @@ function renderStudentExamPage() {
 
     if (!examData) {
         reportBox.classList.add('hidden'); tabsNav.classList.add('hidden');
-        content.innerHTML = `<div class="hes-card text-center py-12 text-slate-400 font-bold text-sm border-dashed">Soal ujian untuk ${m.monthObj.title} belum diterbitkan oleh Admin.</div>`;
+        content.innerHTML = `<div class="hes-card text-center py-12 text-stone-400 font-bold text-sm border-dashed">Soal ujian untuk ${m.monthObj.title} belum diterbitkan oleh Admin.</div>`;
         return;
     }
 
@@ -442,11 +551,10 @@ function renderStudentExamPage() {
     ['reading', 'writing', 'speaking', 'listening'].forEach(t => {
         const btn = document.getElementById(`stu-tab-${t}`);
         const isDone = examResult?.submittedTabs?.includes(t) || examResult?.status === 'submitted';
-        btn.innerHTML = `<i class="fas ${icons[t]} mr-1.5"></i> <span class="capitalize">${t}</span> ${isDone ? '<i class="fas fa-check-circle text-emerald-500 ml-1.5"></i>' : ''}`;
-        btn.className = `py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center ${t === cat ? 'bg-white text-blue-600 shadow-sm border border-blue-200' : 'text-slate-500 hover:text-slate-800'}`;
+        btn.innerHTML = `<i class="fas ${icons[t]} mr-1.5"></i> <span class="capitalize">${t}</span> ${isDone ? '<i class="fas fa-check-circle text-teal-600 ml-1.5"></i>' : ''}`;
+        btn.className = `py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center cursor-pointer ${t === cat ? 'bg-white text-teal-700 shadow-sm border border-teal-200' : 'text-stone-500 hover:text-stone-800'}`;
     });
 
-    // Tampilkan Rapor jika sudah dinilai
     if (examResult?.isGraded) {
         const skillCards = m.skills.map(sk => {
             const b = getSkillBandInfo(sk.score);
@@ -542,20 +650,19 @@ function renderStudentExamPage() {
 
     const questions = examData[cat] || [];
     if (!questions.length) {
-        content.innerHTML = `<div class="hes-card text-center py-10 text-xs font-bold text-slate-400">Tidak ada soal pada bagian ${cat.toUpperCase()}.</div>`;
+        content.innerHTML = `<div class="hes-card text-center py-10 text-xs font-bold text-stone-400">Tidak ada soal pada bagian ${cat.toUpperCase()}.</div>`;
         return;
     }
 
     const isSubmitted = examResult?.submittedTabs?.includes(cat) || (examResult?.status === 'submitted' && !examResult?.submittedTabs?.length);
     const maxPts = Math.round((100 / questions.length) * 10) / 10;
 
-    // Tampilan Setelah Dikumpulkan
     if (isSubmitted) {
         const secScore = computeExamSectionScore(cat, examData, examResult);
         content.innerHTML = `
-            <div class="mb-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex flex-wrap justify-between items-center gap-2">
-                <span><i class="fas fa-check-circle text-emerald-600 mr-1.5"></i> Bagian <strong>${cat.toUpperCase()}</strong> telah dikumpulkan.</span>
-                <span class="px-3 py-1 rounded-full bg-white text-emerald-700 font-extrabold border border-emerald-200">Skor Bagian: ${secScore} / 100</span>
+            <div class="mb-4 p-4 rounded-2xl bg-teal-50 border border-teal-200 text-teal-950 text-xs font-bold flex flex-wrap justify-between items-center gap-2">
+                <span><i class="fas fa-check-circle text-teal-600 mr-1.5"></i> Bagian <strong>${cat.toUpperCase()}</strong> telah dikumpulkan.</span>
+                <span class="px-3 py-1 rounded-full bg-white text-teal-700 font-extrabold border border-teal-200">Skor Bagian: ${secScore} / 100</span>
             </div>
             <div class="space-y-4">
                 ${questions.map((q, idx) => {
@@ -573,32 +680,32 @@ function renderStudentExamPage() {
                     const dispAns = isMCQ
                         ? (sAns !== '' ? `<strong>${['A','B','C','D'][sAns] || ''}.</strong> ${q.options?.[sAns] || ''}` : 'Tidak dijawab')
                         : (String(sAns).startsWith('data:audio')
-                            ? `<div class="space-y-2 mt-1"><p class="text-[11px] font-bold text-indigo-700"><i class="fas fa-headphones mr-1"></i> Rekaman Suaramu:</p><audio controls preload="metadata" class="w-full h-10 outline-none rounded-lg" src="${sAns}"></audio></div>`
+                            ? `<div class="space-y-2 mt-1"><p class="text-[11px] font-bold text-teal-700"><i class="fas fa-headphones mr-1"></i> Rekaman Suaramu:</p><audio controls preload="metadata" class="w-full h-10 outline-none rounded-lg" src="${sAns}"></audio></div>`
                             : (sAns || 'Tidak dijawab'));
 
                     return `
                         <div class="hes-card space-y-3">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-extrabold text-slate-500">Soal #${idx + 1}</span>
-                                <span class="px-2.5 py-0.5 rounded-lg text-xs font-extrabold ${earnedPts >= 7 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">Poin: ${earnedPts} / ${maxPts}</span>
+                                <span class="text-xs font-extrabold text-stone-500">Soal #${idx + 1}</span>
+                                <span class="px-2.5 py-0.5 rounded-lg text-xs font-extrabold ${earnedPts >= 7 ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">Poin: ${earnedPts} / ${maxPts}</span>
                             </div>
-                            <p class="text-sm font-bold text-slate-800">${(q.question || '').replace(/\n/g, '<br>')}</p>
+                            <p class="text-sm font-bold text-stone-800">${(q.question || '').replace(/\n/g, '<br>')}</p>
                             ${cat === 'listening' && autoScript ? `
-                                <div class="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                                    <div class="whitespace-pre-line"><strong class="text-blue-800">Naskah Audio Listening:</strong>\n<span class="text-slate-700">${autoScript}</span></div>
-                                    <button type="button" onclick="playExamQuestionAudio('${cat}', ${idx}, 'script', null, this)" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold shrink-0 cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Putar Audio</button>
+                                <div class="p-3 rounded-xl bg-teal-50/70 border border-teal-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                    <div class="whitespace-pre-line"><strong class="text-teal-800">Naskah Audio Listening:</strong>\n<span class="text-stone-700">${autoScript}</span></div>
+                                    <button type="button" onclick="playExamQuestionAudio('${cat}', ${idx}, 'script', null, this)" class="px-3 py-1.5 rounded-lg bg-teal-700 text-white font-extrabold shrink-0 cursor-pointer"><i class="fas fa-volume-up mr-1"></i> Putar Audio</button>
                                 </div>` : ''}
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                                    <strong class="text-slate-500 uppercase text-[10px]">Jawaban / Rekamanmu:</strong>
-                                    <div class="mt-1 font-bold ${isMCQ ? (isCorrect ? 'text-emerald-600' : 'text-red-600') : 'text-slate-800'}">${dispAns}</div>
+                                <div class="p-3.5 rounded-xl bg-stone-50 border border-stone-200/80">
+                                    <strong class="text-stone-500 uppercase text-[10px]">Jawaban / Rekamanmu:</strong>
+                                    <div class="mt-1 font-bold ${isMCQ ? (isCorrect ? 'text-teal-700' : 'text-rose-600') : 'text-stone-800'}">${dispAns}</div>
                                 </div>
-                                <div class="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                                <div class="p-3.5 rounded-xl bg-teal-50/50 border border-teal-100">
                                     <div class="flex items-center justify-between">
-                                        <strong class="text-indigo-900 uppercase text-[10px]">Kunci / Pelafalan:</strong>
-                                        ${cat === 'speaking' && q.answer ? `<button type="button" onclick="playExamQuestionAudio('${cat}', ${idx}, 'answer', null, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Dengar Cara Baca</button>` : ''}
+                                        <strong class="text-teal-900 uppercase text-[10px]">Kunci / Pelafalan:</strong>
+                                        ${cat === 'speaking' && q.answer ? `<button type="button" onclick="playExamQuestionAudio('${cat}', ${idx}, 'answer', null, this)" class="text-[11px] font-extrabold text-teal-700 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Dengar Cara Baca</button>` : ''}
                                     </div>
-                                    <div class="mt-1 font-bold text-indigo-700">${isMCQ ? `${['A','B','C','D'][q.answer] || ''}. ${q.options?.[q.answer] || ''}` : (q.answer || 'Dinilai oleh Tutor')}</div>
+                                    <div class="mt-1 font-bold text-teal-800">${isMCQ ? `${['A','B','C','D'][q.answer] || ''}. ${q.options?.[q.answer] || ''}` : (q.answer || 'Dinilai oleh Tutor')}</div>
                                 </div>
                             </div>
                             ${qNote ? `<p class="p-3 rounded-xl bg-rose-50 text-rose-900 text-xs border border-rose-200"><strong><i class="fas fa-user-check text-rose-600 mr-1"></i> Koreksi Tutor:</strong> ${qNote}</p>` : ''}
@@ -609,8 +716,13 @@ function renderStudentExamPage() {
         return;
     }
 
-    // Tampilan Saat Mengerjakan Ujian
+    // Tampilan Saat Mengerjakan Ujian (Dengan Proteksi Kuota Listening Persisten)
     content.innerHTML = `
+        ${cat === 'listening' ? `
+            <div class="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs font-bold flex items-start gap-2.5">
+                <i class="fas fa-shield-halved text-amber-600 text-base mt-0.5"></i>
+                <p><strong>Aturan Listening:</strong> Setiap soal hanya dapat diputar maksimal <strong>2 kali</strong>. Kuota pemutaran langsung tercatat otomatis ke server (memuat ulang halaman tidak akan menambah kesempatan putar).</p>
+            </div>` : ''}
         <div class="space-y-4">
             ${questions.map((q, idx) => {
                 const key = `${cat}_${idx}`, saved = studentExamAnswers[key] ?? '', sisa = Math.max(0, 2 - (audioPlayCounts[key] || 0));
@@ -618,37 +730,37 @@ function renderStudentExamPage() {
                 const mp3Url = String(q.mediaUrl || '').startsWith('http') ? q.mediaUrl : '';
 
                 let mediaHTML = '';
-                if (cat === 'listening' && autoScript) {
+                if (cat === 'listening' && (autoScript || mp3Url)) {
+                    const playFn = autoScript
+                        ? `playExamQuestionAudio('${cat}', ${idx}, 'script', '${key}', this)`
+                        : `playExamMP3Audio('${cat}', ${idx}, '${key}', this)`;
                     mediaHTML = sisa > 0 ? `
-                        <div class="my-3 p-4 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div><p class="text-xs font-extrabold text-blue-950"><i class="fas fa-headphones-alt text-blue-600 mr-1.5"></i> Audio Listening</p><p class="text-[11px] font-bold text-amber-700 mt-0.5">Sisa kesempatan putar: <span id="audio-sisa-${key}">${sisa}</span>x</p></div>
-                            <button type="button" onclick="playExamQuestionAudio('${cat}', ${idx}, 'script', '${key}', this)" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs transition shrink-0 cursor-pointer"><i class="fas fa-play mr-1.5"></i> Putar Audio Listening</button>
-                        </div>` : `<p class="my-3 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-200"><i class="fas fa-lock mr-1"></i> Batas putar audio (2x) telah habis.</p>`;
-                } else if (mp3Url) {
-                    mediaHTML = sisa > 0 ? `
-                        <div class="my-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                            <audio controls class="w-full h-10 outline-none" onplay="if((audioPlayCounts['${key}']||0)>=2){this.pause();this.removeAttribute('controls');}" onended="onAudioEnded(this, '${key}')"><source src="${getDriveDirectStreamLink(mp3Url)}"></audio>
-                            <p id="audio-warn-${key}" class="text-xs font-bold text-amber-600 mt-1.5"><i class="fas fa-exclamation-circle mr-1"></i> Sisa kesempatan putar audio: <span id="audio-sisa-${key}">${sisa}</span>x</p>
-                        </div>` : `<p class="my-3 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-200"><i class="fas fa-times-circle mr-1"></i> Batas putar audio (2x) telah habis.</p>`;
+                        <div class="my-3 p-4 bg-teal-50/70 rounded-2xl border border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <p class="text-xs font-extrabold text-teal-950"><i class="fas fa-headphones-alt text-teal-600 mr-1.5"></i> Audio Listening (Anti-Rewind)</p>
+                                <p class="text-[11px] font-bold text-amber-700 mt-0.5">Sisa kesempatan putar: <span id="audio-sisa-${key}">${sisa}</span>x</p>
+                            </div>
+                            <button type="button" onclick="${playFn}" class="px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-extrabold shadow-xs transition shrink-0 cursor-pointer"><i class="fas fa-play mr-1.5"></i> Putar Audio Listening</button>
+                        </div>` : `<p class="my-3 p-3.5 bg-rose-50 text-rose-700 rounded-xl text-xs font-extrabold border border-rose-200"><i class="fas fa-lock mr-1.5"></i> Batas putar audio (2x) untuk soal ini telah habis.</p>`;
                 }
 
                 let inputHTML = '';
                 if (q.type === 'mcq') {
                     inputHTML = ['A', 'B', 'C', 'D'].map((lbl, oIdx) => `
-                        <label class="flex items-center gap-3 p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-blue-50/40 hover:border-blue-300 transition mb-2">
-                            <input type="radio" name="ans_${key}" value="${oIdx}" ${saved !== '' && Number(saved) === oIdx ? 'checked' : ''} onchange="studentExamAnswers['${key}']=${oIdx}" class="w-4 h-4 text-blue-600">
-                            <span class="text-xs sm:text-sm font-semibold text-slate-700"><strong>${lbl}.</strong> ${q.options?.[oIdx] || ''}</span>
+                        <label class="flex items-center gap-3 p-3.5 border border-stone-200 rounded-xl cursor-pointer hover:bg-teal-50/50 hover:border-teal-300 transition mb-2">
+                            <input type="radio" name="ans_${key}" value="${oIdx}" ${saved !== '' && Number(saved) === oIdx ? 'checked' : ''} onchange="studentExamAnswers['${key}']=${oIdx}" class="w-4 h-4">
+                            <span class="text-xs sm:text-sm font-semibold text-stone-700"><strong>${lbl}.</strong> ${q.options?.[oIdx] || ''}</span>
                         </label>`).join('');
                 } else if (cat === 'speaking') {
                     const hasAud = String(saved).startsWith('data:audio');
                     inputHTML = `
-                        <div class="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 mt-2 space-y-3">
+                        <div class="p-4 rounded-2xl bg-teal-50/60 border border-teal-200/80 mt-2 space-y-3">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div class="flex flex-wrap items-center gap-2.5">
-                                    <button type="button" id="btn-record-${idx}" onclick="startVoiceRecord(${idx})" class="hes-btn-primary !bg-blue-600 hover:!bg-blue-700 !py-2.5 !px-4 !text-xs cursor-pointer"><i class="fas fa-microphone"></i> ${hasAud ? 'Rekam Ulang Suara' : 'Mulai Rekam Suara'}</button>
-                                    <button type="button" id="btn-stop-${idx}" onclick="stopVoiceRecord(${idx})" class="hidden bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-sm transition animate-pulse cursor-pointer"><i class="fas fa-stop mr-1"></i> Selesai & Simpan Rekaman</button>
+                                    <button type="button" id="btn-record-${idx}" onclick="startVoiceRecord(${idx})" class="hes-btn-warm !py-2.5 !px-4 !text-xs"><i class="fas fa-microphone"></i> ${hasAud ? 'Rekam Ulang Suara' : 'Mulai Rekam Suara'}</button>
+                                    <button type="button" id="btn-stop-${idx}" onclick="stopVoiceRecord(${idx})" class="hidden bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-sm transition animate-pulse cursor-pointer"><i class="fas fa-stop mr-1"></i> Selesai & Simpan Rekaman</button>
                                 </div>
-                                <span id="rec-status-${idx}" class="text-xs font-extrabold ${hasAud ? 'text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full' : 'text-slate-400'}">${hasAud ? '✓ Rekaman Tersimpan' : 'Belum ada rekaman'}</span>
+                                <span id="rec-status-${idx}" class="text-xs font-extrabold ${hasAud ? 'text-teal-700 bg-teal-100 px-3 py-1 rounded-full' : 'text-stone-400'}">${hasAud ? '✓ Rekaman Tersimpan' : 'Belum ada rekaman'}</span>
                             </div>
                             <audio id="audio-playback-${idx}" controls preload="metadata" src="${hasAud ? saved : ''}" class="${hasAud ? '' : 'hidden'} h-10 w-full outline-none rounded-lg"></audio>
                         </div>`;
@@ -659,19 +771,19 @@ function renderStudentExamPage() {
                 return `
                     <div class="hes-card">
                         <div class="flex items-center justify-between">
-                            <span class="text-[11px] font-extrabold text-blue-700 uppercase tracking-wider bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg">Soal #${idx + 1}</span>
-                            <span class="text-xs font-extrabold text-slate-400">${maxPts} Poin</span>
+                            <span class="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider bg-teal-50 border border-teal-200 px-3 py-1 rounded-lg">Soal #${idx + 1}</span>
+                            <span class="text-xs font-extrabold text-stone-400">${maxPts} Poin</span>
                         </div>
-                        <p class="font-bold text-slate-800 text-sm mt-3 leading-relaxed">${(q.question || '').replace(/\n/g, '<br>')}</p>
+                        <p class="font-bold text-stone-800 text-sm mt-3 leading-relaxed">${(q.question || '').replace(/\n/g, '<br>')}</p>
                         ${mediaHTML}
                         <div class="mt-4">${inputHTML}</div>
                     </div>`;
             }).join('')}
         </div>
-        <div class="hes-card !bg-blue-600 text-white text-center mt-6 border-none shadow-md">
+        <div class="hes-card !bg-gradient-to-r from-teal-700 to-emerald-600 text-white text-center mt-6 border-none shadow-md">
             <h4 class="font-extrabold text-base mb-1">Selesai Mengerjakan Bagian ${cat.toUpperCase()}?</h4>
-            <p class="text-xs text-blue-100 mb-5">Pastikan seluruh ${questions.length} soal sudah terjawab sebelum dikumpulkan.</p>
-            <button id="btn-submit-exam-tab" onclick="submitStudentExam('${currentExamSession}', '${cat}')" class="bg-white text-blue-700 hover:bg-blue-50 px-6 py-3 rounded-xl text-sm font-extrabold shadow-sm transition inline-flex items-center gap-2 cursor-pointer"><i class="fas fa-paper-plane"></i> Kumpulkan Bagian ${cat.toUpperCase()}</button>
+            <p class="text-xs text-teal-50 mb-5">Pastikan seluruh ${questions.length} soal sudah terjawab sebelum dikumpulkan.</p>
+            <button id="btn-submit-exam-tab" onclick="submitStudentExam('${currentExamSession}', '${cat}')" class="bg-white text-teal-800 hover:bg-amber-50 px-6 py-3 rounded-xl text-sm font-extrabold shadow-sm transition inline-flex items-center gap-2 cursor-pointer"><i class="fas fa-paper-plane"></i> Kumpulkan Bagian ${cat.toUpperCase()}</button>
         </div>`;
 }
 
@@ -714,7 +826,7 @@ window.startVoiceRecord = async function(qIndex) {
                 const pb = document.getElementById(`audio-playback-${qIndex}`);
                 if (pb) { pb.src = reader.result; pb.classList.remove('hidden'); }
                 const st = document.getElementById(`rec-status-${qIndex}`);
-                if (st) { st.className = 'text-xs font-extrabold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full'; st.innerText = '✓ Rekaman Tersimpan'; }
+                if (st) { st.className = 'text-xs font-extrabold text-teal-700 bg-teal-100 px-3 py-1 rounded-full'; st.innerText = '✓ Rekaman Tersimpan'; }
                 showToast(`Rekaman Soal #${qIndex + 1} berhasil disimpan!`, 'success');
                 activeRecordingStopPromiseResolve?.();
                 activeRecordingStopPromiseResolve = null;
@@ -727,7 +839,7 @@ window.startVoiceRecord = async function(qIndex) {
         document.getElementById(`btn-record-${qIndex}`)?.classList.add('hidden');
         document.getElementById(`btn-stop-${qIndex}`)?.classList.remove('hidden');
         const st = document.getElementById(`rec-status-${qIndex}`);
-        if (st) { st.className = 'text-xs font-extrabold text-red-600 animate-pulse'; st.innerText = '● Sedang Merekam Suara...'; }
+        if (st) { st.className = 'text-xs font-extrabold text-rose-600 animate-pulse'; st.innerText = '● Sedang Merekam Suara...'; }
     } catch (e) {
         showToast('Aktifkan izin mikrofon di browser kamu ya.', 'error');
     }
@@ -749,6 +861,7 @@ window.stopVoiceRecord = function(qIndex) {
 
 window.submitStudentExam = async function(monthId, tab) {
     window.stopNaturalEnglishTTS();
+    stopActiveExamMp3();
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         showToast('Menyelesaikan rekaman suara terlebih dahulu...', 'info');
         await stopVoiceRecord(activeRecordingIndex);
@@ -765,7 +878,7 @@ window.submitStudentExam = async function(monthId, tab) {
         const rKey = `exam_result-${email}-${monthId}`;
 
         const { error } = await safeSaveMaterialsToCloud(materials => {
-            const res = Object.assign({ status: 'partial', answers: {}, scores: {}, sectionScores: {}, transcripts: {}, submittedTabs: [] }, materials[rKey]);
+            const res = Object.assign({ status: 'partial', answers: {}, scores: {}, sectionScores: {}, transcripts: {}, submittedTabs: [], audioPlayCounts: {} }, materials[rKey]);
             (examData?.[tab] || []).forEach((q, idx) => {
                 const key = `${tab}_${idx}`, ans = studentExamAnswers[key];
                 if (ans !== undefined) res.answers[key] = ans;
@@ -773,6 +886,7 @@ window.submitStudentExam = async function(monthId, tab) {
                 if (q.type === 'mcq') res.scores[key] = (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) ? 10 : 0;
                 else if (res.scores[key] === undefined && res.answers[key]) res.scores[key] = 8.5;
             });
+            res.audioPlayCounts = Object.assign({}, res.audioPlayCounts || {}, audioPlayCounts);
             ['reading', 'writing', 'speaking', 'listening'].forEach(c => res.sectionScores[c] = computeExamSectionScore(c, examData, res));
             if (!res.submittedTabs.includes(tab)) res.submittedTabs.push(tab);
             if (res.submittedTabs.length >= 4) res.status = 'submitted';

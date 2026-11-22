@@ -1,19 +1,43 @@
 /* css/style.css */
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+
+:root {
+    --hes-bg: #FAF7F2;
+    --hes-surface: #FFFFFF;
+    --hes-border: #EAE4D9;
+    --hes-text: #1F2937;
+    --hes-muted: #6B7280;
+    --hes-primary: #0F766E;
+    --hes-primary-hover: #115E59;
+    --hes-primary-soft: #F0FDFA;
+    --hes-accent: #F59E0B;
+}
 
 body {
     font-family: 'Nunito', sans-serif;
-    background-color: #F8FAFC;
-    color: #1E293B;
+    background-color: var(--hes-bg);
+    background-image: radial-gradient(rgba(15, 118, 110, 0.045) 1px, transparent 1px);
+    background-size: 26px 26px;
+    color: var(--hes-text);
+}
+
+h1, h2, h3, h4, .font-heading {
+    font-family: 'Plus Jakarta Sans', 'Nunito', sans-serif;
 }
 
 #app-sidebar {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background-color: #FFFDF9;
+    border-right: 1px solid var(--hes-border);
+}
+
+#app-header {
+    background-color: rgba(255, 253, 249, 0.92);
+    border-bottom: 1px solid var(--hes-border);
 }
 
 /* ==========================================================================
    KHUSUS MODE PC / LAPTOP (min-width: 768px)
-   Di HP (< 768px) semua gaya di bawah ini otomatis nonaktif (kembali Original)
    ========================================================================== */
 @media (min-width: 768px) {
     body.hes-sidebar-collapsed #app-sidebar {
@@ -39,30 +63,28 @@ body {
         display: none !important;
     }
 
-    /* Area Meja Baca PDF (Hanya di PC/Laptop) */
+    /* Area Meja Baca PDF Bernuansa Hangat */
     .hes-pdf-stage {
-        background-color: #CBD5E1;
-        background-image: radial-gradient(#94A3B8 0.75px, transparent 0.75px);
+        background-color: #E7E1D5;
+        background-image: radial-gradient(#C7BFB0 0.8px, transparent 0.8px);
         background-size: 18px 18px;
-        border-radius: 1.5rem;
-        border: 1px solid #94A3B8;
-        padding: 1.25rem 1rem;
+        border-radius: 1.75rem;
+        border: 1px solid #D6CEC0;
+        padding: 1.5rem 1rem;
         overflow-x: auto;
-        box-shadow: inset 0 2px 10px rgba(15, 23, 42, 0.08);
+        box-shadow: inset 0 2px 12px rgba(68, 56, 38, 0.08);
     }
 
-    /* Lembar Kertas PDF A4 Proporsional (Hanya di PC/Laptop) */
     .hes-pdf-paper {
         width: 880px;
         min-width: 880px;
         transform-origin: top left;
         background: #FFFFFF;
-        border-radius: 1.25rem;
-        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
+        border-radius: 1.5rem;
+        box-shadow: 0 14px 36px rgba(41, 37, 36, 0.14), 0 2px 8px rgba(41, 37, 36, 0.06);
         will-change: transform;
     }
 
-    /* Floating Bar Mengajar di Samping Layar (Melayang Mengikuti Layar & Bisa Digeser) */
     .hes-floating-dock {
         position: fixed;
         right: 1.25rem;
@@ -79,7 +101,6 @@ body {
         display: none !important;
     }
 
-    /* Jendela Floating Live Notepad (Text Box Mengetik: Bisa Digeser & Diubah Ukuran) */
     .hes-floating-wb {
         position: fixed;
         right: 5.25rem;
@@ -99,8 +120,8 @@ body {
         width: 24px;
         height: 24px;
         border-radius: 0.5rem;
-        background: rgba(99, 102, 241, 0.12);
-        color: #4F46E5;
+        background: rgba(15, 118, 110, 0.14);
+        color: #0F766E;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -109,13 +130,13 @@ body {
     }
 
     .hes-wb-resize-grip:hover {
-        background: #4F46E5;
+        background: #0F766E;
         color: #FFFFFF;
     }
 }
 
 /* ==========================================================================
-   KHUSUS MODE HP / MOBILE (max-width: 767px) — TAMPILAN ORIGINAL
+   KHUSUS MODE HP / MOBILE (max-width: 767px)
    ========================================================================== */
 @media (max-width: 767px) {
     .hes-floating-dock,
@@ -137,66 +158,72 @@ body {
         min-width: 0 !important;
         transform: none !important;
         border-radius: 1.5rem;
-        border: 1px solid #E2E8F0;
-        box-shadow: 0 2px 10px rgba(226, 232, 240, 0.5);
+        border: 1px solid var(--hes-border);
+        box-shadow: 0 4px 18px rgba(120, 100, 70, 0.08);
     }
 }
 
-/* Komponen Elegan (Clean & Modern UI) */
+/* Komponen Ramah Belajar (Warm & Clean UI) */
 .hes-card {
-    background: #FFFFFF;
-    border-radius: 1.25rem;
-    border: 1px solid #E2E8F0;
+    background: var(--hes-surface);
+    border-radius: 1.5rem;
+    border: 1px solid var(--hes-border);
     padding: 1.5rem;
-    box-shadow: 0 4px 15px rgba(226, 232, 240, 0.4);
-    transition: all 0.25s ease;
+    box-shadow: 0 6px 24px rgba(120, 100, 70, 0.06);
+    transition: all 0.22s ease;
 }
 
 .hover-card:hover {
     transform: translateY(-2px);
-    border-color: #818CF8;
-    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.15);
+    border-color: #5EEAD4;
+    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.12);
 }
 
 .hes-input {
     width: 100%;
-    background-color: #F8FAFC;
-    border: 1px solid #CBD5E1;
-    border-radius: 0.875rem;
-    padding: 0.75rem 1rem;
+    background-color: #FAF8F5;
+    border: 1.5px solid #E5DFD3;
+    border-radius: 0.95rem;
+    padding: 0.72rem 1rem;
     font-size: 0.875rem;
-    font-weight: 600;
-    color: #1E293B;
+    font-weight: 700;
+    color: #1F2937;
     outline: none;
     transition: all 0.2s ease;
 }
 
 .hes-input:focus {
     background-color: #FFFFFF;
-    border-color: #6366F1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    border-color: #0F766E;
+    box-shadow: 0 0 0 3.5px rgba(15, 118, 110, 0.14);
 }
 
-/* Tombol Profesional */
 .hes-btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background-color: #4F46E5;
+    background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%);
     color: #FFFFFF;
-    font-weight: 700;
+    font-weight: 800;
     font-size: 0.875rem;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0.875rem;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    padding: 0.75rem 1.3rem;
+    border-radius: 0.95rem;
+    box-shadow: 0 6px 16px rgba(15, 118, 110, 0.25);
     transition: all 0.2s ease;
+    cursor: pointer;
 }
 
 .hes-btn-primary:hover {
-    background-color: #4338CA;
+    background: linear-gradient(135deg, #115E59 0%, #0F766E 100%);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.35);
+    box-shadow: 0 8px 20px rgba(15, 118, 110, 0.34);
+}
+
+.hes-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
 }
 
 .hes-btn-soft {
@@ -204,21 +231,44 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background-color: #EEF2FF;
-    color: #4F46E5;
-    font-weight: 700;
+    background-color: #F0FDFA;
+    color: #0F766E;
+    font-weight: 800;
     font-size: 0.875rem;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0.875rem;
-    border: 1px solid #C7D2FE;
+    padding: 0.72rem 1.2rem;
+    border-radius: 0.95rem;
+    border: 1.5px solid #CCFBF1;
     transition: all 0.2s ease;
+    cursor: pointer;
 }
 
 .hes-btn-soft:hover {
-    background-color: #E0E7FF;
+    background-color: #CCFBF1;
+    border-color: #99F6E4;
 }
 
-/* Kanvas Coret-Coret (Annotation) di Atas Materi */
+.hes-btn-warm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
+    color: #FFFFFF;
+    font-weight: 800;
+    font-size: 0.875rem;
+    padding: 0.75rem 1.3rem;
+    border-radius: 0.95rem;
+    box-shadow: 0 6px 16px rgba(234, 88, 12, 0.24);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.hes-btn-warm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(234, 88, 12, 0.34);
+}
+
+/* Kanvas Coret-Coret (Annotation) */
 .hes-annotation-overlay {
     position: absolute;
     inset: 0;
@@ -235,9 +285,10 @@ body {
 }
 
 /* Scrollbar & Animasi */
-.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #D6CFC2; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #B8AFA0; }
 
 .fade-in { animation: fadeIn 0.3s ease-out forwards; }
 @keyframes fadeIn {
@@ -255,11 +306,11 @@ body {
 
 .speaking-pulse {
     animation: speakingPulse 0.85s infinite ease-in-out;
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.25);
 }
 @keyframes speakingPulse {
     0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.08); }
+    50% { transform: scale(1.07); }
 }
 
-input[type="radio"], input[type="checkbox"] { accent-color: #4F46E5; cursor: pointer; }
+input[type="radio"], input[type="checkbox"] { accent-color: #0F766E; cursor: pointer; }

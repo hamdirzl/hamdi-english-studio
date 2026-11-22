@@ -32,9 +32,9 @@ function updateFocusModeButtonsUI() {
         headerBtn.title = isCollapsed ? 'Tampilkan Sidebar' : 'Sembunyikan Sidebar (Mode Lebar)';
     }
     document.querySelectorAll('.hes-focus-mode-btn').forEach(btn => {
-        btn.innerHTML = isCollapsed
-            ? `<i class="fas fa-compress-alt mr-1.5"></i> Tampilkan Sidebar`
-            : `<i class="fas fa-expand-alt mr-1.5"></i> Mode Layar Penuh`;
+        if (btn.classList.contains('w-10')) {
+            btn.innerHTML = `<i class="fas ${isCollapsed ? 'fa-compress-alt' : 'fa-expand-alt'} text-sm"></i>`;
+        }
     });
 }
 
@@ -46,22 +46,20 @@ function renderAppHeader(pageTitle) {
 
     headerEl.innerHTML = `
         <div class="flex items-center gap-3 min-w-0">
-            <!-- Tombol Buka Sidebar (HP) -->
-            <button id="open-sidebar-btn" class="md:hidden text-indigo-600 p-2.5 bg-indigo-50 rounded-xl font-bold cursor-pointer">
+            <button id="open-sidebar-btn" class="md:hidden text-teal-700 p-2.5 bg-teal-50 rounded-xl font-bold cursor-pointer">
                 <i class="fas fa-bars"></i>
             </button>
-            <!-- Tombol Sembunyikan/Tampilkan Sidebar (Laptop/Desktop) -->
-            <button id="desktop-sidebar-toggle-btn" onclick="toggleDesktopSidebar()" title="${isCollapsed ? 'Tampilkan Sidebar' : 'Sembunyikan Sidebar (Mode Lebar)'}" class="hidden md:inline-flex items-center justify-center w-9 h-9 text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-xl font-bold transition cursor-pointer">
+            <button id="desktop-sidebar-toggle-btn" onclick="toggleDesktopSidebar()" title="${isCollapsed ? 'Tampilkan Sidebar' : 'Sembunyikan Sidebar (Mode Lebar)'}" class="hidden md:inline-flex items-center justify-center w-9 h-9 text-stone-600 hover:text-teal-700 bg-stone-100 hover:bg-teal-50 rounded-xl font-bold transition cursor-pointer">
                 <i class="fas ${isCollapsed ? 'fa-indent' : 'fa-outdent'}"></i>
             </button>
             <div class="truncate">
-                <h1 class="text-base sm:text-lg font-black text-slate-800 truncate">${pageTitle}</h1>
-                <p class="text-xs font-bold text-slate-400 hidden sm:block">${getDisplayDate(new Date())}</p>
+                <h1 class="text-base sm:text-lg font-extrabold text-stone-800 truncate">${pageTitle}</h1>
+                <p class="text-xs font-bold text-stone-400 hidden sm:block">${getDisplayDate(new Date())}</p>
             </div>
         </div>
         <div class="flex items-center gap-2.5">
-            <div id="cloud-status-indicator" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <div id="cloud-status-indicator" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-stone-100 text-stone-500 border border-stone-200">
+                <span class="w-2 h-2 rounded-full bg-stone-400"></span>
                 <span>Memuat...</span>
             </div>
         </div>
@@ -94,13 +92,16 @@ function renderAppSidebar() {
         sidebarSelectedMonth = params.get('month') || cur?.monthId || 'm1';
     }
 
-    const materiHref = cur ? `materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}` : 'materi.html';
+    const materiHref = cur ? `materi.html?month=${cur.monthId}&week=${cur.week}&day=${cur.day}` : 'materi.html?month=m1&week=1&day=1';
+    const pendingTaskBadge = (role === 'student' && stats?.pendingTasksCount > 0)
+        ? `<span class="ml-auto px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">${stats.pendingTasksCount}</span>`
+        : '';
 
     const menus = [
         { file: 'dashboard.html', href: 'dashboard.html', icon: '<i class="fas fa-home"></i>', label: 'Beranda' },
         { file: 'materi.html',    href: materiHref,       icon: '<i class="fas fa-book-open"></i>', label: 'Ruang Belajar' },
-        { file: 'exam.html',      href: `exam.html?month=${sidebarSelectedMonth}`, icon: '<i class="fas fa-award"></i>', label: 'Ujian & Rapor' },
-        { file: 'reschedule.html',href: 'reschedule.html',icon: '<i class="fas fa-calendar-alt"></i>', label: 'Pindah Jadwal' }
+        { file: 'tugas.html',     href: 'tugas.html',     icon: '<i class="fas fa-microphone-lines"></i>', label: 'Tugas Speaking', badge: pendingTaskBadge },
+        { file: 'exam.html',      href: `exam.html?month=${sidebarSelectedMonth}`, icon: '<i class="fas fa-award"></i>', label: 'Ujian & Rapor' }
     ];
     if (role === 'admin') {
         menus.unshift({ file: 'admin.html', href: 'admin.html', icon: '<i class="fas fa-sliders-h"></i>', label: 'Panel Admin' });
@@ -109,9 +110,10 @@ function renderAppSidebar() {
     const navHTML = menus.map(m => {
         const active = path === m.file;
         return `
-            <a href="${m.href}" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all ${active ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}">
-                <span class="text-lg w-5 text-center">${m.icon}</span>
+            <a href="${m.href}" class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-extrabold transition-all ${active ? 'bg-gradient-to-r from-teal-700 to-teal-600 text-white shadow-md shadow-teal-700/20' : 'text-stone-600 hover:bg-teal-50/70 hover:text-teal-700'}">
+                <span class="text-base w-5 text-center">${m.icon}</span>
                 <span>${m.label}</span>
+                ${m.badge || ''}
             </a>
         `;
     }).join('');
@@ -121,41 +123,53 @@ function renderAppSidebar() {
         const locked = role === 'student' && mNum > maxMonth;
         const active = m.id === sidebarSelectedMonth;
         if (locked) {
-            return `<button onclick="showToast('${m.title} masih terkunci', 'info')" class="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-slate-100 text-slate-400"><i class="fas fa-lock mr-1"></i> M${mNum}</button>`;
+            return `<button onclick="showToast('${m.title} masih terkunci', 'info')" class="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-stone-100 text-stone-400 cursor-not-allowed"><i class="fas fa-lock mr-1"></i> M${mNum}</button>`;
         }
-        return `<button onclick="switchSidebarMonth('${m.id}')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50'}">${m.title}</button>`;
+        return `<button onclick="switchSidebarMonth('${m.id}')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${active ? 'bg-teal-700 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-teal-50 hover:text-teal-700'}">${m.title}</button>`;
     }).join('');
 
     let sessionListHTML = '';
     let sNum = 1;
     [1, 2, 3, 4].forEach(w => {
         [1, 2, 3].forEach(d => {
-            const dInfo = timeline?.days[`${sidebarSelectedMonth}-w${w}-d${d}`];
-            const st = dInfo?.status || 'upcoming';
+            const access = getSessionAccessStatus(user.email, sidebarSelectedMonth, w, d, role);
             const isViewing = path === 'materi.html' && params.get('month') === sidebarSelectedMonth && params.get('week') == w && params.get('day') == d;
 
-            let badge = '<i class="far fa-circle text-slate-300"></i>';
-            let style = 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300';
-            
-            if (st === 'completed') {
-                badge = '<i class="fas fa-check-circle text-emerald-500"></i>';
-                style = 'bg-emerald-50/50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100';
-            } else if (st === 'current') {
-                badge = '<i class="fas fa-play-circle text-amber-500"></i>';
-                style = 'bg-amber-50 text-amber-900 border border-amber-300 font-extrabold';
+            let badge = '<i class="fas fa-lock text-stone-300 text-[11px]"></i>';
+            let style = 'bg-stone-50/80 text-stone-400 border border-stone-200/70';
+
+            if (role === 'admin' || access.unlocked) {
+                if (access.status === 'completed') {
+                    badge = '<i class="fas fa-check-circle text-teal-600"></i>';
+                    style = 'bg-teal-50/40 text-teal-950 border border-teal-200/80 hover:bg-teal-50';
+                } else if (access.status === 'current') {
+                    badge = '<i class="fas fa-star text-amber-500"></i>';
+                    style = 'bg-amber-50 text-amber-950 border border-amber-300 font-extrabold';
+                } else {
+                    badge = '<i class="far fa-circle text-stone-400"></i>';
+                    style = 'bg-white text-stone-600 border border-stone-200 hover:border-teal-300';
+                }
+            } else if (access.reason === 'future') {
+                badge = '<i class="fas fa-clock text-amber-500 text-[11px]"></i>';
+                style = 'bg-amber-50/35 text-stone-500 border border-amber-200/60';
             }
+
             if (isViewing) {
-                style = 'bg-indigo-600 text-white border border-indigo-700 shadow-sm';
-                badge = '<i class="fas fa-play-circle text-white"></i>';
+                style = 'bg-teal-700 text-white border border-teal-800 shadow-sm';
+                badge = '<i class="fas fa-book-open text-amber-300 text-[11px]"></i>';
             }
+
+            const dateLabel = access.shortDate
+                ? `<span class="text-[10px] font-bold opacity-85 shrink-0">${access.shortDate}</span>`
+                : (role === 'student' ? `<span class="text-[10px] font-bold opacity-60 shrink-0">Terkunci</span>` : '');
 
             sessionListHTML += `
                 <a href="materi.html?month=${sidebarSelectedMonth}&week=${w}&day=${d}" class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition ${style}">
                     <div class="flex items-center gap-2 min-w-0">
                         <span>${badge}</span>
-                        <span class="truncate">Sesi ${sNum} <span class="opacity-75 font-bold">(W${w}•D${d})</span></span>
+                        <span class="truncate">Sesi ${sNum} <span class="opacity-70 font-bold">(W${w}•D${d})</span></span>
                     </div>
-                    ${dInfo?.shortDate ? `<span class="text-[10px] font-bold opacity-80 shrink-0">${dInfo.shortDate}</span>` : ''}
+                    ${dateLabel}
                 </a>
             `;
             sNum++;
@@ -163,29 +177,29 @@ function renderAppSidebar() {
     });
 
     sidebarEl.innerHTML = `
-        <div class="p-4 flex justify-between items-center border-b border-slate-100">
+        <div class="p-4 flex justify-between items-center border-b border-stone-100">
             <a href="dashboard.html" class="flex items-center gap-2.5">
-                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md">
+                <div class="w-10 h-10 bg-gradient-to-br from-teal-700 to-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-md shadow-teal-700/20">
                     <i class="fas fa-graduation-cap"></i>
                 </div>
                 <div>
-                    <h2 class="text-sm font-black text-slate-800 leading-none">Hamdi Studio</h2>
-                    <p class="text-[11px] text-indigo-600 font-extrabold mt-0.5">Friendly Learning Space</p>
+                    <h2 class="text-sm font-extrabold text-stone-800 leading-none">Hamdi Studio</h2>
+                    <p class="text-[11px] text-teal-700 font-extrabold mt-0.5">Friendly Learning Space</p>
                 </div>
             </a>
-            <button id="close-sidebar-btn" class="md:hidden text-slate-400 p-2 rounded-xl bg-slate-50">
+            <button id="close-sidebar-btn" class="md:hidden text-stone-400 p-2 rounded-xl bg-stone-50 cursor-pointer">
                 <i class="fas fa-times"></i>
             </button>
         </div>
 
-        <div class="p-3.5 mx-3.5 mt-3 rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100">
+        <div class="p-3.5 mx-3.5 mt-3 rounded-2xl bg-gradient-to-r from-teal-50/90 to-amber-50/70 border border-teal-100/90">
             <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-black text-sm shrink-0">
+                <div class="w-9 h-9 bg-gradient-to-br from-teal-700 to-emerald-600 text-white rounded-xl flex items-center justify-center font-black text-sm shrink-0">
                     ${user.name ? user.name.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div class="min-w-0 flex-1">
-                    <p class="text-xs font-black text-slate-800 truncate">${user.name}</p>
-                    <p class="text-[11px] font-extrabold text-indigo-600">
+                    <p class="text-xs font-extrabold text-stone-800 truncate">${user.name}</p>
+                    <p class="text-[11px] font-extrabold text-teal-700">
                         ${stats ? `<i class="fas fa-star text-amber-500 mr-0.5"></i> Level ${stats.level} • ${stats.xp} XP` : 'Administrator'}
                     </p>
                 </div>
@@ -193,13 +207,13 @@ function renderAppSidebar() {
         </div>
 
         <div class="flex-1 overflow-y-auto px-3.5 py-4 space-y-5 custom-scrollbar">
-            <div class="space-y-1">
+            <div class="space-y-1.5">
                 ${navHTML}
             </div>
 
             <div>
                 <div class="flex items-center justify-between px-1 mb-2">
-                    <p class="text-[11px] font-black text-slate-400 uppercase tracking-wider"><i class="fas fa-map text-slate-300 mr-1"></i> Peta Pertemuan</p>
+                    <p class="text-[11px] font-extrabold text-stone-400 uppercase tracking-wider"><i class="fas fa-map text-stone-300 mr-1"></i> Peta Pertemuan</p>
                 </div>
                 <div class="flex flex-wrap gap-1.5 mb-2.5">
                     ${monthTabsHTML}
@@ -210,8 +224,8 @@ function renderAppSidebar() {
             </div>
         </div>
 
-        <div class="p-3.5 border-t border-slate-100">
-            <button onclick="logoutUser()" class="w-full py-2.5 px-4 text-xs font-extrabold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-xl transition cursor-pointer">
+        <div class="p-3.5 border-t border-stone-100">
+            <button onclick="logoutUser()" class="w-full py-2.5 px-4 text-xs font-extrabold text-stone-500 hover:text-rose-600 bg-stone-100/80 hover:bg-rose-50 rounded-xl transition cursor-pointer">
                 <i class="fas fa-right-from-bracket mr-1"></i> Keluar
             </button>
         </div>

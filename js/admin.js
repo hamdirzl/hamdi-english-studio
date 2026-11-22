@@ -30,22 +30,24 @@ window.refreshAdminCloudData = async function() {
 window.switchAdminTab = function(tabName) {
     currentAdminTab = tabName;
     const labels = {
-        overview:  '<i class="fas fa-bell mr-1.5"></i> Overview',
-        users:     '<i class="fas fa-users-cog mr-1.5"></i> Akun & Jadwal',
-        materials: '<i class="fas fa-book mr-1.5"></i> Materi & Kosakata',
+        overview:  '<i class="fas fa-calendar-day mr-1.5"></i> Jadwal Pertemuan',
+        users:     '<i class="fas fa-users-cog mr-1.5"></i> Akun Murid',
+        materials: '<i class="fas fa-book-open mr-1.5"></i> Materi & Recap',
+        tasks:     '<i class="fas fa-microphone-lines mr-1.5"></i> Tugas Speaking',
         exam:      '<i class="fas fa-file-signature mr-1.5"></i> Ujian & Nilai'
     };
     Object.keys(labels).forEach(t => {
         const btn = $(`adm-tab-${t}`);
         if (btn) {
             btn.innerHTML = labels[t];
-            btn.className = `px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition ${t === tabName ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`;
+            btn.className = `px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition cursor-pointer ${t === tabName ? 'bg-white text-teal-700 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`;
         }
         $(`admin-panel-${t}`)?.classList.toggle('hidden', t !== tabName);
     });
-    if (tabName === 'overview') renderAdminOverviewTab();
-    if (tabName === 'users') renderAdminUsersTab();
-    if (tabName === 'materials') { loadAdminMaterialEditor(); loadAdminVocabPreview(); }
+    if (tabName === 'overview') renderAdminSessionDatesGrid();
+    if (tabName === 'users') { loadStudentAccessForm(); renderAdminUsersTab(); }
+    if (tabName === 'materials') loadAdminMaterialEditor();
+    if (tabName === 'tasks') renderAdminTasksList();
 };
 
 function populateAllAdminDropdowns() {
@@ -61,59 +63,109 @@ function populateAllAdminDropdowns() {
         if (prev && Array.from(el.options).some(o => o.value === prev)) el.value = prev;
     };
 
+    fill('admin-session-date-student', sOpts);
+    fill('admin-session-date-month', mOpts);
     fill('admin-sched-student', sOpts);
     fill('admin-sched-max-month', maxMOpts);
     fill('admin-target-student', `<option value="all">Global (Semua Murid)</option>${sOpts}`);
-    ['admin-month', 'admin-vocab-month', 'admin-review-month', 'admin-exam-month'].forEach(id => fill(id, mOpts));
-    ['admin-review-student', 'admin-exam-student'].forEach(id => fill(id, sOpts));
-    loadStudentScheduleForm();
+    fill('admin-task-target', `<option value="all">Semua Murid</option>${sOpts}`);
+    fill('admin-task-month', `<option value="general">Umum / Bebas</option>${mOpts}`);
+    fill('admin-task-review-student', `<option value="all">Tampilkan Semua Murid</option>${sOpts}`);
+    ['admin-month', 'admin-exam-month'].forEach(id => fill(id, mOpts));
+    fill('admin-exam-student', sOpts);
+
+    loadStudentAccessForm();
     loadAdminMaterialEditor();
 }
 
 // ============================================================================
-// TAB 1: OVERVIEW & ANTREAN PINDAH JADWAL
+// TAB 1: INPUT TANGGAL PERTEMUAN MANUAL (HARI INI / BESOK / PILIH TANGGAL)
 // ============================================================================
-function renderAdminOverviewTab() {
-    const box = $('admin-pending-reschedules-list');
-    if (!box) return;
-    let html = '';
-    window.HES.students.forEach(s => {
-        const pend = window.HES.materials[`profile-${s.email}`]?.pendingReschedules || {};
-        for (const [oldD, newD] of Object.entries(pend)) {
-            html += `
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200 mb-2.5 gap-3">
-                    <div>
-                        <p class="text-xs font-extrabold text-slate-800">${s.name} <span class="text-slate-400 font-normal">(${s.email})</span></p>
-                        <p class="text-xs font-semibold text-indigo-700 mt-1">${getDisplayDate(parseDateStr(oldD))} <i class="fas fa-arrow-right mx-1.5"></i> ${getDisplayDate(parseDateStr(newD))}</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="approveReschedule('${s.email}','${oldD}','${newD}')" class="hes-btn-primary !py-2 !px-3.5 !text-xs">Setujui</button>
-                        <button onclick="rejectReschedule('${s.email}','${oldD}')" class="hes-btn-soft !bg-red-50 !text-red-600 !py-2 !px-3.5 !text-xs">Tolak</button>
-                    </div>
-                </div>`;
-        }
-    });
-    box.innerHTML = html || `<p class="text-xs text-slate-400 text-center py-6">Tidak ada pengajuan pindah jadwal saat ini.</p>`;
-}
+window.renderAdminSessionDatesGrid = function() {
+    const grid = $('admin-session-dates-grid');
+    const email = $('admin-session-date-student')?.value;
+    const monthId = $('admin-session-date-month')?.value || 'm1';
+    if (!grid || !email) {
+        if (grid) grid.innerHTML = `<p class="text-xs text-stone-400 col-span-full text-center py-8">Belum ada akun murid terdaftar.</p>`;
+        return;
+    }
 
-window.approveReschedule = async function(email, oldD, newD) {
-    await safeSaveMaterialsToCloud(materials => {
-        const p = materials[`profile-${email}`] || {};
-        p.reschedules = p.reschedules || {};
-        p.reschedules[oldD] = newD;
-        if (p.pendingReschedules) delete p.pendingReschedules[oldD];
-        materials[`profile-${email}`] = p;
-    });
-    showToast('Jadwal baru disetujui!', 'success');
-    renderAdminOverviewTab();
+    const todayStr = getTodayStr();
+    const tomorrowStr = getOffsetDateStr(1);
+    const p = window.HES.materials[`profile-${email}`] || {};
+    const sDates = p.sessionDates || {};
+
+    let html = '';
+    for (let i = 0; i < 12; i++) {
+        const w = Math.floor(i / 3) + 1;
+        const d = (i % 3) + 1;
+        const key = `${monthId}-w${w}-d${d}`;
+        const dateVal = sDates[key] || '';
+        const hasMod = Boolean((window.HES.materials[`${email}-${key}-link`] || window.HES.materials[`all-${key}-link`] || '').trim());
+
+        let badge = `<span class="px-2 py-0.5 rounded-md bg-stone-100 text-stone-500 text-[10px] font-extrabold"><i class="fas fa-lock mr-1"></i>Terkunci</span>`;
+        let cardCls = 'bg-stone-50/70 border-stone-200';
+
+        if (dateVal === todayStr) {
+            badge = `<span class="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-extrabold"><i class="fas fa-star mr-1"></i>Hari Ini (Terbuka)</span>`;
+            cardCls = 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-200';
+        } else if (dateVal && dateVal < todayStr) {
+            badge = `<span class="px-2 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[10px] font-extrabold"><i class="fas fa-check-circle mr-1"></i>Terbuka</span>`;
+            cardCls = 'bg-teal-50/40 border-teal-200';
+        } else if (dateVal && dateVal > todayStr) {
+            badge = `<span class="px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 text-[10px] font-extrabold"><i class="fas fa-clock mr-1"></i>Terjadwal (Terkunci)</span>`;
+            cardCls = 'bg-sky-50/35 border-sky-200';
+        }
+
+        html += `
+            <div class="p-4 rounded-2xl border ${cardCls} space-y-3 transition">
+                <div class="flex items-center justify-between gap-2">
+                    <div>
+                        <p class="text-sm font-extrabold text-stone-800">Pertemuan ${i + 1} <span class="text-xs font-bold text-stone-400">(W${w}•D${d})</span></p>
+                        <p class="text-[11px] font-bold ${hasMod ? 'text-teal-700' : 'text-stone-400'}">${hasMod ? '✓ Materi siap' : '• Materi belum diisi'}</p>
+                    </div>
+                    ${badge}
+                </div>
+
+                <input type="date" value="${dateVal}" onchange="setStudentSessionDate('${email}', '${monthId}', ${w}, ${d}, this.value)" class="hes-input !bg-white !py-2 !text-xs">
+
+                <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="setStudentSessionDate('${email}', '${monthId}', ${w}, ${d}, '${todayStr}')" class="flex-1 py-1.5 px-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-extrabold transition cursor-pointer">
+                        Hari Ini
+                    </button>
+                    <button type="button" onclick="setStudentSessionDate('${email}', '${monthId}', ${w}, ${d}, '${tomorrowStr}')" class="flex-1 py-1.5 px-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-extrabold transition cursor-pointer">
+                        Besok
+                    </button>
+                    ${dateVal ? `
+                        <button type="button" onclick="setStudentSessionDate('${email}', '${monthId}', ${w}, ${d}, '')" title="Hapus tanggal & kunci kembali" class="py-1.5 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[11px] font-extrabold transition cursor-pointer">
+                            <i class="fas fa-lock"></i>
+                        </button>` : ''}
+                </div>
+            </div>`;
+    }
+    grid.innerHTML = html;
 };
 
-window.rejectReschedule = async function(email, oldD) {
+window.setStudentSessionDate = async function(email, monthId, w, d, dateVal) {
+    const key = `${monthId}-w${w}-d${d}`;
+    const sNum = ((w - 1) * 3) + d;
     await safeSaveMaterialsToCloud(materials => {
-        if (materials[`profile-${email}`]?.pendingReschedules) delete materials[`profile-${email}`].pendingReschedules[oldD];
+        const p = materials[`profile-${email}`] || {};
+        p.sessionDates = p.sessionDates || {};
+        if (dateVal) p.sessionDates[key] = dateVal;
+        else delete p.sessionDates[key];
+        const mNum = parseInt(monthId.replace('m', '')) || 1;
+        if (dateVal && (parseInt(p.maxMonth || 1) < mNum)) p.maxMonth = mNum;
+        materials[`profile-${email}`] = p;
     });
-    showToast('Pengajuan jadwal ditolak.', 'info');
-    renderAdminOverviewTab();
+
+    renderAdminSessionDatesGrid();
+    renderAdminUsersTab();
+
+    if (!dateVal) showToast(`Pertemuan ${sNum} dikunci kembali.`, 'info');
+    else if (dateVal === getTodayStr()) showToast(`Pertemuan ${sNum} dibuka untuk Hari Ini!`, 'success');
+    else if (dateVal > getTodayStr()) showToast(`Pertemuan ${sNum} dijadwalkan untuk ${getDisplayDate(parseDateStr(dateVal))} (otomatis terbuka di hari-H).`, 'info');
+    else showToast(`Tanggal Pertemuan ${sNum} disimpan & terbuka.`, 'success');
 };
 
 window.addNewMonth = async function() {
@@ -125,51 +177,29 @@ window.addNewMonth = async function() {
 };
 
 // ============================================================================
-// TAB 2: MANAJEMEN AKUN MURID & JADWAL
+// TAB 2: MANAJEMEN AKUN MURID & AKSES BULAN
 // ============================================================================
-window.loadStudentScheduleForm = function() {
+window.loadStudentAccessForm = function() {
     const email = $('admin-sched-student')?.value;
     if (!email) return;
     const p = window.HES.materials[`profile-${email}`] || {};
-    $('admin-sched-max-month').value = String(p.maxMonth || 1);
-
+    if ($('admin-sched-max-month')) $('admin-sched-max-month').value = String(p.maxMonth || 1);
     const [s, e] = (p.time || '').includes('-') ? p.time.split('-').map(t => t.trim()) : ['', ''];
-    $('admin-sched-start').value = s;
-    $('admin-sched-end').value = e;
-    document.querySelectorAll('.admin-day-cb').forEach(cb => cb.checked = (p.days || []).includes(cb.value));
-
-    onAdminMonthSelectChange();
-    const dates = p.monthEndDates || {};
-    $('admin-saved-month-dates-box').innerHTML = window.HES.months.map(m =>
-        `<span class="inline-block mr-2 mb-1 px-2.5 py-1 rounded-lg bg-white border text-xs font-bold">${m.title}: ${dates[m.id] || 'Belum diatur'}</span>`
-    ).join('');
+    if ($('admin-sched-start')) $('admin-sched-start').value = s;
+    if ($('admin-sched-end')) $('admin-sched-end').value = e;
 };
 
-window.onAdminMonthSelectChange = function() {
-    const email = $('admin-sched-student')?.value, mNum = $('admin-sched-max-month')?.value || '1';
-    const p = window.HES.materials[`profile-${email}`] || {};
-    $('admin-sched-date-label').innerText = `Batas Akhir Month ${mNum}`;
-    $('admin-sched-date').value = p.monthEndDates?.[`m${mNum}`] || (String(p.maxMonth) === String(mNum) ? p.validUntil || '' : '');
-};
-
-window.saveStudentSchedule = async function() {
+window.saveStudentAccess = async function() {
     const email = $('admin-sched-student').value;
+    if (!email) return;
     await safeSaveMaterialsToCloud(materials => {
         const p = materials[`profile-${email}`] || {};
-        p.monthEndDates = p.monthEndDates || {};
-        const mNum = $('admin-sched-max-month').value || '1', dVal = $('admin-sched-date').value;
-        if (dVal) { p.monthEndDates[`m${mNum}`] = dVal; p.validUntil = dVal; }
-
-        p.maxMonth = Math.max(parseInt(mNum), ...Object.keys(p.monthEndDates).map(k => parseInt(k.replace('m', '')) || 1));
-        if (p.monthEndDates[`m${p.maxMonth}`]) p.validUntil = p.monthEndDates[`m${p.maxMonth}`];
-
+        p.maxMonth = parseInt($('admin-sched-max-month').value) || 1;
         const sT = $('admin-sched-start').value, eT = $('admin-sched-end').value;
-        if (sT && eT) p.time = `${sT} - ${eT}`;
-        p.days = Array.from(document.querySelectorAll('.admin-day-cb:checked')).map(cb => cb.value);
+        p.time = (sT && eT) ? `${sT} - ${eT}` : '';
         materials[`profile-${email}`] = p;
     });
-    showToast('Jadwal murid berhasil disimpan!', 'success');
-    loadStudentScheduleForm();
+    showToast('Pengaturan murid berhasil disimpan!', 'success');
     renderAdminUsersTab();
 };
 
@@ -178,15 +208,17 @@ function renderAdminUsersTab() {
     if (!tbody) return;
     tbody.innerHTML = window.HES.students.map(s => {
         const p = window.HES.materials[`profile-${s.email}`] || {};
+        const schedCount = Object.keys(p.sessionDates || {}).length;
         return `
-            <tr class="border-b border-slate-100">
-                <td class="p-3 font-extrabold text-slate-800">${s.name}</td>
-                <td class="p-3 text-slate-500">${s.email}</td>
-                <td class="p-3 font-bold">${(p.days || []).join(', ') || '-'} (${p.time || '-'}) • Month ${p.maxMonth || 1}</td>
+            <tr class="border-b border-stone-100">
+                <td class="p-3 font-extrabold text-stone-800">${s.name}</td>
+                <td class="p-3 text-stone-500">${s.email}</td>
+                <td class="p-3 font-bold">Batas Month ${p.maxMonth || 1} ${p.time ? `• ${p.time}` : ''}</td>
+                <td class="p-3 font-extrabold text-teal-700">${schedCount} pertemuan diatur</td>
                 <td class="p-3 font-mono">${s.password}</td>
                 <td class="p-3 text-right space-x-1">
                     <button onclick="editStudentPassword('${s.email}')" class="hes-btn-soft !py-1.5 !px-2.5"><i class="fas fa-key"></i></button>
-                    <button onclick="deleteStudentAccount('${s.email}')" class="hes-btn-soft !bg-red-50 !text-red-600 !py-1.5 !px-2.5"><i class="fas fa-trash"></i></button>
+                    <button onclick="deleteStudentAccount('${s.email}')" class="hes-btn-soft !bg-rose-50 !text-rose-600 !border-rose-200 !py-1.5 !px-2.5"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
     }).join('');
@@ -195,8 +227,10 @@ function renderAdminUsersTab() {
 window.addNewStudent = async function() {
     const name = $('new-stu-name').value.trim(), email = $('new-stu-email').value.trim(), password = $('new-stu-pass').value.trim();
     if (!name || !email || !password) return showToast('Lengkapi semua kolom!', 'error');
+    if (window.HES.students.some(s => s.email.toLowerCase() === email.toLowerCase())) return showToast('Email sudah terdaftar!', 'error');
     window.HES.students.push({ name, email, password });
     await saveToCloud('hes_students', window.HES.students);
+    $('new-stu-name').value = ''; $('new-stu-email').value = ''; $('new-stu-pass').value = '';
     populateAllAdminDropdowns();
     renderAdminUsersTab();
     showToast(`Akun ${name} berhasil dibuat!`, 'success');
@@ -217,12 +251,12 @@ window.deleteStudentAccount = async function(email) {
 };
 
 // ============================================================================
-// TAB 3: BUILDER MODUL MATERI (SIMPLE ENGLISH • MODERN SIDE-BY-SIDE STYLE)
+// TAB 3: BUILDER MODUL MATERI & RECAP (TANPA WORDBANK / KOSAKATA)
 // ============================================================================
 window.switchAdminMaterialSubtab = function(sub) {
     currentAdminMaterialSubtab = sub;
-    if ($('adm-mat-subtab-module')) $('adm-mat-subtab-module').className = `px-4 py-2 rounded-xl text-xs font-extrabold transition ${sub === 'module' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
-    if ($('adm-mat-subtab-recap')) $('adm-mat-subtab-recap').className = `px-4 py-2 rounded-xl text-xs font-extrabold transition ${sub === 'recap' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if ($('adm-mat-subtab-module')) $('adm-mat-subtab-module').className = `px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${sub === 'module' ? 'bg-white text-teal-700 shadow-xs' : 'text-stone-600 hover:text-stone-900'}`;
+    if ($('adm-mat-subtab-recap')) $('adm-mat-subtab-recap').className = `px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${sub === 'recap' ? 'bg-white text-emerald-700 shadow-xs' : 'text-stone-600 hover:text-stone-900'}`;
     $('admin-editor-module-box')?.classList.toggle('hidden', sub !== 'module');
     $('admin-editor-recap-box')?.classList.toggle('hidden', sub !== 'recap');
     updateAdminMaterialStatusBadge();
@@ -255,9 +289,9 @@ function renderAdminMonthSessionsBar(pref, m, activeW, activeD) {
         const w = Math.floor(i / 3) + 1, d = (i % 3) + 1;
         const hasMod = Boolean((window.HES.materials[`${pref}-${m}-w${w}-d${d}-link`] || '').trim());
         const hasRec = Boolean((window.HES.materials[`${pref}-${m}-w${w}-d${d}-recap`] || '').trim());
-        let cls = hasMod ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300';
-        if (w === activeW && d === activeD) cls = 'bg-indigo-600 text-white border-indigo-700 shadow-xs ring-2 ring-indigo-300';
-        return `<button type="button" onclick="selectAdminMaterialSession(${w}, ${d})" title="Sesi ${i + 1} (Week ${w} Day ${d}) ${hasMod ? '• Modul Terisi' : '• Kosong'}" class="py-2 px-1 rounded-xl border text-xs font-extrabold transition flex flex-col items-center justify-center cursor-pointer ${cls}"><span>${i + 1}</span><span class="text-[9px] opacity-80">${hasMod ? (hasRec ? '✓+R' : '✓') : '-'}</span></button>`;
+        let cls = hasMod ? 'bg-teal-50 text-teal-800 border-teal-300' : 'bg-white text-stone-500 border-stone-200 hover:border-teal-300';
+        if (w === activeW && d === activeD) cls = 'bg-teal-700 text-white border-teal-800 shadow-xs ring-2 ring-teal-300';
+        return `<button type="button" onclick="selectAdminMaterialSession(${w}, ${d})" class="py-2 px-1 rounded-xl border text-xs font-extrabold transition flex flex-col items-center justify-center cursor-pointer ${cls}"><span>${i + 1}</span><span class="text-[9px] opacity-80">${hasMod ? (hasRec ? '✓+R' : '✓') : '-'}</span></button>`;
     }).join('');
 }
 
@@ -265,7 +299,7 @@ function updateAdminMaterialStatusBadge() {
     const badge = $('admin-material-status-badge');
     if (!badge) return;
     const val = (currentAdminMaterialSubtab === 'module' ? $('admin-link')?.value : $('admin-recap-pdf')?.value || '').trim();
-    badge.className = `text-[11px] font-extrabold px-3 py-1 rounded-lg ${val ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`;
+    badge.className = `text-[11px] font-extrabold px-3 py-1 rounded-lg ${val ? 'bg-teal-100 text-teal-800' : 'bg-stone-200 text-stone-600'}`;
     badge.innerHTML = val ? '<i class="fas fa-check-circle mr-1"></i> Sudah Terisi' : 'Belum Diisi';
 }
 
@@ -274,140 +308,89 @@ window.copyGeminiModulePrompt = function(mode = 'single') {
     const sNum = ((parseInt($('admin-week')?.value || '1') - 1) * 3) + parseInt($('admin-day')?.value || '1');
 
     const prompts = {
-        single: `Act as an engaging, modern ESL author who combines the best parts of the classic "Side by Side" book (guided conversational practice, clear visual patterns, and rich everyday examples) with a fun, modern, non-repetitive twist for "Hamdi English Studio".
+        single: `Act as an engaging, modern ESL author for "Hamdi English Studio". Create a fun, interactive, example-driven lesson handout for ${m} - Session ${sNum} on the topic: [ISI TOPIK MATERI DI SINI].
+Use 100% SIMPLE, EASY-TO-UNDERSTAND ENGLISH (A2–B1). Explain briefly, teach with rich everyday examples, mini-dialogues, Side-by-Side Q&A cues, and free-talk prompts inside 1 code block:
 
-Create a fun, interactive, example-driven lesson handout for ${m} - Session ${sNum} on the topic: [ISI TOPIK MATERI DI SINI].
-
-CRITICAL TEACHING RULES (MUST FOLLOW):
-1. 100% SIMPLE, EASY-TO-UNDERSTAND ENGLISH:
-   - Write the entire lesson in clear, friendly, natural English (A2–B1 friendly). Do NOT use Indonesian explanations.
-   - Keep explanations super short (1–2 sentences max). Teach through LOTS OF PRACTICAL EXAMPLES, mini-conversations, and guided speaking cues instead of heavy grammar theory!
-2. MODERN "SIDE BY SIDE" FLOW (FUN & NOT BORING):
-   - Do NOT follow a stiff, boring textbook lecture. Make it feel alive and easy for a tutor and student to read and practice together out loud!
-   - Include:
-     a) A quick, relatable Model Mini-Dialogue or Scene to see the target English in action right away.
-     b) Visual Pattern & Example Cards showing how the sentences work with multiple real-life examples.
-     c) "Side-by-Side" Guided Speaking Prompts (5–6 varied, modern situations—not boring or overly repetitive—where the Tutor asks a question and the Student practices answering using fun cues).
-     d) Everyday Expressions / Natural Upgrades (comparing stiff textbook English vs. friendly natural English).
-     e) "Your Turn!" Personal Free-Talk & Roleplay Questions so the student immediately applies the lesson to their own real life.
-
-SUPPORTED VISUAL BLOCKS IN OUR SYSTEM (Mix and arrange these naturally inside 1 code block):
-
-TITLE: [Catchy, Friendly Lesson Title in Simple English]
+TITLE: [Catchy Lesson Title]
 LEVEL: [${m} • Session ${sNum} of 12]
-STYLE: [Choose theme color: ocean / indigo / teal / amber]
-GOAL: [1 simple, encouraging English sentence about what we will practice speaking today]
+STYLE: [teal / ocean / amber / indigo]
+GOAL: [1 encouraging English sentence]
 
-## [Creative Section 1: e.g., Let's Hear It in Action! / Warm-Up Scene]
-[1 short sentence setting the scene in simple English]
-A: [Natural English line 1]
-B: [Natural English line 2]
-A: [Natural English line 3]
-B: [Natural English line 4]
+## Let's Hear It in Action!
+A: [Natural line 1]
+B: [Natural line 2]
+A: [Natural line 3]
+B: [Natural line 4]
 
-> **Quick Tip**: [1–2 simple English sentences explaining the core trick or pattern so the student gets an instant "Aha!" moment without heavy grammar jargon.]
+> **Quick Tip**: [1–2 simple sentences explaining the core trick]
 
-## [Creative Section 2: e.g., How It Works (Patterns & Real Examples)]
-[1 short intro sentence]
-[+] [Pattern Name] | [Simple Formula Blocks, e.g., I / You / We + usually + Verb] | [2–3 natural example sentences]
-[-] [Negative / Alternative Pattern] | [Simple Formula Blocks] | [2–3 natural example sentences]
-[?] [Question Pattern] | [Simple Formula Blocks] | [2–3 natural question examples]
+## How It Works (Patterns & Examples)
+[+] [Pattern Name] | [Simple Formula] | [2 natural examples]
+[-] [Negative Pattern] | [Simple Formula] | [2 natural examples]
+[?] [Question Pattern] | [Simple Formula] | [2 question examples]
 
-### [Optional Sub-heading: More Everyday Examples You Can Use Today]
-- **[Situation / Time / Context 1]**: "[Natural example sentence 1]" / "[Natural example sentence 2]"
-- **[Situation / Time / Context 2]**: "[Natural example sentence 1]" / "[Natural example sentence 2]"
-- **[Situation / Time / Context 3]**: "[Natural example sentence 1]" / "[Natural example sentence 2]"
-- **[Situation / Time / Context 4]**: "[Natural example sentence 1]" / "[Natural example sentence 2]"
+## Side-by-Side Guided Speaking Practice
+- Cue 1: [Context] | Tutor: "[Question]" | Student: "[Sample Answer]"
+- Cue 2: [Context] | Tutor: "[Question]" | Student: "[Sample Answer]"
+- Cue 3: [Context] | Tutor: "[Question]" | Student: "[Sample Answer]"
 
-## [Creative Section 3: Side-by-Side Guided Speaking Practice]
-Practice these mini-situations out loud together! Switch roles after finishing:
-- [Situation 1: Cue words, e.g., At a Coffee Shop / order iced latte] | [Tutor asks: "..." ] | [Student answers: "..."]
-- [Situation 2: Cue words] | [Tutor asks: "..." ] | [Student answers: "..."]
-- [Situation 3: Cue words] | [Tutor asks: "..." ] | [Student answers: "..."]
-- [Situation 4: Cue words] | [Tutor asks: "..." ] | [Student answers: "..."]
-- [Situation 5: Cue words] | [Tutor asks: "..." ] | [Student answers: "..."]
+## Sound Natural, Not Like a Robot!
+- [Textbook: Stiff sentence] | [Natural: Friendly native sentence] | [Short simple tip]
 
-## [Creative Section 4: Sound Natural, Not Like a Robot!]
-- [Textbook: Stiff or common mistake 1] | [Natural: Friendly native-style sentence 1] | [1 simple English sentence explaining why]
-- [Textbook: Stiff or common mistake 2] | [Natural: Friendly native-style sentence 2] | [1 simple English sentence explaining why]
-- [Textbook: Stiff or common mistake 3] | [Natural: Friendly native-style sentence 3] | [1 simple English sentence explaining why]
+## Your Turn! (Live Speaking)
+1. [Quick Check]: [Fun question] (Answer: [Answer])
+2. [Free Talk]: [Personal question] (Answer: [Sample starter])`,
 
-## [Creative Section 5: Your Turn! (Live Speaking & Fun Check)]
-1. [Quick Fix]: [Fun fill-in-the-blank or choose-the-best-response question] (Answer: [Correct answer + short simple English note])
-2. [Make It Natural]: [Ask the student to say a situation in their own words] (Answer: [2 sample natural answers])
-3. [Real-Life Free Talk]: [An engaging personal question for the tutor and student to chat about for 2 minutes] (Answer: [Sample starter sentence: "Well, in my case, I usually..."])`,
-
-        bulk: `Act as an engaging ESL curriculum author inspired by a modern, fun version of the "Side by Side" book for "Hamdi English Studio".
-Create 12 Interactive Lesson Handouts (Session 1 to Session 12) for ${m} in 100% SIMPLE, EASY-TO-UNDERSTAND ENGLISH.
-Monthly Theme / Level: [ISI TEMA / LEVEL BULAN INI, MISAL: EVERYDAY CONVERSATION & PRACTICAL GRAMMAR IN ACTION].
-
-CRITICAL RULES SO THE 12 SESSIONS ARE FUN, EXAMPLE-RICH, AND NEVER FEEL LIKE A BORING TEMPLATE:
-1. 100% SIMPLE ENGLISH & LOTS OF EXAMPLES:
-   - No long grammar theory! Explain concepts in 1–2 simple English sentences, then give plenty of vivid everyday examples, mini-dialogues, and Side-by-Side speaking cues.
-2. VARY THE LESSON FLOW ACROSS SESSIONS SO EVERY CLASS FEELS FRESH:
-   - Sessions 1, 5, 9 (Side-by-Side Pattern & Q&A Switch): Open with a snappy model dialogue, visual pattern cards [+]/[-]/[?], 5 Side-by-Side Q&A cue cards (Situation | Question | Answer), and personal free-talk questions.
-   - Sessions 2, 6, 10 (Real-Life Situation & Roleplay Studio): Focus on real places (cafe, office, travel, phone call, weekend hangout), useful expressions (Expression | Simple Meaning | Example), [Textbook: ...] vs [Natural: ...] upgrades, and 2 fun roleplay dialogues.
-   - Sessions 3, 7, 11 (Mini-Story & Guided Retell): Start with a short, relatable 5-sentence story in simple English, highlight 5 key expressions from the story, do a guided Q&A about the story, and ask the student to tell their own similar story.
-   - Sessions 4, 8, 12 (Fluency Booster & Expressing Opinions): Focus on keeping a conversation going (follow-up questions, reactions, agreeing/disagreeing), lots of conversational examples, and fun "Would You Rather / What Do You Think?" speaking prompts.
-3. Separate each session with === on a new line.
-
-Use this clean, flexible format inside 1 code block:
+        bulk: `Act as an engaging ESL curriculum author for "Hamdi English Studio". Create 12 Interactive Lesson Handouts (Session 1 to Session 12) for ${m} in 100% SIMPLE ENGLISH.
+Theme: [ISI TEMA BULAN INI]. Separate each session with === on a new line inside 1 code block:
 
 SESSION: 1
-TITLE: [Engaging Simple English Title]
+TITLE: [Title]
 LEVEL: [${m} • Session 1 of 12]
-STYLE: [ocean / indigo / teal / amber]
-GOAL: [1 simple English sentence about today's speaking goal]
+STYLE: [teal / ocean / amber / indigo]
+GOAL: [1 simple sentence]
 
-## [Creative Section 1]
-[Short intro, mini-dialogue A:/B:, or short relatable story in Simple English...]
-> **Quick Tip**: [1–2 simple English sentences]
+## [Section 1]
+[Dialogue A:/B: or short story + > **Quick Tip**: ...]
 
-## [Creative Section 2]
-[Visual patterns [+]/[-]/[?] with multiple examples, OR everyday example lists, OR useful expressions: Phrase | Simple English Meaning | Example Sentence]
+## [Section 2]
+[Visual patterns [+]/[-]/[?] or useful expressions: Phrase | Meaning | Example]
 
-## [Creative Section 3]
-[Side-by-Side Guided Speaking Cues: Situation/Cue | Question: "..." | Answer: "..." OR [Textbook: ...] | [Natural: ...] | [Why]]
+## [Section 3]
+[Side-by-Side Cues OR [Textbook: ...] | [Natural: ...] | [Tip]]
 
-## [Creative Section 4]
-[Roleplay Dialogue Man:/Woman: or A:/B: + 3 Interactive Speaking/Practice Prompts with (Answer: ...)]
+## [Section 4]
+[3 Speaking Practice Tasks with (Answer: ...)]
 ===
 SESSION: 2
-... (continue with varied, lively teaching flows up to SESSION: 12)`,
+... (up to SESSION: 12)`,
 
-        recap: `Create a warm, encouraging Class Recap & Practice Note in 100% SIMPLE, EASY-TO-UNDERSTAND ENGLISH for my student after finishing Session ${sNum} (${m}).
-Today's class highlights / corrections: [ISI TOPIK ATAU CATATAN KOREKSI KELAS HARI INI].
-
-Write the output inside 1 code block using this friendly format:
+        recap: `Create a warm, encouraging Class Recap in 100% SIMPLE ENGLISH for Session ${sNum} (${m}).
+Class notes: [ISI CATATAN KELAS HARI INI].
 
 TITLE: Class Recap & Speaking Highlights • Session ${sNum}
 LEVEL: ${m} • Personal Coaching Notes
 STYLE: emerald
-GOAL: Review our best examples from today's class and keep your English sounding natural!
+GOAL: Review our best examples from today's class!
 
 ## Great Job Today!
-[Write 2 short, warm sentences in simple English praising the student's speaking effort and confidence today.]
+[2 warm sentences praising the student.]
 
-## Favorite Expressions & Examples We Practiced
-- [Expression / Word 1] | [Simple English meaning & when to use it] | [Example sentence we practiced]
-- [Expression / Word 2] | [Simple English meaning & when to use it] | [Example sentence we practiced]
-- [Expression / Word 3] | [Simple English meaning & when to use it] | [Example sentence we practiced]
-- [Expression / Word 4] | [Simple English meaning & when to use it] | [Example sentence we practiced]
+## Favorite Expressions We Practiced
+- [Expression 1] | [Simple meaning] | [Example sentence]
+- [Expression 2] | [Simple meaning] | [Example sentence]
 
-## Say It Naturally (Sentence Upgrades from Today's Class)
-- [In Class: Sentence that needed a small fix 1] | [Better & Natural: Corrected natural sentence 1] | [1 simple English tip]
-- [In Class: Sentence that needed a small fix 2] | [Better & Natural: Corrected natural sentence 2] | [1 simple English tip]
-- [In Class: Sentence that needed a small fix 3] | [Better & Natural: Corrected natural sentence 3] | [1 simple English tip]
+## Say It Naturally (Upgrades from Today)
+- [In Class: Sentence to fix] | [Better & Natural: Corrected sentence] | [Short tip]
 
-> **Fluency Tip for This Week**: [1 super simple, practical speaking or pronunciation tip the student can try right away.]
+> **Fluency Tip**: [1 simple weekly speaking habit]
 
-## Quick 2-Minute Practice Before Our Next Class
-1. [Quick Check]: [1 simple review question from today's lesson] (Answer: [Correct answer])
-2. [Mini Speaking Challenge]: [1 fun, easy speaking prompt to practice out loud for 30 seconds] (Answer: [Sample starter sentence])`
+## Quick Practice
+1. [Speaking Challenge]: [30-second speaking prompt] (Answer: [Sample starter])`
     };
 
     navigator.clipboard.writeText(prompts[mode] || prompts.single)
-        .then(() => showToast('Prompt Simple English (Side-by-Side & Rich Examples) berhasil disalin!', 'success'))
+        .then(() => showToast('Prompt Gemini berhasil disalin!', 'success'))
         .catch(() => showToast('Gagal menyalin otomatis.', 'error'));
 };
 
@@ -417,84 +400,44 @@ window.insertSampleModuleTemplate = function(type = 'module') {
 
     if (type === 'module') {
         $('admin-link').value = `TITLE: Talking About Daily Habits & What You Are Doing Right Now
-LEVEL: ${m} • Session ${sNum} of 12 • Side-by-Side Speaking Practice
-STYLE: ocean
+LEVEL: ${m} • Session ${sNum} of 12
+STYLE: teal
 GOAL: Easily switch between talking about your usual routine ("I usually...") and what is happening right now ("Right now, I'm...").
 
 ## Let's Hear It in Action!
-Read this short conversation out loud together. Notice how Leo and Maya switch between **usual habits** and **right now**:
-
 Man: Hey Maya! Aren't you usually at the office at this hour?
 Woman: I usually work at the office on Mondays, but today I'm working from a coffee shop!
-Man: Nice! What are you drinking? You always drink black coffee, right?
-Woman: Haha, yes, I usually order an Americano, but right now I'm trying an iced matcha latte.
-Man: Sounds great! Have a productive morning!
-Woman: Thanks, Leo! Catch you later!
+Man: Nice! What are you drinking?
+Woman: I usually order an Americano, but right now I'm trying an iced matcha latte.
 
-> **Quick Tip**: Use **I usually / I always + Verb** for things you do again and again. Use **Right now / Today, I'm + Verb-ing** for something happening at this moment or temporary today!
+> **Quick Tip**: Use **I usually + Verb 1** for habits, and **Right now / Today, I'm + Verb-ing** for things happening at this moment!
 
-## Picture the Pattern: Habits vs. Right Now
-Compare these examples side by side. Read the examples out loud:
+## Picture the Pattern
+[+] Usual Habit | I / You / We / They + usually + Verb 1 | I usually cook dinner at home.
+[*] Right Now / Today | Subject + am / is / are + Verb-ing | Today I'm eating out with friends!
 
-[+] Usual Habit (Every Day / Every Week) | I / You / We / They + usually + Verb 1 | I usually cook dinner at home, and we often watch a movie at 8 PM.
-[+] Usual Habit (He / She) | He / She + usually + Verb-s | Sarah usually drives to work, and she always listens to podcasts in the car.
-[*] Happening Right Now / Today | Subject + am / is / are + Verb-ing | Right now, I'm eating out with friends, and Sarah is taking the train today!
-[?] Asking About Habits vs. Right Now | What do you usually do... ? vs. What are you doing... ? | What do you usually do after work? / What are you doing tonight?
+## Side-by-Side Guided Practice
+- Cue 1: Work Space | Tutor: "Where do you usually work, and where are you working today?" | Student: "I usually work at the office, but today I'm working from home."
+- Cue 2: Dinner | Tutor: "Are you ordering food tonight?" | Student: "I usually order food on Fridays, but tonight I'm cooking fried rice!"
 
-### 6 Real-Life Examples You Can Use Today
-- **Morning Coffee**: "I **usually drink** hot tea in the morning, but **today I'm drinking** iced coffee."
-- **Getting to Work**: "He **usually rides** his motorbike to the office, but **right now he's taking** a taxi because it's raining."
-- **Lunch Time**: "We **normally eat** lunch at the canteen, but **today we're trying** a new noodle place."
-- **Evening Routine**: "I **usually go** to bed around 10 PM, but **tonight I'm staying** up late to finish a great movie."
-- **Weekend Plans**: "She **often stays** home on Saturdays, but **this weekend she's visiting** her cousin in Bandung."
-- **Free Time**: "I **rarely play** video games on weekdays, but **right now I'm taking** a quick 15-minute break."
-
-## Side-by-Side Guided Q&A Practice (Tutor & Student)
-Let's practice together! First, the Tutor asks and the Student answers using the cues. Then switch roles!
-
--Cue 1: Work Space (usually: work at the office / today: work from home) | Tutor: "Where do you usually work, and where are you working today?" | Student: "I usually work at the office, but today I'm working from home."
-- Cue 2: Breakfast (usually: eat toast and eggs / this morning: grab a quick smoothie) | Tutor: "What do you usually have for breakfast?" | Student: "I usually eat toast and eggs, but this morning I'm just grabbing a quick smoothie."
-- Cue 3: Your Best Friend (usually: reply to texts fast / right now: busy in a meeting) | Tutor: "Why isn't your friend replying to your message?" | Student: "He usually replies super fast, but right now he's sitting in a big meeting."
-- Cue 4: Exercise (usually: go jogging in the afternoon / today: rest at home) | Tutor: "Are you going for a jog this afternoon?" | Student: "I usually go jogging at 5 PM, but today I'm resting at home because I'm a bit tired."
-- Cue 5: Cooking (usually: order food online / tonight: cook fried rice) | Tutor: "What's for dinner tonight? Are you ordering food?" | Student: "I usually order food online on Fridays, but tonight I'm cooking special fried rice!"
-
-## Sound Natural, Not Like a Robot!
-- [Textbook: Today I work from home.] | [Natural: I'm working from home today.] | When something is temporary just for today, native speakers use "I'm + Verb-ing".
-- [Textbook: I am usually wake up at 6 AM.] | [Natural: I usually wake up around 6 AM.] | Never put "am / is / are" before a regular action verb like "wake up", "work", or "eat".
-- [Textbook: Now I am agree with you.] | [Natural: I totally agree with you!] | Feeling and thinking words like "agree", "know", "like", and "need" don't use "-ing".
-
-## Your Turn! (Live Speaking & Personal Chat)
-1. [Quick Spot Check]: Which sentence sounds natural for something happening right now? A) "Look! It rains outside!" or B) "Look! It's raining outside!" (Answer: B! "Look! It's raining outside!" because it is happening right in front of you right now.)
-2. [Switch It Up]: Complete this sentence about yourself out loud: "On weekdays, I usually _______, but today I'm _______." (Answer: Sample: "On weekdays, I usually finish work at 5 PM, but today I'm practicing English with my tutor!")
-3. [2-Minute Free Talk]: Tell me 3 things you **usually** do on weekends, and 1 special thing you **are doing** this coming weekend! (Answer: Sample starter: "Well, on weekends I usually sleep in and hang out with my family. This coming weekend, I'm going to...")`;
+## Your Turn!
+1. [Free Talk]: Tell me 2 things you usually do on weekends, and 1 thing you are doing this week! (Answer: Sample: "On weekends I usually relax at home, and this week I'm...")`;
     } else {
-        $('admin-recap-pdf').value = `TITLE: Class Recap & Speaking Highlights • Session ${sNum}
+        $('admin-recap-pdf').value = `TITLE: Class Recap • Session ${sNum}
 LEVEL: ${m} • Personal Coaching Notes
 STYLE: emerald
-GOAL: Review our best examples from today's class and keep your English sounding natural!
+GOAL: Review today's speaking highlights and sentence upgrades!
 
 ## Great Job Today!
-You did an awesome job practicing our Side-by-Side conversations today! Your examples about your daily routine and what you're doing this week sounded clear, natural, and confident.
+You spoke clearly and confidently during our conversation practice today. Keep up the great energy!
 
-## Favorite Expressions & Examples We Practiced
-- Work from home | Doing your job from your house instead of the office | "I usually go to the office, but today I'm working from home."
-- Grab a quick bite | Eat something fast when you are busy | "Let's grab a quick bite before our next meeting starts."
-- Take a break | Stop working for a short time to rest | "I'm taking a quick 10-minute coffee break right now."
-- Stay up late | Go to sleep later than your usual bedtime | "I rarely stay up late on weekdays, but tonight I'm watching football."
+## Say It Naturally
+- [In Class: Right now I study English.] | [Better & Natural: Right now, I'm studying English.] | Use "I'm + Verb-ing" for actions happening right now.
 
-## Say It Naturally (Sentence Upgrades from Today's Class)
-- [In Class: My brother usually drive to campus.] | [Better & Natural: My brother usually drives to campus.] | Don't forget the "-s" on the verb when talking about He / She / My brother!
-- [In Class: Right now I study English.] | [Better & Natural: Right now, I'm studying English.] | Use "I'm + Verb-ing" for things you are doing at this exact moment.
-- [In Class: I am usually drink coffee.] | [Better & Natural: I usually drink coffee in the morning.] | Drop "am" when you use a normal action verb like "drink", "eat", or "work".
-
-> **Fluency Tip for This Week**: Throughout your day, try thinking of 1 quick sentence in English about what you're doing right now—for example: *"I'm making coffee"*, *"I'm driving home"*, or *"I'm waiting for lunch!"*
-
-## Quick 2-Minute Practice Before Our Next Class
-1. [Quick Check]: Choose the right form: "She usually (cook / cooks) dinner, but tonight we (are ordering / order) pizza!" (Answer: "She usually cooks dinner, but tonight we are ordering pizza!")
-2. [Mini Speaking Challenge]: Send a short 30-second voice note telling me what you are doing today that is different from your usual routine! (Answer: Sample: "Hi! I usually relax at home in the evening, but tonight I'm...")`;
+> **Fluency Tip**: Try saying 1 quick English sentence aloud each morning about what you're doing!`;
     }
     updateAdminMaterialStatusBadge();
-    showToast('Contoh Materi Simple English (Side-by-Side & Banyak Contoh) berhasil dimasukkan! Klik Simpan untuk mencoba.', 'info');
+    showToast('Contoh format berhasil dimasukkan!', 'info');
 };
 
 window.saveMaterialData = async function(isBulk = false) {
@@ -530,7 +473,7 @@ window.saveMaterialData = async function(isBulk = false) {
             });
         });
         loadAdminMaterialEditor();
-        return showToast(`${savedCount} Sesi berhasil diisi & disimpan sekaligus untuk ${m.toUpperCase()}!`, 'success');
+        return showToast(`${savedCount} Sesi berhasil disimpan sekaligus untuk ${m.toUpperCase()}!`, 'success');
     }
 
     await safeSaveMaterialsToCloud(materials => {
@@ -552,86 +495,183 @@ window.clearCurrentSessionMaterial = async function() {
     showToast('Materi sesi ini berhasil dikosongkan.', 'info');
 };
 
-window.updateMasterWordbankCounter = function() {
-    const wb = $('admin-master-wordbank');
-    if (!wb) return;
-    const seen = new Set();
-    wb.value.split('\n').forEach(l => { if (l.includes('=')) { const e = l.split('=')[0].trim().toLowerCase(); if (e) seen.add(e); } });
-    const perDay = parseInt($('admin-words-per-day')?.value || 5);
-    $('master-wordbank-stats-badge').innerText = `${seen.size} Kata Unik`;
-    $('master-wordbank-capacity-text').innerText = `Cukup untuk ${Math.floor(seen.size / perDay)} Pertemuan`;
+// ============================================================================
+// TAB 4: TUGAS SPEAKING / CONVERSATION (BUAT SOAL, DENGAR REKAMAN & NILAI)
+// ============================================================================
+const escAdm = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+window.resetAdminTaskForm = function() {
+    $('admin-task-id').value = '';
+    $('admin-task-title').value = '';
+    $('admin-task-instruction').value = '';
+    $('admin-task-sample').value = '';
+    $('admin-task-form-title').innerHTML = `<i class="fas fa-microphone-lines text-amber-500 mr-1.5"></i> Buat Tugas Conversation`;
+    $('btn-cancel-edit-task')?.classList.add('hidden');
 };
 
-window.saveMasterWordbank = async function() {
-    const wb = $('admin-master-wordbank'), seen = new Set(), clean = [];
-    wb.value.split('\n').forEach(l => {
-        if (!l.includes('=')) return;
-        const [e, ...r] = l.split('=');
-        if (e.trim() && r.join('=').trim() && !seen.has(e.trim().toLowerCase())) {
-            seen.add(e.trim().toLowerCase());
-            clean.push(`${e.trim()} = ${r.join('=').trim()}`);
+window.saveAdminSpeakingTask = async function() {
+    const id = $('admin-task-id').value.trim();
+    const target = $('admin-task-target').value || 'all';
+    const monthId = $('admin-task-month').value || 'general';
+    const title = $('admin-task-title').value.trim();
+    const instruction = $('admin-task-instruction').value.trim();
+    const sample = $('admin-task-sample').value.trim();
+
+    if (!title || !instruction) return showToast('Isi Judul dan Instruksi Conversation terlebih dahulu!', 'error');
+
+    const { error } = await safeSaveMaterialsToCloud(materials => {
+        const list = Array.isArray(materials['speaking_tasks']) ? materials['speaking_tasks'] : [];
+        if (id) {
+            const idx = list.findIndex(t => t.id === id);
+            if (idx !== -1) list[idx] = { ...list[idx], target, monthId, title, instruction, sample };
+        } else {
+            list.unshift({
+                id: 'task_' + Date.now().toString(36),
+                target, monthId, title, instruction, sample,
+                createdAt: new Date().toISOString()
+            });
         }
+        materials['speaking_tasks'] = list;
     });
-    wb.value = clean.join('\n');
+
+    if (!error) {
+        resetAdminTaskForm();
+        renderAdminTasksList();
+        showToast(id ? 'Tugas Conversation diperbarui!' : 'Tugas Conversation berhasil dikirim ke murid!', 'success');
+    } else showToast('Gagal menyimpan tugas: ' + error.message, 'error');
+};
+
+window.editAdminSpeakingTask = function(taskId) {
+    const t = getAllSpeakingTasks().find(x => x.id === taskId);
+    if (!t) return;
+    $('admin-task-id').value = t.id;
+    $('admin-task-target').value = t.target || 'all';
+    $('admin-task-month').value = t.monthId || 'general';
+    $('admin-task-title').value = t.title || '';
+    $('admin-task-instruction').value = t.instruction || '';
+    $('admin-task-sample').value = t.sample || '';
+    $('admin-task-form-title').innerHTML = `<i class="fas fa-pen text-teal-600 mr-1.5"></i> Edit Tugas Conversation`;
+    $('btn-cancel-edit-task')?.classList.remove('hidden');
+    $('admin-task-title').focus();
+};
+
+window.deleteAdminSpeakingTask = async function(taskId) {
+    if (!confirm('Hapus tugas conversation ini?')) return;
     await safeSaveMaterialsToCloud(materials => {
-        materials['master_wordbank'] = wb.value;
-        materials['master_wordbank_per_day'] = parseInt($('admin-words-per-day').value) || 5;
+        materials['speaking_tasks'] = (materials['speaking_tasks'] || []).filter(t => t.id !== taskId);
     });
-    updateMasterWordbankCounter();
-    showToast('Master Wordbank disimpan!', 'success');
+    renderAdminTasksList();
+    showToast('Tugas berhasil dihapus.', 'info');
 };
 
-window.loadAdminVocabPreview = function() {
-    const wb = $('admin-master-wordbank');
-    if (wb) {
-        wb.value = (window.HES.materials['master_wordbank'] || '').trim() || window.DEFAULT_WORDBANK_RAW || '';
-        $('admin-words-per-day').value = String(getWordsPerDaySetting());
-        updateMasterWordbankCounter();
+window.renderAdminTasksList = function() {
+    const box = $('admin-tasks-list-container');
+    if (!box) return;
+    const tasks = getAllSpeakingTasks();
+    const filterStu = $('admin-task-review-student')?.value || 'all';
+
+    if (!tasks.length) {
+        box.innerHTML = `<p class="text-xs text-stone-400 text-center py-10 font-bold">Belum ada tugas conversation. Buat tugas pertama di sebelah kiri!</p>`;
+        return;
     }
-    const m = $('admin-vocab-month')?.value, w = $('admin-vocab-week')?.value, d = $('admin-vocab-day')?.value;
-    if (!m) return;
-    const manual = window.HES.materials[`vocab-${m}-w${w}-d${d}`] || '';
-    $('admin-vocab-list').value = manual.trim() ? manual : getSessionVocabText(m, w, d);
-    $('admin-vocab-source-badge').innerText = manual.trim() ? 'Override Manual' : 'Otomatis Wordbank';
+
+    box.innerHTML = tasks.map(t => {
+        const targetStudents = window.HES.students.filter(s => {
+            const matchesTask = !t.target || t.target === 'all' || t.target === s.email;
+            const matchesFilter = filterStu === 'all' || filterStu === s.email;
+            return matchesTask && matchesFilter;
+        });
+
+        const subsHTML = targetStudents.map(s => {
+            const sub = getTaskSubmission(s.email, t.id);
+            const safeId = `${s.email.replace(/[^a-zA-Z0-9]/g, '_')}_${t.id}`;
+
+            if (!sub || !sub.audioData) {
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-stone-50 border border-stone-200/70 text-xs">
+                        <span class="font-bold text-stone-600">${escAdm(s.name)}</span>
+                        <span class="px-2.5 py-0.5 rounded-md bg-stone-200/80 text-stone-500 text-[10px] font-extrabold">Belum Mengumpulkan</span>
+                    </div>`;
+            }
+
+            const isGraded = sub.status === 'graded';
+            return `
+                <div class="p-3.5 rounded-2xl ${isGraded ? 'bg-teal-50/50 border-teal-200' : 'bg-amber-50/60 border-amber-200'} border space-y-2.5 text-xs">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <span class="font-extrabold text-stone-800">${escAdm(s.name)}</span>
+                            <span class="text-stone-400 ml-1">(${s.email})</span>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${isGraded ? 'bg-teal-700 text-white' : 'bg-amber-500 text-white'}">
+                            ${isGraded ? `✓ Dinilai: ${sub.score}/100` : '● Baru Masuk'}
+                        </span>
+                    </div>
+                    <audio controls preload="metadata" src="${sub.audioData}" class="w-full h-10 rounded-lg"></audio>
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                        <div class="sm:col-span-3">
+                            <input type="number" min="0" max="100" id="task-score-${safeId}" value="${sub.score ?? 85}" placeholder="Skor" class="hes-input !bg-white !py-1.5 text-center font-black">
+                        </div>
+                        <div class="sm:col-span-9">
+                            <input type="text" id="task-fb-${safeId}" value="${escAdm(sub.feedback || '')}" placeholder="Tulis feedback pronunciation / grammar..." class="hes-input !bg-white !py-1.5 !text-xs">
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <a href="${sub.audioData}" download="tugas_${s.name.replace(/\s+/g, '_')}_${t.id}.webm" class="text-[11px] font-extrabold text-teal-700 hover:underline"><i class="fas fa-download mr-1"></i>Unduh Audio</a>
+                        <div class="flex gap-1.5">
+                            <button type="button" onclick="resetSpeakingTaskSubmission('${s.email}', '${t.id}')" class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[11px] font-extrabold cursor-pointer"><i class="fas fa-undo mr-1"></i>Minta Ulang</button>
+                            <button type="button" onclick="gradeSpeakingTask('${s.email}', '${t.id}', '${safeId}')" class="px-3.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-extrabold cursor-pointer"><i class="fas fa-check mr-1"></i>Simpan Nilai</button>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+
+        return `
+            <div class="p-4 rounded-2xl bg-white border border-stone-200 space-y-3">
+                <div class="flex items-start justify-between gap-3 border-b border-stone-100 pb-3">
+                    <div>
+                        <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                            <span class="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase">${escAdm(t.monthId || 'General')}</span>
+                            <span class="text-[11px] font-bold text-stone-400">Target: ${t.target === 'all' ? 'Semua Murid' : escAdm(t.target)}</span>
+                        </div>
+                        <h4 class="text-sm sm:text-base font-extrabold text-stone-900">${escAdm(t.title)}</h4>
+                        <p class="text-xs text-stone-600 mt-1 whitespace-pre-line">${escAdm(t.instruction)}</p>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                        <button type="button" onclick="editAdminSpeakingTask('${t.id}')" class="w-8 h-8 rounded-xl bg-stone-100 hover:bg-teal-50 text-stone-600 hover:text-teal-700 flex items-center justify-center text-xs cursor-pointer"><i class="fas fa-pen"></i></button>
+                        <button type="button" onclick="deleteAdminSpeakingTask('${t.id}')" class="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center text-xs cursor-pointer"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="space-y-2.5">${subsHTML || '<p class="text-xs text-stone-400 italic">Tidak ada murid sesuai filter.</p>'}</div>
+            </div>`;
+    }).join('');
 };
 
-window.saveVocabList = async function() {
-    const m = $('admin-vocab-month').value, w = $('admin-vocab-week').value, d = $('admin-vocab-day').value, val = $('admin-vocab-list').value.trim();
-    await safeSaveMaterialsToCloud(materials => { if (val) materials[`vocab-${m}-w${w}-d${d}`] = val; else delete materials[`vocab-${m}-w${w}-d${d}`]; });
-    loadAdminVocabPreview();
-    showToast('Kosakata sesi disimpan!', 'success');
+window.gradeSpeakingTask = async function(email, taskId, safeId) {
+    const score = Math.max(0, Math.min(100, parseInt($(`task-score-${safeId}`)?.value || '0')));
+    const feedback = $(`task-fb-${safeId}`)?.value.trim() || '';
+
+    const { error } = await safeSaveMaterialsToCloud(materials => {
+        const key = `task_sub-${email}-${taskId}`;
+        if (!materials[key]) return;
+        materials[key].score = score;
+        materials[key].feedback = feedback;
+        materials[key].status = 'graded';
+        materials[key].gradedAt = new Date().toISOString();
+    });
+
+    if (!error) { renderAdminTasksList(); showToast('Nilai & feedback tugas berhasil disimpan!', 'success'); }
+    else showToast('Gagal menyimpan nilai: ' + error.message, 'error');
 };
 
-window.clearManualVocabOverride = async function() {
-    const m = $('admin-vocab-month').value, w = $('admin-vocab-week').value, d = $('admin-vocab-day').value;
-    await safeSaveMaterialsToCloud(materials => { delete materials[`vocab-${m}-w${w}-d${d}`]; });
-    loadAdminVocabPreview();
-    showToast('Dikembalikan ke Wordbank otomatis.', 'info');
-};
-
-window.checkVocabStatus = async function() {
-    await syncFromCloud();
-    const email = $('admin-review-student').value, m = $('admin-review-month').value, w = $('admin-review-week').value, d = $('admin-review-day').value;
-    const st = window.HES.materials[`vocab_status-${email}-${m}-w${w}-d${d}`], box = $('vocab-review-result');
-
-    if (!st || st.status === 'none') {
-        box.innerHTML = `<p class="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center font-semibold">Murid belum menyetor hafalan di sesi ini.</p>`;
-    } else if (st.status === 'submitted') {
-        box.innerHTML = `<div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-3"><p class="text-xs font-extrabold text-amber-900">Menunggu Verifikasi Anda</p><input type="text" id="admin-vocab-feedback" placeholder="Catatan (misal: Good Job!)" class="hes-input !bg-white"><div class="flex gap-2"><button onclick="updateVocabStatus('${email}','${m}',${w},${d},'approved')" class="hes-btn-primary !bg-emerald-600 flex-1">Terima (+25 XP)</button><button onclick="updateVocabStatus('${email}','${m}',${w},${d},'none')" class="hes-btn-soft">Reset</button></div></div>`;
-    } else {
-        box.innerHTML = `<div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center"><span class="text-xs font-extrabold text-emerald-900">✓ Terverifikasi ("${st.feedback || 'Good Job!'}")</span><button onclick="updateVocabStatus('${email}','${m}',${w},${d},'none')" class="text-xs font-bold text-red-600">Batalkan</button></div>`;
-    }
-};
-
-window.updateVocabStatus = async function(email, m, w, d, status) {
-    const fb = $('admin-vocab-feedback')?.value.trim() || '';
-    await safeSaveMaterialsToCloud(materials => { materials[`vocab_status-${email}-${m}-w${w}-d${d}`] = { status, feedback: fb }; });
-    checkVocabStatus();
-    showToast('Status hafalan diperbarui!', 'success');
+window.resetSpeakingTaskSubmission = async function(email, taskId) {
+    if (!confirm(`Hapus rekaman ${email} agar murid bisa merekam ulang tugas ini?`)) return;
+    await safeSaveMaterialsToCloud(materials => { delete materials[`task_sub-${email}-${taskId}`]; });
+    renderAdminTasksList();
+    showToast('Rekaman direset. Murid bisa merekam ulang sekarang.', 'info');
 };
 
 // ============================================================================
-// TAB 4: BUILDER SOAL UJIAN, RESET PER BAGIAN & PENILAIAN RAPOR
+// TAB 5: BUILDER SOAL UJIAN, RESET PER BAGIAN (+ KUOTA LISTENING) & PENILAIAN
 // ============================================================================
 window.loadAdminExamData = async function() {
     await syncFromCloud();
@@ -651,53 +691,50 @@ window.switchExamTab = function(tab) {
     ['listening', 'speaking', 'reading', 'writing'].forEach(t => {
         const count = (adminExamState.data?.[t] || []).length, btn = $(`tab-${t}`);
         if (btn) {
-            btn.innerHTML = `<span class="capitalize">${t}</span> <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] ${count === 10 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}">${count}/10</span>`;
-            btn.className = `px-4 py-3 text-xs font-extrabold border-b-2 transition ${t === tab ? 'border-indigo-600 text-indigo-600 bg-white' : 'border-transparent text-slate-500'}`;
+            btn.innerHTML = `<span class="capitalize">${t}</span> <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] ${count === 10 ? 'bg-teal-100 text-teal-800' : 'bg-stone-200 text-stone-600'}">${count}/10</span>`;
+            btn.className = `px-4 py-3 text-xs font-extrabold border-b-2 transition cursor-pointer ${t === tab ? 'border-teal-700 text-teal-700 bg-white' : 'border-transparent text-stone-500'}`;
         }
     });
     renderExamQuestions();
 };
 
 window.copyGeminiExamPrompt = function() {
-    const promptText = `Buatkan saya paket soal ujian bahasa Inggris tentang materi: [ISI TOPIK MATERI DI SINI].
-Buat masing-masing 10 soal untuk 4 bagian (Listening, Speaking, Reading, Writing) dalam 4 kotak code block terpisah dengan format persis seperti di bawah ini agar bisa langsung saya copy-paste ke sistem saya. Gunakan pemisah === antar soal.
+    const promptText = `Buatkan paket soal ujian bahasa Inggris tentang materi: [ISI TOPIK MATERI DI SINI].
+Buat masing-masing 10 soal untuk 4 bagian (Listening, Speaking, Reading, Writing) dalam 4 kotak code block terpisah. Gunakan pemisah === antar soal.
 
-1. FORMAT KOTAK LISTENING (10 Soal Pilihan Ganda):
+1. LISTENING (10 Pilihan Ganda):
 AUDIO: Man: [kalimat pria] / Woman: [kalimat wanita]
 Q: [Pertanyaan bahasa Inggris]
 A: [Pilihan A]
 B: [Pilihan B]
 C: [Pilihan C]
 D: [Pilihan D]
-KEY: [Huruf A/B/C/D]
-EXP: [Pembahasan singkat bahasa Indonesia]
+KEY: [A/B/C/D]
+EXP: [Pembahasan singkat]
 ===
 
-2. FORMAT KOTAK SPEAKING (10 Soal Baca Nyaring / Speaking):
+2. SPEAKING (10 Baca Nyaring / Speaking):
 Q: [Instruksi soal]
-TARGET: [Kalimat bahasa Inggris yang harus diucapkan murid]
-EXP: [Tips pelafalan bahasa Indonesia]
+TARGET: [Kalimat bahasa Inggris target]
+EXP: [Tips pelafalan]
 ===
 
-3. FORMAT KOTAK READING (10 Soal Pilihan Ganda):
-Q: [Teks pendek & pertanyaan bahasa Inggris]
+3. READING (10 Pilihan Ganda):
+Q: [Teks pendek & pertanyaan]
 A: [Pilihan A]
 B: [Pilihan B]
 C: [Pilihan C]
 D: [Pilihan D]
-KEY: [Huruf A/B/C/D]
-EXP: [Pembahasan singkat bahasa Indonesia]
+KEY: [A/B/C/D]
+EXP: [Pembahasan singkat]
 ===
 
-4. FORMAT KOTAK WRITING (10 Soal Isian / Essay):
-Q: [Instruksi & soal bahasa Inggris]
-KEY: [Kunci jawaban bahasa Inggris]
-EXP: [Pembahasan singkat bahasa Indonesia]
+4. WRITING (10 Isian / Essay):
+Q: [Instruksi & soal]
+KEY: [Kunci jawaban]
+EXP: [Pembahasan singkat]
 ===`;
-
-    navigator.clipboard.writeText(promptText)
-        .then(() => showToast('Prompt Gemini berhasil disalin!', 'success'))
-        .catch(() => showToast('Gagal menyalin otomatis.', 'error'));
+    navigator.clipboard.writeText(promptText).then(() => showToast('Prompt Gemini Ujian disalin!', 'success'));
 };
 
 window.toggleBulkImportBox = () => $('bulk-import-box')?.classList.toggle('hidden');
@@ -714,7 +751,6 @@ window.processBulkExamImport = async function(replaceExisting = true) {
     blocks.forEach((block, bIdx) => {
         const lines = block.split('\n').map(l => l.trim()).filter(l => l && !/^soal\s*#?\d+/i.test(l));
         if (!lines.length) return;
-
         let audioLines = [], f = { q: '', a: '', b: '', c: '', d: '', key: '', exp: '' }, cur = '';
         const rules = [
             [/^(?:Q|QUESTION|PERTANYAAN|SOAL)\s*:\s*/i, 'q'],
@@ -739,15 +775,10 @@ window.processBulkExamImport = async function(replaceExisting = true) {
 
         const audioScript = audioLines.join('\n').replace(/\s*[\/|]\s*/g, '\n').trim();
         if (!f.q && !audioScript) return;
-
         const qType = (tab === 'speaking' || tab === 'writing') ? 'essay' : ((f.a || f.b || f.c || f.d) ? 'mcq' : 'essay');
         parsed.push({
-            id: `${Date.now()}_${bIdx}`,
-            type: qType,
-            question: f.q || `Question #${bIdx + 1}`,
-            audioScript,
-            mediaUrl: '',
-            options: qType === 'mcq' ? [f.a, f.b, f.c, f.d] : [],
+            id: `${Date.now()}_${bIdx}`, type: qType, question: f.q || `Question #${bIdx + 1}`,
+            audioScript, mediaUrl: '', options: qType === 'mcq' ? [f.a, f.b, f.c, f.d] : [],
             answer: qType === 'mcq' ? ({ A: 0, B: 1, C: 2, D: 3 }[String(f.key || 'A').trim().toUpperCase().charAt(0)] ?? 0) : f.key,
             explanation: f.exp
         });
@@ -757,7 +788,7 @@ window.processBulkExamImport = async function(replaceExisting = true) {
     adminExamState.data[tab] = replaceExisting ? parsed : [...(adminExamState.data[tab] || []), ...parsed];
     switchExamTab(tab);
     await saveAdminExamData();
-    showToast(`${parsed.length} soal ${tab.toUpperCase()} berhasil diinput & disimpan!`, 'success');
+    showToast(`${parsed.length} soal ${tab.toUpperCase()} berhasil diinput!`, 'success');
 };
 
 window.addExamQuestion = function(type) {
@@ -785,28 +816,28 @@ window.updateExamField = function(idx, field, val, optIdx = null) {
 function renderExamQuestions() {
     const box = $('admin-exam-questions-container'), tab = adminExamState.activeTab, list = adminExamState.data[tab] || [];
     const bulkImportUI = `
-        <div class="p-4 rounded-2xl bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 space-y-3">
+        <div class="p-4 rounded-2xl bg-gradient-to-r from-teal-50 to-amber-50/60 border border-teal-200 space-y-3">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
-                    <h4 class="text-xs sm:text-sm font-extrabold text-indigo-950 uppercase flex items-center gap-1.5"><i class="fas fa-bolt text-amber-500"></i> Bagian ${tab} • ${list.length} / 10 Soal (Suara Cloud Neural Natural)</h4>
-                    <p class="text-xs text-slate-600 mt-0.5">Klik <strong>Input Cepat 10 Soal</strong> untuk menempelkan soal langsung dari Gemini.</p>
+                    <h4 class="text-xs sm:text-sm font-extrabold text-teal-950 uppercase flex items-center gap-1.5"><i class="fas fa-bolt text-amber-500"></i> Bagian ${tab} • ${list.length} / 10 Soal</h4>
+                    <p class="text-xs text-stone-600 mt-0.5">Klik <strong>Input Cepat 10 Soal</strong> untuk menempelkan soal langsung dari Gemini.</p>
                 </div>
                 <div class="flex flex-wrap gap-2 shrink-0">
-                    <button type="button" onclick="copyGeminiExamPrompt()" class="px-3 py-2 rounded-xl bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-copy mr-1"></i> Salin Prompt Gemini</button>
-                    <button type="button" onclick="toggleBulkImportBox()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer"><i class="fas fa-paste mr-1"></i> Input Cepat 10 Soal</button>
+                    <button type="button" onclick="copyGeminiExamPrompt()" class="px-3 py-2 rounded-xl bg-white hover:bg-teal-50 text-teal-700 border border-teal-200 text-xs font-extrabold transition cursor-pointer"><i class="fas fa-copy mr-1"></i> Salin Prompt Gemini</button>
+                    <button type="button" onclick="toggleBulkImportBox()" class="px-3.5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-extrabold shadow-xs transition cursor-pointer"><i class="fas fa-paste mr-1"></i> Input Cepat 10 Soal</button>
                 </div>
             </div>
-            <div id="bulk-import-box" class="hidden pt-3 border-t border-indigo-200/70 space-y-2.5">
+            <div id="bulk-import-box" class="hidden pt-3 border-t border-teal-200/70 space-y-2.5">
                 <textarea id="bulk-import-textarea" rows="7" class="hes-input !bg-white font-mono text-xs" placeholder="Tempelkan soal ${tab.toUpperCase()} di sini (pisahkan antar soal dengan ===)..."></textarea>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" onclick="processBulkExamImport(true)" class="hes-btn-primary !bg-emerald-600 flex-1 !py-2.5 !text-xs cursor-pointer"><i class="fas fa-magic"></i> Proses & Ganti Semua Soal ${tab.toUpperCase()}</button>
-                    <button type="button" onclick="processBulkExamImport(false)" class="hes-btn-soft !bg-white !py-2.5 !text-xs cursor-pointer">+ Tambahkan ke Bawah</button>
+                    <button type="button" onclick="processBulkExamImport(true)" class="hes-btn-primary flex-1 !py-2.5 !text-xs"><i class="fas fa-magic"></i> Proses & Ganti Semua</button>
+                    <button type="button" onclick="processBulkExamImport(false)" class="hes-btn-soft !bg-white !py-2.5 !text-xs">+ Tambahkan ke Bawah</button>
                 </div>
             </div>
         </div>`;
 
     if (!list.length) {
-        box.innerHTML = bulkImportUI + `<p class="text-xs text-slate-400 text-center py-8">Belum ada soal di bagian ${tab.toUpperCase()}.</p>`;
+        box.innerHTML = bulkImportUI + `<p class="text-xs text-stone-400 text-center py-8">Belum ada soal di bagian ${tab.toUpperCase()}.</p>`;
         return;
     }
 
@@ -814,30 +845,30 @@ function renderExamQuestions() {
         const scriptVal = q.audioScript || (!String(q.mediaUrl || '').startsWith('http') ? (q.mediaUrl || '') : '');
         const mp3Val = String(q.mediaUrl || '').startsWith('http') ? q.mediaUrl : '';
         return `
-        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+        <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3">
             <div class="flex justify-between items-center">
-                <div class="flex items-center gap-2"><span class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-extrabold">Soal #${idx + 1}</span><span class="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold">10 Poin</span></div>
-                <button type="button" onclick="removeExamQuestion(${idx})" class="text-xs text-red-500 hover:text-red-700 font-bold"><i class="fas fa-trash mr-1"></i>Hapus</button>
+                <div class="flex items-center gap-2"><span class="px-2.5 py-1 rounded-lg bg-teal-700 text-white text-xs font-extrabold">Soal #${idx + 1}</span><span class="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold">10 Poin</span></div>
+                <button type="button" onclick="removeExamQuestion(${idx})" class="text-xs text-rose-500 hover:text-rose-700 font-bold cursor-pointer"><i class="fas fa-trash mr-1"></i>Hapus</button>
             </div>
             ${tab === 'listening' ? `
-                <div class="p-3.5 rounded-xl bg-white border border-indigo-200 space-y-2">
+                <div class="p-3.5 rounded-xl bg-white border border-teal-200 space-y-2">
                     <div class="flex items-center justify-between">
-                        <label class="text-xs font-extrabold text-indigo-700"><i class="fas fa-headphones-alt mr-1"></i> Naskah Audio Listening (Man / Woman)</label>
-                        <button type="button" onclick="playNaturalEnglishTTS(document.getElementById('script_${idx}').value, this)" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold transition cursor-pointer"><i class="fas fa-play mr-1"></i> Tes Suara</button>
+                        <label class="text-xs font-extrabold text-teal-700"><i class="fas fa-headphones-alt mr-1"></i> Naskah Audio Listening (Man / Woman)</label>
+                        <button type="button" onclick="playNaturalEnglishTTS(document.getElementById('script_${idx}').value, this)" class="px-3 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-xs font-extrabold transition cursor-pointer"><i class="fas fa-play mr-1"></i> Tes Suara</button>
                     </div>
-                    <textarea id="script_${idx}" oninput="updateExamField(${idx},'audioScript',this.value)" rows="2" placeholder="Man: ...&#10;Woman: ..." class="hes-input !bg-slate-50 text-xs">${scriptVal}</textarea>
-                    <input type="text" onchange="updateExamField(${idx},'mediaUrl',this.value)" value="${mp3Val}" placeholder="Opsional: Link file MP3 eksternal" class="hes-input !bg-slate-50 !py-1.5 text-[11px]">
+                    <textarea id="script_${idx}" oninput="updateExamField(${idx},'audioScript',this.value)" rows="2" placeholder="Man: ...&#10;Woman: ..." class="hes-input !bg-stone-50 text-xs">${scriptVal}</textarea>
+                    <input type="text" onchange="updateExamField(${idx},'mediaUrl',this.value)" value="${mp3Val}" placeholder="Opsional: Link file MP3 eksternal" class="hes-input !bg-stone-50 !py-1.5 text-[11px]">
                 </div>` : ''}
-            <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Pertanyaan / Instruksi Soal #${idx + 1}</label><textarea oninput="updateExamField(${idx},'question',this.value)" rows="2" class="hes-input !bg-white">${q.question || ''}</textarea></div>
+            <div><label class="block text-[11px] font-bold text-stone-500 uppercase mb-1">Pertanyaan / Instruksi Soal #${idx + 1}</label><textarea oninput="updateExamField(${idx},'question',this.value)" rows="2" class="hes-input !bg-white">${q.question || ''}</textarea></div>
             ${q.type === 'mcq' ? `
                 <div class="space-y-2 pt-1">
-                    <p class="text-[11px] font-bold text-emerald-700 uppercase">Kunci Jawaban Benar (+10 Poin Otomatis):</p>
+                    <p class="text-[11px] font-bold text-teal-700 uppercase">Kunci Jawaban Benar (+10 Poin Otomatis):</p>
                     ${['A', 'B', 'C', 'D'].map((l, oIdx) => `<div class="flex items-center gap-2"><input type="radio" name="corr_${tab}_${idx}" ${Number(q.answer) === oIdx ? 'checked' : ''} onchange="updateExamField(${idx},'answer',${oIdx})"><span class="text-xs font-extrabold w-5">${l}.</span><input type="text" value="${q.options?.[oIdx] || ''}" oninput="updateExamField(${idx},'options',this.value,${oIdx})" placeholder="Pilihan ${l}" class="hes-input !bg-white !py-1.5"></div>`).join('')}
                 </div>` : `
                 <div>
                     <div class="flex items-center justify-between mb-1">
-                        <label class="text-[11px] font-bold text-emerald-700 uppercase">${tab === 'speaking' ? 'Kalimat Target Pelafalan' : 'Kunci Jawaban / Kriteria'}</label>
-                        ${tab === 'speaking' ? `<button type="button" onclick="playNaturalEnglishTTS(document.getElementById('ans_key_${idx}').value, this)" class="text-[11px] font-extrabold text-indigo-600 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Tes Pelafalan</button>` : ''}
+                        <label class="text-[11px] font-bold text-teal-700 uppercase">${tab === 'speaking' ? 'Kalimat Target Pelafalan' : 'Kunci Jawaban / Kriteria'}</label>
+                        ${tab === 'speaking' ? `<button type="button" onclick="playNaturalEnglishTTS(document.getElementById('ans_key_${idx}').value, this)" class="text-[11px] font-extrabold text-teal-700 hover:underline cursor-pointer"><i class="fas fa-volume-up mr-1"></i>Tes Pelafalan</button>` : ''}
                     </div>
                     <textarea id="ans_key_${idx}" oninput="updateExamField(${idx},'answer',this.value)" rows="2" class="hes-input !bg-white">${q.answer || ''}</textarea>
                 </div>`}
@@ -851,9 +882,6 @@ window.saveAdminExamData = async function() {
     showToast(error ? 'Gagal menyimpan soal: ' + error.message : 'Seluruh soal ujian berhasil disimpan ke Cloud!', error ? 'error' : 'success');
 };
 
-// ============================================================================
-// RESET UJIAN PER BAGIAN (SPEAKING / LISTENING / READING / WRITING / SEMUA)
-// ============================================================================
 window.resetStudentExam = async function() {
     await syncFromCloud();
     const s = $('admin-exam-student').value, m = $('admin-exam-month').value;
@@ -864,53 +892,44 @@ window.resetStudentExam = async function() {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'hes-reset-exam-modal';
-        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 backdrop-blur-xs p-4';
         document.body.appendChild(modal);
     }
 
     const cats = [
-        { id: 'reading',   label: 'Reading',   icon: 'fa-book-open',        color: 'blue' },
-        { id: 'writing',   label: 'Writing',   icon: 'fa-pen-nib',          color: 'indigo' },
+        { id: 'reading',   label: 'Reading',   icon: 'fa-book-open',        color: 'sky' },
+        { id: 'writing',   label: 'Writing',   icon: 'fa-pen-nib',          color: 'teal' },
         { id: 'speaking',  label: 'Speaking',  icon: 'fa-microphone-lines', color: 'emerald' },
         { id: 'listening', label: 'Listening', icon: 'fa-headphones',       color: 'amber' }
     ];
 
     modal.innerHTML = `
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 fade-in">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4 fade-in">
+            <div class="flex items-center justify-between border-b border-stone-100 pb-3">
                 <div>
-                    <h4 class="text-base font-extrabold text-slate-900"><i class="fas fa-undo text-red-500 mr-1.5"></i> Pilih Bagian Ujian yang Direset</h4>
-                    <p class="text-xs font-bold text-slate-500 mt-0.5">${stuObj.name} &bull; ${m.toUpperCase()}</p>
+                    <h4 class="text-base font-extrabold text-stone-900"><i class="fas fa-undo text-rose-500 mr-1.5"></i> Pilih Bagian Ujian yang Direset</h4>
+                    <p class="text-xs font-bold text-stone-500 mt-0.5">${stuObj.name} &bull; ${m.toUpperCase()}</p>
                 </div>
-                <button onclick="document.getElementById('hes-reset-exam-modal').classList.add('hidden')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button onclick="document.getElementById('hes-reset-exam-modal').classList.add('hidden')" class="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-500 flex items-center justify-center cursor-pointer"><i class="fas fa-times"></i></button>
             </div>
-
-            <p class="text-xs text-slate-600 leading-relaxed">Pilih salah satu bagian di bawah ini jika hanya ingin mengulang bagian tertentu (bagian lain tidak akan hilang):</p>
-
+            <p class="text-xs text-stone-600 leading-relaxed">Reset Listening juga otomatis mereset kuota putar audio (2x) di perangkat murid.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 ${cats.map(c => {
                     const isSub = res?.submittedTabs?.includes(c.id) || Object.keys(res?.answers || {}).some(k => k.startsWith(`${c.id}_`));
                     const sc = res?.sectionScores?.[c.id] ?? '-';
                     return `
-                        <button onclick="executeSelectiveExamReset('${s}', '${m}', '${c.id}')" class="p-3.5 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${isSub ? 'bg-white border-slate-200 hover:border-red-400 hover:bg-red-50/40' : 'bg-slate-50 border-slate-100 opacity-60'}">
+                        <button onclick="executeSelectiveExamReset('${s}', '${m}', '${c.id}')" class="p-3.5 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${isSub ? 'bg-white border-stone-200 hover:border-rose-400 hover:bg-rose-50/40' : 'bg-stone-50 border-stone-100 opacity-75'}">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-extrabold text-slate-800"><i class="fas ${c.icon} text-${c.color}-600 mr-1.5"></i> ${c.label}</span>
-                                <span class="text-[10px] font-black px-2 py-0.5 rounded-md ${isSub ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}">${isSub ? `Skor: ${sc}` : 'Kosong'}</span>
+                                <span class="text-xs font-extrabold text-stone-800"><i class="fas ${c.icon} text-${c.color}-600 mr-1.5"></i> ${c.label}</span>
+                                <span class="text-[10px] font-black px-2 py-0.5 rounded-md ${isSub ? 'bg-teal-100 text-teal-800' : 'bg-stone-200 text-stone-500'}">${isSub ? `Skor: ${sc}` : 'Kosong'}</span>
                             </div>
-                            <span class="text-[11px] font-bold text-red-600 mt-2.5 inline-flex items-center gap-1"><i class="fas fa-redo text-[10px]"></i> Reset ${c.label} Saja</span>
+                            <span class="text-[11px] font-bold text-rose-600 mt-2.5 inline-flex items-center gap-1"><i class="fas fa-redo text-[10px]"></i> Reset ${c.label} Saja</span>
                         </button>`;
                 }).join('')}
             </div>
-
-            <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
-                <button onclick="executeSelectiveExamReset('${s}', '${m}', 'all')" class="hes-btn-primary !bg-red-600 hover:!bg-red-700 flex-1 !py-2.5 !text-xs cursor-pointer">
-                    <i class="fas fa-trash-alt"></i> Reset Seluruh Ujian (4 Bagian)
-                </button>
-                <button onclick="document.getElementById('hes-reset-exam-modal').classList.add('hidden')" class="hes-btn-soft !bg-slate-100 !text-slate-600 !border-slate-200 !py-2.5 !text-xs cursor-pointer">
-                    Batal
-                </button>
+            <div class="pt-3 border-t border-stone-100 flex flex-col sm:flex-row gap-2">
+                <button onclick="executeSelectiveExamReset('${s}', '${m}', 'all')" class="hes-btn-primary !bg-rose-600 flex-1 !py-2.5 !text-xs"><i class="fas fa-trash-alt"></i> Reset Seluruh Ujian (4 Bagian)</button>
+                <button onclick="document.getElementById('hes-reset-exam-modal').classList.add('hidden')" class="hes-btn-soft !bg-stone-100 !text-stone-600 !border-stone-200 !py-2.5 !text-xs">Batal</button>
             </div>
         </div>`;
     modal.classList.remove('hidden');
@@ -925,40 +944,32 @@ window.executeSelectiveExamReset = async function(email, monthId, targetSection 
 
     await safeSaveMaterialsToCloud(materials => {
         if (targetSection === 'all') {
-            delete materials[rKey];
+            // Simpan listeningResetEpoch baru agar kuota anti-curang di localStorage murid ikut ter-reset bersih
+            materials[rKey] = {
+                status: 'partial', answers: {}, scores: {}, sectionScores: {}, transcripts: {},
+                submittedTabs: [], audioPlayCounts: {}, isGraded: false, listeningResetEpoch: Date.now()
+            };
             return;
         }
-        const res = materials[rKey];
-        if (!res) return;
-
-        ['answers', 'scores', 'transcripts', 'questionNotes'].forEach(prop => {
+        const res = materials[rKey] || { status: 'partial', answers: {}, scores: {}, sectionScores: {}, transcripts: {}, submittedTabs: [], audioPlayCounts: {} };
+        ['answers', 'scores', 'transcripts', 'questionNotes', 'audioPlayCounts'].forEach(prop => {
             if (!res[prop]) return;
-            Object.keys(res[prop]).forEach(k => {
-                if (k.startsWith(`${targetSection}_`)) delete res[prop][k];
-            });
+            Object.keys(res[prop]).forEach(k => { if (k.startsWith(`${targetSection}_`)) delete res[prop][k]; });
         });
-
-        if (Array.isArray(res.submittedTabs)) {
-            res.submittedTabs = res.submittedTabs.filter(t => t !== targetSection);
-        }
+        if (targetSection === 'listening') res.listeningResetEpoch = Date.now();
+        if (Array.isArray(res.submittedTabs)) res.submittedTabs = res.submittedTabs.filter(t => t !== targetSection);
         res.sectionScores = res.sectionScores || {};
         res.sectionScores[targetSection] = 0;
         res.status = (res.submittedTabs && res.submittedTabs.length >= 4) ? 'submitted' : 'partial';
-
         ['reading', 'writing', 'speaking', 'listening'].forEach(c => {
             if (c !== targetSection) res.sectionScores[c] = computeExamSectionScore(c, examData, res);
         });
-
-        const hasAnyRemaining = (res.submittedTabs && res.submittedTabs.length > 0) || Object.keys(res.answers || {}).length > 0;
-        if (!hasAnyRemaining) delete materials[rKey];
-        else materials[rKey] = res;
+        materials[rKey] = res;
     });
 
     $('hes-reset-exam-modal')?.classList.add('hidden');
-    if (!$('admin-grading-workspace')?.classList.contains('hidden')) {
-        renderAdminGradingView(email, monthId);
-    }
-    showToast(targetSection === 'all' ? 'Seluruh ujian berhasil direset!' : `Bagian ${targetSection.toUpperCase()} berhasil direset! Bagian lain tetap aman.`, 'info');
+    if (!$('admin-grading-workspace')?.classList.contains('hidden')) renderAdminGradingView(email, monthId);
+    showToast(targetSection === 'all' ? 'Seluruh ujian & kuota listening berhasil direset!' : `Bagian ${targetSection.toUpperCase()} berhasil direset!`, 'info');
 };
 
 window.loadStudentExamForGrading = async function() {
@@ -966,7 +977,7 @@ window.loadStudentExamForGrading = async function() {
     $('admin-exam-workspace').classList.add('hidden');
     const ws = $('admin-grading-workspace');
     ws.classList.remove('hidden');
-    ws.innerHTML = `<div class="p-8 text-center text-xs font-bold text-slate-500"><i class="fas fa-sync fa-spin mr-1.5"></i> Mengambil data ujian dari Cloud...</div>`;
+    ws.innerHTML = `<div class="p-8 text-center text-xs font-bold text-stone-500"><i class="fas fa-sync fa-spin mr-1.5"></i> Mengambil data ujian dari Cloud...</div>`;
     await syncFromCloud();
     renderAdminGradingView(s, m);
 };
@@ -988,29 +999,29 @@ window.updateQuestionNote = function(email, monthId, cat, idx, noteText) {
 
 window.renderAdminGradingView = function(email, monthId) {
     const ws = $('admin-grading-workspace'), examData = window.HES.materials[`exam-${email}-${monthId}`], res = window.HES.materials[`exam_result-${email}-${monthId}`];
-    if (!examData) { ws.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Soal ujian belum dibuat untuk murid & bulan ini.</p>`; return; }
-    if (!res || (!res.answers && !res.submittedTabs?.length)) {
-        ws.innerHTML = `<div class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3"><p class="text-xs font-bold text-slate-500">Murid belum mengumpulkan jawaban ujian pada bulan ini.</p><button onclick="loadStudentExamForGrading()" class="hes-btn-soft !py-2 !px-4 !text-xs"><i class="fas fa-sync-alt mr-1"></i> Muat Ulang</button></div>`;
+    if (!examData) { ws.innerHTML = `<p class="text-xs text-stone-400 text-center py-6">Soal ujian belum dibuat untuk murid & bulan ini.</p>`; return; }
+    const hasAnyAns = res && (Object.keys(res.answers || {}).length > 0 || (res.submittedTabs?.length > 0));
+    if (!hasAnyAns) {
+        ws.innerHTML = `<div class="p-6 rounded-2xl bg-stone-50 border border-stone-200 text-center space-y-3"><p class="text-xs font-bold text-stone-500">Murid belum mengumpulkan jawaban ujian pada bulan ini.</p><button onclick="loadStudentExamForGrading()" class="hes-btn-soft !py-2 !px-4 !text-xs"><i class="fas fa-sync-alt mr-1"></i> Muat Ulang</button></div>`;
         return;
     }
 
     res.answers = res.answers || {}; res.scores = res.scores || {}; res.questionNotes = res.questionNotes || {}; res.sectionScores = res.sectionScores || {};
     const cats = ['reading', 'writing', 'speaking', 'listening'];
     cats.forEach(c => res.sectionScores[c] = computeExamSectionScore(c, examData, res));
-
     const cat = currentAdminGradingTab, questions = examData[cat] || [], maxPts = questions.length ? Math.round((100 / questions.length) * 10) / 10 : 10;
 
     ws.innerHTML = `
         <div class="space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-100 p-2 rounded-2xl">
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-stone-100 p-2 rounded-2xl">
                 <div class="flex flex-wrap gap-1.5">
-                    ${cats.map(c => `<button id="grade-tab-btn-${c}" onclick="currentAdminGradingTab='${c}';renderAdminGradingView('${email}','${monthId}')" class="px-4 py-2 rounded-xl text-xs font-extrabold capitalize transition cursor-pointer ${c === cat ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-indigo-50'}">${c} (${res.sectionScores[c]}/100) ${res.submittedTabs?.includes(c) ? '✓' : ''}</button>`).join('')}
+                    ${cats.map(c => `<button id="grade-tab-btn-${c}" onclick="currentAdminGradingTab='${c}';renderAdminGradingView('${email}','${monthId}')" class="px-4 py-2 rounded-xl text-xs font-extrabold capitalize transition cursor-pointer ${c === cat ? 'bg-teal-700 text-white shadow-sm' : 'bg-white text-stone-600 hover:bg-teal-50'}">${c} (${res.sectionScores[c]}/100) ${res.submittedTabs?.includes(c) ? '✓' : ''}</button>`).join('')}
                 </div>
-                <button onclick="executeSelectiveExamReset('${email}', '${monthId}', '${cat}')" class="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-extrabold transition cursor-pointer">
+                <button onclick="executeSelectiveExamReset('${email}', '${monthId}', '${cat}')" class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-extrabold transition cursor-pointer">
                     <i class="fas fa-undo mr-1"></i> Reset Bagian ${cat.toUpperCase()} Saja
                 </button>
             </div>
-            ${!questions.length ? `<p class="text-xs text-slate-400 text-center py-6">Tidak ada soal pada bagian ${cat.toUpperCase()}.</p>` : questions.map((q, idx) => {
+            ${!questions.length ? `<p class="text-xs text-stone-400 text-center py-6">Tidak ada soal pada bagian ${cat.toUpperCase()}.</p>` : questions.map((q, idx) => {
                 const key = `${cat}_${idx}`, ans = res.answers[key], isMCQ = q.type === 'mcq', transcript = res.transcripts?.[key] || '';
                 let pt10 = 0;
                 if (isMCQ) pt10 = (ans !== undefined && ans !== '' && Number(ans) === Number(q.answer)) ? 10 : 0;
@@ -1020,40 +1031,40 @@ window.renderAdminGradingView = function(email, monthId) {
                 } else if (ans && String(ans).trim() !== '') { pt10 = 8.5; res.scores[key] = pt10; }
 
                 const disp = isMCQ
-                    ? ((ans !== undefined && ans !== '') ? `<strong>${['A','B','C','D'][ans] || ''}.</strong> ${q.options?.[ans] || ''}` : '<span class="text-red-500 italic">Tidak dijawab</span>')
+                    ? ((ans !== undefined && ans !== '') ? `<strong>${['A','B','C','D'][ans] || ''}.</strong> ${q.options?.[ans] || ''}` : '<span class="text-rose-500 italic">Tidak dijawab</span>')
                     : (String(ans || '').startsWith('data:audio')
-                        ? `<div class="space-y-2 mt-1"><audio controls preload="metadata" class="h-10 w-full max-w-md rounded-lg" src="${ans}"></audio><div class="flex flex-wrap items-center gap-3"><a href="${ans}" download="rekaman_${email}_soal_${idx + 1}.webm" class="text-[11px] font-extrabold text-indigo-600 hover:underline"><i class="fas fa-download mr-1"></i>Unduh Audio</a>${transcript ? `<span class="text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg"><strong>Transkrip:</strong> "${transcript}"</span>` : ''}</div></div>`
-                        : (ans ? `<p class="whitespace-pre-line font-semibold text-slate-800">${ans}</p>` : '<span class="text-red-500 italic">Tidak dijawab</span>'));
+                        ? `<div class="space-y-2 mt-1"><audio controls preload="metadata" class="h-10 w-full max-w-md rounded-lg" src="${ans}"></audio><div class="flex flex-wrap items-center gap-3"><a href="${ans}" download="rekaman_${email}_soal_${idx + 1}.webm" class="text-[11px] font-extrabold text-teal-700 hover:underline"><i class="fas fa-download mr-1"></i>Unduh Audio</a>${transcript ? `<span class="text-[11px] text-stone-500 bg-stone-100 px-2.5 py-1 rounded-lg"><strong>Transkrip:</strong> "${transcript}"</span>` : ''}</div></div>`
+                        : (ans ? `<p class="whitespace-pre-line font-semibold text-stone-800">${ans}</p>` : '<span class="text-rose-500 italic">Tidak dijawab</span>'));
 
                 return `
-                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+                    <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2.5 text-xs">
                         <div class="flex items-center justify-between">
-                            <span class="font-extrabold text-slate-800">Soal #${idx + 1}: ${q.question || ''}</span>
-                            <span class="px-2.5 py-0.5 rounded-md font-extrabold ${pt10 >= 7 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">Maks ${maxPts} Poin</span>
+                            <span class="font-extrabold text-stone-800">Soal #${idx + 1}: ${q.question || ''}</span>
+                            <span class="px-2.5 py-0.5 rounded-md font-extrabold ${pt10 >= 7 ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800'}">Maks ${maxPts} Poin</span>
                         </div>
-                        ${q.audioScript ? `<p class="text-[11px] text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg whitespace-pre-line"><strong>Naskah Audio:</strong>\n${q.audioScript}</p>` : ''}
-                        <div class="p-3 rounded-xl bg-white border border-slate-200/80"><strong class="text-slate-500 uppercase text-[10px]">Jawaban / Rekaman Murid:</strong><div class="mt-1">${disp}</div></div>
+                        ${q.audioScript ? `<p class="text-[11px] text-teal-800 bg-teal-50 px-3 py-1.5 rounded-lg whitespace-pre-line"><strong>Naskah Audio:</strong>\n${q.audioScript}</p>` : ''}
+                        <div class="p-3 rounded-xl bg-white border border-stone-200/80"><strong class="text-stone-500 uppercase text-[10px]">Jawaban / Rekaman Murid:</strong><div class="mt-1">${disp}</div></div>
                         ${isMCQ ? `
                             <div class="flex items-center justify-between pt-1">
-                                <span class="text-slate-500">Kunci: <strong>${['A','B','C','D'][q.answer] || 'A'}. ${q.options?.[q.answer] || ''}</strong></span>
-                                <span class="font-extrabold ${pt10 === 10 ? 'text-emerald-600' : 'text-red-600'}">${pt10 === 10 ? '✓ Benar (+10 Poin)' : '✗ Salah (0 Poin)'}</span>
+                                <span class="text-stone-500">Kunci: <strong>${['A','B','C','D'][q.answer] || 'A'}. ${q.options?.[q.answer] || ''}</strong></span>
+                                <span class="font-extrabold ${pt10 === 10 ? 'text-teal-700' : 'text-rose-600'}">${pt10 === 10 ? '✓ Benar (+10 Poin)' : '✗ Salah (0 Poin)'}</span>
                             </div>` : `
                             <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 items-center">
                                 <div class="sm:col-span-4 flex items-center gap-2">
-                                    <label class="font-extrabold text-emerald-700 shrink-0">Poin (0–10):</label>
+                                    <label class="font-extrabold text-teal-700 shrink-0">Poin (0–10):</label>
                                     <input type="number" min="0" max="10" step="0.5" value="${pt10}" oninput="updateQuestionManualPoint('${email}','${monthId}','${cat}',${idx},this.value)" class="hes-input !w-24 !py-1.5 !bg-white text-center font-black">
-                                    <span class="text-slate-400 font-bold">/ 10</span>
+                                    <span class="text-stone-400 font-bold">/ 10</span>
                                 </div>
                                 <div class="sm:col-span-8"><input type="text" value="${res.questionNotes?.[key] || ''}" oninput="updateQuestionNote('${email}','${monthId}','${cat}',${idx},this.value)" placeholder="Catatan koreksi soal #${idx + 1} (opsional)..." class="hes-input !py-1.5 !bg-white text-xs"></div>
                             </div>`}
                     </div>`;
             }).join('')}
-            <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-3.5 mt-4">
-                <h4 class="text-xs font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-file-signature text-indigo-600"></i> Pengaturan Rapor (Report Card)</h4>
-                <div><label class="block text-xs font-bold text-slate-700 mb-1">Kelas / Level Program</label><input type="text" id="admin-exam-level" value="${res.classLevel || ''}" oninput="window.HES.materials['exam_result-${email}-${monthId}'].classLevel=this.value" placeholder="Contoh: Beginner / Intermediate / Advanced" class="hes-input !bg-white"></div>
-                <div><label class="block text-xs font-bold text-slate-700 mb-1">Tutor's Note (Catatan Evaluasi Pengajar)</label><textarea id="admin-exam-feedback" rows="3" oninput="window.HES.materials['exam_result-${email}-${monthId}'].adminFeedback=this.value" placeholder="Tulis catatan evaluasi perkembangan murid untuk ditampilkan di rapor..." class="hes-input !bg-white">${res.adminFeedback || ''}</textarea></div>
+            <div class="p-4 sm:p-5 rounded-2xl bg-teal-50/60 border border-teal-100 space-y-3.5 mt-4">
+                <h4 class="text-xs font-extrabold text-teal-900 uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-file-signature text-teal-700"></i> Pengaturan Rapor (Report Card)</h4>
+                <div><label class="block text-xs font-bold text-stone-700 mb-1">Kelas / Level Program</label><input type="text" id="admin-exam-level" value="${res.classLevel || ''}" oninput="window.HES.materials['exam_result-${email}-${monthId}'].classLevel=this.value" placeholder="Contoh: Beginner / Intermediate / Advanced" class="hes-input !bg-white"></div>
+                <div><label class="block text-xs font-bold text-stone-700 mb-1">Tutor's Note (Catatan Evaluasi Pengajar)</label><textarea id="admin-exam-feedback" rows="3" oninput="window.HES.materials['exam_result-${email}-${monthId}'].adminFeedback=this.value" placeholder="Tulis catatan evaluasi perkembangan murid..." class="hes-input !bg-white">${res.adminFeedback || ''}</textarea></div>
             </div>
-            <button onclick="saveExamGrades('${email}','${monthId}')" class="hes-btn-primary !bg-emerald-600 w-full"><i class="fas fa-check-circle"></i> Simpan Nilai & Terbitkan Rapor</button>
+            <button onclick="saveExamGrades('${email}','${monthId}')" class="hes-btn-primary w-full"><i class="fas fa-check-circle"></i> Simpan Nilai & Terbitkan Rapor</button>
         </div>`;
 };
 

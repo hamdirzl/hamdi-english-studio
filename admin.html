@@ -6,106 +6,109 @@
     <title>Panel Admin | Hamdi English Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body class="h-screen flex overflow-hidden">
 
-    <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
-    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
+    <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 -translate-x-full md:translate-x-0 md:static flex flex-col shrink-0"></aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-40 hidden md:hidden"></div>
 
     <main class="flex-1 flex flex-col h-screen overflow-hidden">
-        <header id="app-header" class="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
+        <header id="app-header" class="backdrop-blur-md px-4 md:px-8 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-30"></header>
 
         <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
             <div class="max-w-6xl mx-auto fade-in pb-20 space-y-6">
 
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800">Panel Kendali Admin (CMS)</h2>
-                        <p class="text-xs sm:text-sm text-slate-500">Kelola murid, jadwal, modul materi pintar, wordbank, dan penilaian ujian.</p>
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-stone-800">Panel Kendali Admin (CMS)</h2>
+                        <p class="text-xs sm:text-sm text-stone-500 font-semibold">Input tanggal pertemuan langsung, kelola materi, tugas conversation, dan ujian.</p>
                     </div>
                     <button onclick="refreshAdminCloudData()" class="hes-btn-soft self-start sm:self-auto">
                         <i class="fas fa-sync-alt"></i> Segarkan Data Cloud
                     </button>
                 </div>
 
-                <!-- Navigasi Tab Admin -->
-                <div class="flex overflow-x-auto gap-1.5 bg-slate-200/60 p-1.5 rounded-2xl max-w-fit">
-                    <button onclick="switchAdminTab('overview')" id="adm-tab-overview" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
-                    <button onclick="switchAdminTab('users')" id="adm-tab-users" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
-                    <button onclick="switchAdminTab('materials')" id="adm-tab-materials" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
-                    <button onclick="switchAdminTab('exam')" id="adm-tab-exam" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap"></button>
+                <!-- Navigasi Tab Admin (5 Tab Fokus & Bersih) -->
+                <div class="flex overflow-x-auto gap-1.5 bg-stone-200/70 p-1.5 rounded-2xl max-w-full">
+                    <button onclick="switchAdminTab('overview')" id="adm-tab-overview" class="px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap"></button>
+                    <button onclick="switchAdminTab('users')" id="adm-tab-users" class="px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap"></button>
+                    <button onclick="switchAdminTab('materials')" id="adm-tab-materials" class="px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap"></button>
+                    <button onclick="switchAdminTab('tasks')" id="adm-tab-tasks" class="px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap"></button>
+                    <button onclick="switchAdminTab('exam')" id="adm-tab-exam" class="px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap"></button>
                 </div>
 
-                <!-- TAB 1: OVERVIEW -->
+                <!-- TAB 1: JADWAL PERTEMUAN MANUAL (INPUT LANGSUNG HARI-H / BESOK) -->
                 <section id="admin-panel-overview" class="space-y-6">
-                    <div class="hes-card">
-                        <h3 class="text-base font-extrabold text-slate-800 mb-4"><i class="fas fa-bell text-amber-500 mr-1.5"></i> Antrean Pengajuan Pindah Jadwal</h3>
-                        <div id="admin-pending-reschedules-list"></div>
+                    <div class="hes-card space-y-5">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-100 pb-4">
+                            <div>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-teal-50 text-teal-700 text-[11px] font-extrabold uppercase">Auto-Lock Materi</span>
+                                <h3 class="text-base sm:text-lg font-extrabold text-stone-800 mt-1">
+                                    <i class="fas fa-calendar-day text-teal-600 mr-1.5"></i> Input Tanggal Pertemuan Murid
+                                </h3>
+                                <p class="text-xs text-stone-500 mt-0.5">Materi tiap sesi otomatis <strong>TERKUNCI</strong> sebelum tanggal yang kamu input. Klik <strong>Hari Ini</strong> atau <strong>Besok</strong> untuk mengatur cepat.</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <select id="admin-session-date-student" onchange="renderAdminSessionDatesGrid()" class="hes-input !w-auto !py-2 !text-xs"></select>
+                                <select id="admin-session-date-month" onchange="renderAdminSessionDatesGrid()" class="hes-input !w-auto !py-2 !text-xs"></select>
+                            </div>
+                        </div>
+
+                        <div id="admin-session-dates-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5"></div>
                     </div>
+
                     <div class="hes-card flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div>
-                            <h3 class="text-base font-extrabold text-slate-800">Tambah Modul Bulan Baru</h3>
-                            <p class="text-xs text-slate-500">Buat struktur bulan berikutnya (Minggu 1–4 & Final Exam) secara otomatis.</p>
+                            <h3 class="text-base font-extrabold text-stone-800">Tambah Modul Bulan Baru</h3>
+                            <p class="text-xs text-stone-500">Buat struktur bulan berikutnya (12 pertemuan & Final Exam) secara otomatis.</p>
                         </div>
                         <button onclick="addNewMonth()" class="hes-btn-primary shrink-0"><i class="fas fa-plus"></i> Tambah Bulan Baru</button>
                     </div>
                 </section>
 
-                <!-- TAB 2: AKUN & JADWAL -->
+                <!-- TAB 2: AKUN MURID & BATAS BULAN -->
                 <section id="admin-panel-users" class="hidden space-y-6">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="hes-card space-y-3.5 h-fit">
-                            <h3 class="text-base font-extrabold text-slate-800"><i class="fas fa-user-plus text-emerald-500 mr-1.5"></i> Daftarkan Murid Baru</h3>
+                            <h3 class="text-base font-extrabold text-stone-800"><i class="fas fa-user-plus text-teal-600 mr-1.5"></i> Daftarkan Murid Baru</h3>
                             <input type="text" id="new-stu-name" placeholder="Nama Lengkap Murid" class="hes-input">
                             <input type="email" id="new-stu-email" placeholder="Alamat Email Login" class="hes-input">
                             <input type="text" id="new-stu-pass" placeholder="Kata Sandi" class="hes-input">
                             <button onclick="addNewStudent(event)" class="hes-btn-primary w-full"><i class="fas fa-check"></i> Daftarkan Akun</button>
                         </div>
 
-                        <div class="hes-card space-y-3.5">
-                            <h3 class="text-base font-extrabold text-slate-800"><i class="fas fa-calendar-check text-indigo-600 mr-1.5"></i> Atur Jadwal & Batas Bulan</h3>
+                        <div class="hes-card space-y-3.5 h-fit">
+                            <h3 class="text-base font-extrabold text-stone-800"><i class="fas fa-unlock-keyhole text-amber-500 mr-1.5"></i> Atur Akses Bulan & Jam Kelas</h3>
+                            <p class="text-xs text-stone-500">Tentukan sampai bulan ke berapa murid bisa mengakses materi & ujian (tanggal tiap pertemuan diatur di Tab Jadwal Pertemuan).</p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Murid</label>
-                                    <select id="admin-sched-student" onchange="loadStudentScheduleForm()" class="hes-input mt-1"></select>
+                                    <label class="text-[11px] font-extrabold text-stone-500 uppercase">Pilih Murid</label>
+                                    <select id="admin-sched-student" onchange="loadStudentAccessForm()" class="hes-input mt-1"></select>
                                 </div>
                                 <div>
-                                    <label class="text-[11px] font-bold text-indigo-600 uppercase">Batas Modul Bulan</label>
-                                    <select id="admin-sched-max-month" onchange="onAdminMonthSelectChange()" class="hes-input mt-1"></select>
+                                    <label class="text-[11px] font-extrabold text-teal-700 uppercase">Batas Modul Bulan</label>
+                                    <select id="admin-sched-max-month" class="hes-input mt-1"></select>
                                 </div>
-                                <div>
-                                    <label id="admin-sched-date-label" class="text-[11px] font-bold text-emerald-700 uppercase">Tanggal Berakhir</label>
-                                    <input type="date" id="admin-sched-date" class="hes-input mt-1">
-                                </div>
-                                <div>
-                                    <label class="text-[11px] font-bold text-slate-500 uppercase">Jam Kelas (Mulai - Selesai)</label>
-                                    <div class="flex items-center gap-1.5 mt-1">
-                                        <input type="time" id="admin-sched-start" class="hes-input !px-2">
-                                        <span>-</span>
-                                        <input type="time" id="admin-sched-end" class="hes-input !px-2">
+                                <div class="sm:col-span-2">
+                                    <label class="text-[11px] font-extrabold text-stone-500 uppercase">Info Jam Kelas (Opsional)</label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="time" id="admin-sched-start" class="hes-input">
+                                        <span class="font-bold text-stone-400">s/d</span>
+                                        <input type="time" id="admin-sched-end" class="hes-input">
                                     </div>
                                 </div>
                             </div>
-                            <div id="admin-saved-month-dates-box" class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs"></div>
-                            <div class="flex flex-wrap gap-2">
-                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Senin" class="admin-day-cb"> Sen</label>
-                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Selasa" class="admin-day-cb"> Sel</label>
-                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Rabu" class="admin-day-cb"> Rab</label>
-                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Kamis" class="admin-day-cb"> Kam</label>
-                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Jumat" class="admin-day-cb"> Jum</label>
-                                <label class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border text-xs font-bold"><input type="checkbox" value="Sabtu" class="admin-day-cb"> Sab</label>
-                            </div>
-                            <button onclick="saveStudentSchedule(event)" class="hes-btn-primary w-full"><i class="fas fa-save"></i> Simpan Jadwal Murid</button>
+                            <button onclick="saveStudentAccess(event)" class="hes-btn-primary w-full"><i class="fas fa-save"></i> Simpan Pengaturan Murid</button>
                         </div>
                     </div>
 
                     <div class="hes-card overflow-x-auto">
-                        <h3 class="text-base font-extrabold text-slate-800 mb-4">Daftar Akun Murid</h3>
+                        <h3 class="text-base font-extrabold text-stone-800 mb-4">Daftar Akun Murid</h3>
                         <table class="w-full text-left text-xs min-w-[560px]">
                             <thead>
-                                <tr class="border-b text-slate-400 uppercase">
-                                    <th class="p-3">Nama</th><th class="p-3">Email</th><th class="p-3">Jadwal & Batas Bulan</th><th class="p-3">Sandi</th><th class="p-3 text-right">Aksi</th>
+                                <tr class="border-b border-stone-200 text-stone-400 uppercase">
+                                    <th class="p-3">Nama</th><th class="p-3">Email</th><th class="p-3">Akses & Jam</th><th class="p-3">Sesi Terjadwal</th><th class="p-3">Sandi</th><th class="p-3 text-right">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody id="admin-students-table-body"></tbody>
@@ -113,187 +116,182 @@
                     </div>
                 </section>
 
-                <!-- TAB 3: MATERI & KOSAKATA -->
+                <!-- TAB 3: MATERI & RECAP (TANPA WORDBANK / VOCAB) -->
                 <section id="admin-panel-materials" class="hidden space-y-6">
-                    <!-- BUILDER MODUL MATERI & RECAP (PENGGANTI PDF) -->
                     <div class="hes-card space-y-5">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
                             <div>
-                                <span class="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-extrabold uppercase">Smart Handout Builder</span>
-                                <h3 class="text-base sm:text-lg font-extrabold text-slate-800 mt-1">
-                                    <i class="fas fa-book-open text-indigo-600 mr-1.5"></i> Builder Modul Materi & Catatan Recap (Desain Rapor)
+                                <span class="px-2.5 py-0.5 rounded-lg bg-teal-50 text-teal-700 text-[11px] font-extrabold uppercase">Smart Handout Builder</span>
+                                <h3 class="text-base sm:text-lg font-extrabold text-stone-800 mt-1">
+                                    <i class="fas fa-book-open text-teal-600 mr-1.5"></i> Builder Modul Materi & Catatan Recap
                                 </h3>
-                                <p class="text-xs text-slate-500 mt-0.5">Buat materi Full English yang rapi dan mudah dipahami dengan bantuan Prompt Gemini. Otomatis tampil berdesain eksklusif & ber-watermark.</p>
+                                <p class="text-xs text-stone-500 mt-0.5">Buat materi Full English dengan bantuan Prompt Gemini. Otomatis tampil berdesain interaktif & siap unduh PDF A4.</p>
                             </div>
                             <div class="flex flex-wrap gap-2 shrink-0">
-                                <button type="button" onclick="copyGeminiModulePrompt('single')" class="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-extrabold transition cursor-pointer">
+                                <button type="button" onclick="copyGeminiModulePrompt('single')" class="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-extrabold transition cursor-pointer">
                                     <i class="fas fa-copy mr-1"></i> Prompt 1 Sesi
                                 </button>
-                                <button type="button" onclick="copyGeminiModulePrompt('bulk')" class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer">
+                                <button type="button" onclick="copyGeminiModulePrompt('bulk')" class="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold shadow-xs transition cursor-pointer">
                                     <i class="fas fa-bolt mr-1 text-amber-300"></i> Prompt Bulk 1 Bulan
                                 </button>
-                                <button type="button" onclick="copyGeminiModulePrompt('recap')" class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-extrabold transition cursor-pointer">
+                                <button type="button" onclick="copyGeminiModulePrompt('recap')" class="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-extrabold transition cursor-pointer">
                                     <i class="fas fa-file-signature mr-1"></i> Prompt Recap
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Filter Target, Bulan, Minggu, Hari -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
-                                <label class="text-[11px] font-bold text-slate-500 uppercase">Target Murid</label>
+                                <label class="text-[11px] font-extrabold text-stone-500 uppercase">Target Murid</label>
                                 <select id="admin-target-student" onchange="loadAdminMaterialEditor()" class="hes-input mt-1"></select>
                             </div>
                             <div>
-                                <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Bulan</label>
+                                <label class="text-[11px] font-extrabold text-stone-500 uppercase">Pilih Bulan</label>
                                 <select id="admin-month" onchange="loadAdminMaterialEditor()" class="hes-input mt-1"></select>
                             </div>
                             <div>
-                                <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Minggu</label>
+                                <label class="text-[11px] font-extrabold text-stone-500 uppercase">Pilih Minggu</label>
                                 <select id="admin-week" onchange="loadAdminMaterialEditor()" class="hes-input mt-1">
                                     <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="text-[11px] font-bold text-slate-500 uppercase">Pilih Hari</label>
+                                <label class="text-[11px] font-extrabold text-stone-500 uppercase">Pilih Hari</label>
                                 <select id="admin-day" onchange="loadAdminMaterialEditor()" class="hes-input mt-1">
                                     <option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option>
                                 </select>
                             </div>
                         </div>
 
-                        <!-- Peta Status 12 Sesi di Bulan Terpilih -->
-                        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                        <div class="p-3.5 rounded-2xl bg-stone-50 border border-stone-200/80 space-y-2">
                             <div class="flex items-center justify-between">
-                                <span class="text-[11px] font-extrabold text-slate-500 uppercase">Status Pengisian 12 Sesi di Bulan Ini (Klik angka untuk pindah sesi):</span>
-                                <span id="admin-material-session-indicator" class="text-xs font-extrabold text-indigo-600">Sesi 1 (W1•D1)</span>
+                                <span class="text-[11px] font-extrabold text-stone-500 uppercase">Status Pengisian 12 Sesi (Klik angka untuk pindah sesi):</span>
+                                <span id="admin-material-session-indicator" class="text-xs font-extrabold text-teal-700">Sesi 1 (W1•D1)</span>
                             </div>
                             <div id="admin-month-sessions-bar" class="grid grid-cols-6 sm:grid-cols-12 gap-1.5"></div>
                         </div>
 
-                        <!-- Sub-Tab: Modul Materi vs Catatan Recap -->
-                        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-100 p-1.5 rounded-2xl">
+                        <div class="flex flex-wrap items-center justify-between gap-2 bg-stone-100 p-1.5 rounded-2xl">
                             <div class="flex gap-1.5">
-                                <button type="button" id="adm-mat-subtab-module" onclick="switchAdminMaterialSubtab('module')" class="px-4 py-2 rounded-xl text-xs font-extrabold transition bg-white text-indigo-600 shadow-xs">
-                                    <i class="fas fa-book-open mr-1.5"></i> 1. Modul Materi Utama (Handout)
+                                <button type="button" id="adm-mat-subtab-module" onclick="switchAdminMaterialSubtab('module')" class="px-4 py-2 rounded-xl text-xs font-extrabold transition bg-white text-teal-700 shadow-xs cursor-pointer">
+                                    <i class="fas fa-book-open mr-1.5"></i> 1. Modul Materi Utama
                                 </button>
-                                <button type="button" id="adm-mat-subtab-recap" onclick="switchAdminMaterialSubtab('recap')" class="px-4 py-2 rounded-xl text-xs font-extrabold transition text-slate-600 hover:text-slate-900">
-                                    <i class="fas fa-clipboard-check mr-1.5"></i> 2. Catatan Recap & Evaluasi Sesi
+                                <button type="button" id="adm-mat-subtab-recap" onclick="switchAdminMaterialSubtab('recap')" class="px-4 py-2 rounded-xl text-xs font-extrabold transition text-stone-600 hover:text-stone-900 cursor-pointer">
+                                    <i class="fas fa-clipboard-check mr-1.5"></i> 2. Catatan Recap Sesi
                                 </button>
                             </div>
-                            <span id="admin-material-status-badge" class="text-[11px] font-extrabold px-3 py-1 rounded-lg bg-slate-200 text-slate-600">Belum Diisi</span>
+                            <span id="admin-material-status-badge" class="text-[11px] font-extrabold px-3 py-1 rounded-lg bg-stone-200 text-stone-600">Belum Diisi</span>
                         </div>
 
-                        <!-- Editor Modul Materi Utama -->
                         <div id="admin-editor-module-box" class="space-y-3">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <label class="text-xs font-extrabold text-slate-700">
-                                    Isi Teks Modul Materi (Bisa 1 Sesi atau Bulk Beberapa Sesi dipisah <code>===</code>):
-                                </label>
-                                <button type="button" onclick="insertSampleModuleTemplate('module')" class="text-xs font-extrabold text-indigo-600 hover:underline self-start sm:self-auto cursor-pointer">
+                                <label class="text-xs font-extrabold text-stone-700">Isi Teks Modul Materi (1 Sesi atau Bulk dipisah <code>===</code>):</label>
+                                <button type="button" onclick="insertSampleModuleTemplate('module')" class="text-xs font-extrabold text-teal-700 hover:underline self-start sm:self-auto cursor-pointer">
                                     <i class="fas fa-magic mr-1"></i> Isi Contoh Format Materi
                                 </button>
                             </div>
-                            <textarea id="admin-link" rows="12" class="hes-input !bg-white font-mono text-xs leading-relaxed" placeholder="Tempelkan hasil materi dari Gemini di sini...&#10;&#10;TITLE: Daily Routines & Simple Present Tense&#10;LEVEL: Month 1 - Beginner Friendly&#10;GOAL: Talk about daily activities naturally in English.&#10;OVERVIEW:&#10;Simple Present Tense is used to describe habits, daily routines, and general facts...&#10;KEY POINTS:&#10;- Use Verb 1 for I, You, We, They...&#10;EXAMPLES:&#10;- I wake up at 6 AM every morning.&#10;DIALOGUE:&#10;Man: What time do you usually start your day?&#10;Woman: I usually wake up at 6 AM and make coffee.&#10;TIPS:&#10;- Don't forget to add -s/-es for He, She, It!&#10;PRACTICE:&#10;1. Share 3 things you do every morning."></textarea>
+                            <textarea id="admin-link" rows="12" class="hes-input !bg-white font-mono text-xs leading-relaxed" placeholder="Tempelkan hasil materi dari Gemini di sini..."></textarea>
                         </div>
 
-                        <!-- Editor Catatan Recap -->
                         <div id="admin-editor-recap-box" class="hidden space-y-3">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <label class="text-xs font-extrabold text-slate-700">
-                                    Isi Catatan Rangkuman & Koreksi Kelas (Recap Handout):
-                                </label>
-                                <button type="button" onclick="insertSampleModuleTemplate('recap')" class="text-xs font-extrabold text-emerald-600 hover:underline self-start sm:self-auto cursor-pointer">
+                                <label class="text-xs font-extrabold text-stone-700">Isi Catatan Rangkuman & Koreksi Kelas (Recap):</label>
+                                <button type="button" onclick="insertSampleModuleTemplate('recap')" class="text-xs font-extrabold text-emerald-700 hover:underline self-start sm:self-auto cursor-pointer">
                                     <i class="fas fa-magic mr-1"></i> Isi Contoh Format Recap
                                 </button>
                             </div>
-                            <textarea id="admin-recap-pdf" rows="10" class="hes-input !bg-white font-mono text-xs leading-relaxed" placeholder="Tempelkan catatan recap sesi kelas di sini...&#10;&#10;TITLE: Class Recap - Daily Routines&#10;GOAL: Review of today's speaking practice & pronunciation corrections.&#10;OVERVIEW:&#10;Great job in class today! You spoke with much better confidence...&#10;KEY POINTS:&#10;- Remember to pronounce the final -s in 'works' and 'plays'.&#10;EXAMPLES:&#10;- Correct: She works at a hospital. (Not: She work at a hospital)&#10;TIPS:&#10;- Practice reading today's dialogue aloud 3 times before our next class!"></textarea>
+                            <textarea id="admin-recap-pdf" rows="10" class="hes-input !bg-white font-mono text-xs leading-relaxed" placeholder="Tempelkan catatan recap sesi kelas di sini..."></textarea>
                         </div>
 
-                        <!-- Tombol Simpan Sesi Ini / Simpan Bulk 1 Bulan -->
-                        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-100">
                             <div class="flex flex-wrap gap-2.5 flex-1">
                                 <button type="button" onclick="saveMaterialData(false)" class="hes-btn-primary">
                                     <i class="fas fa-save"></i> Simpan ke Sesi Ini
                                 </button>
-                                <button type="button" onclick="saveMaterialData(true)" class="hes-btn-primary !bg-emerald-600 hover:!bg-emerald-700">
-                                    <i class="fas fa-layer-group"></i> Proses & Simpan Bulk (Otomatis Urut Sesi 1–12)
+                                <button type="button" onclick="saveMaterialData(true)" class="hes-btn-warm">
+                                    <i class="fas fa-layer-group"></i> Proses & Simpan Bulk (Sesi 1–12)
                                 </button>
                             </div>
-                            <button type="button" onclick="clearCurrentSessionMaterial()" class="hes-btn-soft !bg-red-50 !text-red-600 !border-red-200">
+                            <button type="button" onclick="clearCurrentSessionMaterial()" class="hes-btn-soft !bg-rose-50 !text-rose-600 !border-rose-200">
                                 <i class="fas fa-trash"></i> Kosongkan Sesi Ini
                             </button>
                         </div>
                     </div>
+                </section>
 
-                    <div class="hes-card space-y-4">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
+                <!-- TAB 4: TUGAS CONVERSATION / SPEAKING (BARU) -->
+                <section id="admin-panel-tasks" class="hidden space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <!-- Form Buat / Edit Tugas -->
+                        <div class="lg:col-span-5 hes-card space-y-4 h-fit">
+                            <div class="flex items-center justify-between border-b border-stone-100 pb-3">
+                                <h3 id="admin-task-form-title" class="text-base font-extrabold text-stone-800">
+                                    <i class="fas fa-microphone-lines text-amber-500 mr-1.5"></i> Buat Tugas Conversation
+                                </h3>
+                                <button type="button" id="btn-cancel-edit-task" onclick="resetAdminTaskForm()" class="hidden text-xs font-extrabold text-stone-400 hover:text-stone-700 cursor-pointer">Batal Edit</button>
+                            </div>
+                            <input type="hidden" id="admin-task-id">
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-[11px] font-extrabold text-stone-500 uppercase">Target Murid</label>
+                                    <select id="admin-task-target" class="hes-input mt-1 !text-xs"></select>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-extrabold text-stone-500 uppercase">Label / Bulan</label>
+                                    <select id="admin-task-month" class="hes-input mt-1 !text-xs"></select>
+                                </div>
+                            </div>
+
                             <div>
-                                <h3 class="text-base font-extrabold text-slate-800">Master Wordbank Database</h3>
-                                <p class="text-xs text-slate-500">Format: <code>Kata Inggris = Arti Indonesia</code> (1 pasang per baris).</p>
+                                <label class="text-[11px] font-extrabold text-stone-500 uppercase">Judul Tugas Conversation</label>
+                                <input type="text" id="admin-task-title" placeholder="Contoh: Self Introduction & Daily Hobbies" class="hes-input mt-1">
                             </div>
-                            <span id="master-wordbank-stats-badge" class="hes-btn-soft">0 Kata Unik</span>
-                        </div>
-                        <textarea id="admin-master-wordbank" oninput="updateMasterWordbankCounter()" rows="6" class="hes-input font-mono text-xs"></textarea>
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <div class="flex items-center gap-3">
-                                <select id="admin-words-per-day" onchange="updateMasterWordbankCounter()" class="hes-input !w-auto">
-                                    <option value="5">5 Kata / Hari</option><option value="8">8 Kata / Hari</option><option value="10">10 Kata / Hari</option><option value="12">12 Kata / Hari</option><option value="15">15 Kata / Hari</option>
-                                </select>
-                                <span id="master-wordbank-capacity-text" class="text-xs font-bold text-emerald-700"></span>
-                            </div>
-                            <button onclick="saveMasterWordbank(event)" class="hes-btn-primary"><i class="fas fa-database"></i> Simpan Master Wordbank</button>
-                        </div>
-                    </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="hes-card space-y-3">
-                            <div class="flex items-center justify-between">
-                                <h3 class="text-base font-extrabold text-slate-800">Override Kosakata Sesi</h3>
-                                <span id="admin-vocab-source-badge" class="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700">Otomatis</span>
+                            <div>
+                                <label class="text-[11px] font-extrabold text-stone-500 uppercase">Instruksi & Skenario (Yang Harus Diucapkan Murid)</label>
+                                <textarea id="admin-task-instruction" rows="4" class="hes-input mt-1" placeholder="Contoh: Rekam suaramu selama 1 menit dalam bahasa Inggris. Perkenalkan nama, pekerjaan/sekolah, hobi, dan alasan belajar bahasa Inggris!"></textarea>
                             </div>
-                            <div class="grid grid-cols-3 gap-2">
-                                <select id="admin-vocab-month" onchange="loadAdminVocabPreview()" class="hes-input"></select>
-                                <select id="admin-vocab-week" onchange="loadAdminVocabPreview()" class="hes-input"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option></select>
-                                <select id="admin-vocab-day" onchange="loadAdminVocabPreview()" class="hes-input"><option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option></select>
+
+                            <div>
+                                <label class="text-[11px] font-extrabold text-stone-500 uppercase">Contoh Kalimat / Panduan (Opsional — Bisa Diputar Audio)</label>
+                                <textarea id="admin-task-sample" rows="3" class="hes-input mt-1" placeholder="Contoh: Hi! My name is... In my free time, I love..."></textarea>
                             </div>
-                            <textarea id="admin-vocab-list" rows="4" class="hes-input text-xs"></textarea>
-                            <div class="flex gap-2">
-                                <button onclick="saveVocabList(event)" class="hes-btn-primary flex-1">Simpan Override</button>
-                                <button onclick="clearManualVocabOverride(event)" class="hes-btn-soft">Reset Otomatis</button>
-                            </div>
+
+                            <button type="button" onclick="saveAdminSpeakingTask()" class="hes-btn-warm w-full">
+                                <i class="fas fa-paper-plane"></i> Simpan & Kirim Tugas
+                            </button>
                         </div>
 
-                        <div class="hes-card space-y-3">
-                            <h3 class="text-base font-extrabold text-slate-800">Verifikasi Setoran Hafalan</h3>
-                            <select id="admin-review-student" class="hes-input"></select>
-                            <div class="grid grid-cols-3 gap-2">
-                                <select id="admin-review-month" class="hes-input"></select>
-                                <select id="admin-review-week" class="hes-input"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option></select>
-                                <select id="admin-review-day" class="hes-input"><option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option></select>
+                        <!-- Daftar Tugas & Review Rekaman Murid -->
+                        <div class="lg:col-span-7 space-y-5">
+                            <div class="hes-card space-y-4">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <h3 class="text-base font-extrabold text-stone-800"><i class="fas fa-headphones-alt text-teal-600 mr-1.5"></i> Daftar Tugas & Penilaian Rekaman</h3>
+                                    <select id="admin-task-review-student" onchange="renderAdminTasksList()" class="hes-input !w-auto !py-1.5 !text-xs"></select>
+                                </div>
+                                <div id="admin-tasks-list-container" class="space-y-4"></div>
                             </div>
-                            <button onclick="checkVocabStatus(this)" class="hes-btn-primary w-full !bg-slate-800">Periksa Status Hafalan</button>
-                            <div id="vocab-review-result"></div>
                         </div>
                     </div>
                 </section>
 
-                <!-- TAB 4: BUILDER & PENILAIAN UJIAN -->
+                <!-- TAB 5: BUILDER & PENILAIAN UJIAN -->
                 <section id="admin-panel-exam" class="hidden space-y-6">
                     <div class="hes-card space-y-5">
-                        <h3 class="text-base font-extrabold text-slate-800">Manajemen Soal & Penilaian Ujian</h3>
+                        <h3 class="text-base font-extrabold text-stone-800">Manajemen Soal & Penilaian Ujian</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <select id="admin-exam-student" class="hes-input"></select>
                             <select id="admin-exam-month" class="hes-input"></select>
                         </div>
                         <div class="flex flex-wrap gap-2.5">
                             <button onclick="loadAdminExamData()" class="hes-btn-primary flex-1"><i class="fas fa-edit"></i> Buat / Edit Soal</button>
-                            <button onclick="loadStudentExamForGrading()" class="hes-btn-primary !bg-emerald-600 flex-1"><i class="fas fa-check-double"></i> Nilai Jawaban Murid</button>
-                            <button onclick="resetStudentExam()" class="hes-btn-soft !bg-red-50 !text-red-600"><i class="fas fa-undo"></i> Reset Ujian</button>
+                            <button onclick="loadStudentExamForGrading()" class="hes-btn-warm flex-1"><i class="fas fa-check-double"></i> Nilai Jawaban Murid</button>
+                            <button onclick="resetStudentExam()" class="hes-btn-soft !bg-rose-50 !text-rose-600 !border-rose-200"><i class="fas fa-undo"></i> Reset Ujian</button>
                         </div>
 
-                        <div id="admin-exam-workspace" class="hidden border border-slate-200 rounded-2xl overflow-hidden">
-                            <div class="flex border-b bg-slate-50">
+                        <div id="admin-exam-workspace" class="hidden border border-stone-200 rounded-2xl overflow-hidden">
+                            <div class="flex border-b border-stone-200 bg-stone-50 overflow-x-auto">
                                 <button onclick="switchExamTab('listening')" id="tab-listening" class="px-5 py-3 text-xs font-bold border-b-2">Listening</button>
                                 <button onclick="switchExamTab('speaking')" id="tab-speaking" class="px-5 py-3 text-xs font-bold border-b-2">Speaking</button>
                                 <button onclick="switchExamTab('reading')" id="tab-reading" class="px-5 py-3 text-xs font-bold border-b-2">Reading</button>
@@ -309,7 +307,7 @@
                             </div>
                         </div>
 
-                        <div id="admin-grading-workspace" class="hidden pt-4 border-t"></div>
+                        <div id="admin-grading-workspace" class="hidden pt-4 border-t border-stone-200"></div>
                     </div>
                 </section>
 
@@ -318,9 +316,8 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/wordbank.js"></script>
-    <script src="js/config.js"></script>
-    <script src="js/layout.js"></script>
-    <script src="js/admin.js?v=9"></script>
+    <script src="js/config.js?v=12"></script>
+    <script src="js/layout.js?v=12"></script>
+    <script src="js/admin.js?v=12"></script>
 </body>
 </html>
