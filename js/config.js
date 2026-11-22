@@ -319,7 +319,7 @@ window.playNaturalEnglishTTS = async function(text, btnEl = null, lockWhilePlayi
 };
 
 // ============================================================================
-// HELPER TANGGAL & JADWAL MANUAL PER PERTEMUAN (+ AUTO-LOCK MATERI)
+// HELPER TANGGAL & JADWAL MANUAL PER PERTEMUAN (+ AUTO-LOCK & BULAN LALU TERBUKA)
 // ============================================================================
 const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const shortDayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
@@ -346,6 +346,16 @@ function getSessionDateStr(email, monthId, week, day) {
     return p.sessionDates?.[`${monthId}-w${week}-d${day}`] || '';
 }
 
+function isPastMonthForStudent(profile, monthId, todayStr = getTodayStr()) {
+    const p = profile || {};
+    const maxM = parseInt(p.maxMonth || 1);
+    const mNum = parseInt(String(monthId).replace('m', '')) || 1;
+    if (mNum < maxM) return true;
+    const oldEnd = p.monthEndDates?.[monthId];
+    if (oldEnd && oldEnd < todayStr) return true;
+    return false;
+}
+
 // Menentukan apakah materi sesi terbuka untuk murid (Admin selalu terbuka)
 function getSessionAccessStatus(email, monthId, week, day, role = window.HES.userRole) {
     const dateStr = getSessionDateStr(email, monthId, week, day);
@@ -363,6 +373,18 @@ function getSessionAccessStatus(email, monthId, week, day, role = window.HES.use
     const mNum = parseInt(String(monthId).replace('m', '')) || 1;
     if (mNum > maxM) {
         return { unlocked: false, reason: 'month_locked', status: 'locked', dateStr: '', displayDate: '', shortDate: '' };
+    }
+
+    // Bulan yang sudah berlalu otomatis tetap terbuka untuk review murid
+    if (isPastMonthForStudent(p, monthId, todayStr)) {
+        return {
+            unlocked: true,
+            reason: 'past_month',
+            status: dateStr === todayStr ? 'current' : 'completed',
+            dateStr,
+            displayDate: displayDate || 'Bulan Selesai',
+            shortDate: shortDate || 'Selesai'
+        };
     }
 
     if (!dateStr) {
@@ -388,9 +410,11 @@ function getStudentCurriculumTimeline(email) {
     const timeline = { days: {}, currentPointer: null, nextPointer: null, isTodayClass: false };
     let todayMatch = null;
     let latestPast = null;
+    let latestPastMonthFallback = null;
     let nearestFuture = null;
 
     window.HES.months.forEach(m => {
+        const pastMonth = isPastMonthForStudent(p, m.id, todayStr);
         m.weeks.forEach(w => {
             [1, 2, 3].forEach(d => {
                 const key = `${m.id}-w${w}-d${d}`;
@@ -402,16 +426,18 @@ function getStudentCurriculumTimeline(email) {
                     if (dateStr === todayStr) status = 'current';
                     else if (dateStr < todayStr) status = 'completed';
                     else status = 'scheduled';
+                } else if (pastMonth) {
+                    status = 'completed';
                 }
 
                 const ptr = {
                     monthId: m.id, monthTitle: m.title, week: w, day: d,
                     sessionNum: ((w - 1) * 3) + d,
                     dateObj, dateStr,
-                    displayDate: dateObj && !isNaN(dateObj) ? getDisplayDate(dateObj) : '',
-                    shortDate: dateObj && !isNaN(dateObj) ? getShortDayDate(dateObj) : '',
+                    displayDate: (dateObj && !isNaN(dateObj)) ? getDisplayDate(dateObj) : (pastMonth ? 'Bulan Selesai' : ''),
+                    shortDate: (dateObj && !isNaN(dateObj)) ? getShortDayDate(dateObj) : (pastMonth ? 'Selesai' : ''),
                     status,
-                    unlocked: Boolean(dateStr && dateStr <= todayStr),
+                    unlocked: Boolean((dateStr && dateStr <= todayStr) || pastMonth),
                     isTodayClass: dateStr === todayStr
                 };
 
@@ -422,6 +448,8 @@ function getStudentCurriculumTimeline(email) {
                     if (!latestPast || dateStr >= latestPast.dateStr) latestPast = ptr;
                 } else if (dateStr && dateStr > todayStr) {
                     if (!nearestFuture || dateStr < nearestFuture.dateStr) nearestFuture = ptr;
+                } else if (pastMonth) {
+                    latestPastMonthFallback = ptr;
                 }
             });
         });
@@ -432,7 +460,7 @@ function getStudentCurriculumTimeline(email) {
         timeline.isTodayClass = true;
         timeline.nextPointer = nearestFuture;
     } else {
-        timeline.currentPointer = latestPast || null;
+        timeline.currentPointer = latestPast || latestPastMonthFallback || null;
         timeline.nextPointer = nearestFuture;
     }
 

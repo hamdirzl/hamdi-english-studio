@@ -94,6 +94,7 @@ window.renderAdminSessionDatesGrid = function() {
     const tomorrowStr = getOffsetDateStr(1);
     const p = window.HES.materials[`profile-${email}`] || {};
     const sDates = p.sessionDates || {};
+    const isPastMonth = isPastMonthForStudent(p, monthId, todayStr);
 
     let html = '';
     for (let i = 0; i < 12; i++) {
@@ -115,6 +116,9 @@ window.renderAdminSessionDatesGrid = function() {
         } else if (dateVal && dateVal > todayStr) {
             badge = `<span class="px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 text-[10px] font-extrabold"><i class="fas fa-clock mr-1"></i>Terjadwal (Terkunci)</span>`;
             cardCls = 'bg-sky-50/35 border-sky-200';
+        } else if (isPastMonth) {
+            badge = `<span class="px-2 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[10px] font-extrabold"><i class="fas fa-check-circle mr-1"></i>Terbuka (Bulan Lalu)</span>`;
+            cardCls = 'bg-teal-50/40 border-teal-200';
         }
 
         html += `
@@ -944,7 +948,6 @@ window.executeSelectiveExamReset = async function(email, monthId, targetSection 
 
     await safeSaveMaterialsToCloud(materials => {
         if (targetSection === 'all') {
-            // Simpan listeningResetEpoch baru agar kuota anti-curang di localStorage murid ikut ter-reset bersih
             materials[rKey] = {
                 status: 'partial', answers: {}, scores: {}, sectionScores: {}, transcripts: {},
                 submittedTabs: [], audioPlayCounts: {}, isGraded: false, listeningResetEpoch: Date.now()
